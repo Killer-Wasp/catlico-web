@@ -1,0 +1,123 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-lg);
+  height: 64px;
+  /* Same horizontal padding as the page content so the bar lines up. */
+  padding: 0 var(--mantine-spacing-xl);
+  background-color: var(--mantine-color-body);
+  border-bottom: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+}
+
+/* Search */
+.search {
+  flex: 1;
+  max-width: 620px;
+}
+
+.search input {
+  background-color: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-6)
+  );
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+  color: var(--mantine-color-dimmed);
+  background-color: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-7)
+  );
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-sm);
+}
+
+/* Right-hand cluster */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-md);
+  margin-left: auto;
+}
+
+.notificationItem {
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+
+  &:hover {
+    background-color: light-dark(
+      var(--mantine-color-gray-0),
+      var(--mantine-color-dark-6)
+    );
+    box-shadow: inset 3px 0 0 var(--mantine-color-orange-5);
+  }
+}
+
+/* Org selector */
+.org {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+
+  &:hover {
+    background-color: light-dark(
+      var(--mantine-color-gray-0),
+      var(--mantine-color-dark-6)
+    );
+  }
+}
+
+.orgLabel {
+  font-size: var(--mantine-font-size-sm);
+  color: var(--mantine-color-dimmed);
+}
+
+.orgValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.orgChevron {
+  color: var(--mantine-color-dimmed);
+}
+
+/* Sync status */
+.sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.syncDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--mantine-color-teal-6);
+  box-shadow: 0 0 0 3px
+    light-dark(var(--mantine-color-teal-1), rgba(18, 184, 134, 0.18));
+}
+
+/* Hide the wordier bits on small screens */
+@media (max-width: 62em) {
+  .sync,
+  .orgLabel {
+    display: none;
+  }
+}

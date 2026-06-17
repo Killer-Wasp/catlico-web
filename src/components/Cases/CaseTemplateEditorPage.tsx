@@ -1,0 +1,748 @@
+import classes from '#/components/Cases/CasesPage.module.css'
+import type {
+  CaseTemplate,
+  CaseTemplateCustomField,
+  CaseTemplateTask,
+  CustomFieldType,
+  Pap,
+} from '#/components/Cases/caseTemplatesData'
+import {
+  caseTemplatesList,
+  getCaseTemplate,
+  severityTemplateLabel,
+  trafficTemplateLabel,
+} from '#/components/Cases/caseTemplatesData'
+import type { Severity, Tlp } from '#/components/Cases/casesData'
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Button,
+  Group,
+  Paper,
+  Select,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+  Textarea,
+  Title,
+} from '@mantine/core'
+import { notifications } from '@mantine/notifications'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { ArrowDown, ArrowUp, Flag, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
+
+type DraftTask = CaseTemplateTask & {
+  dueAmount: string
+  dueUnit: 'hours' | 'days'
+}
+
+type DraftTemplate = Omit<CaseTemplate, 'tasks'> & {
+  tasks: DraftTask[]
+}
+
+const severityOptions = [
+  { value: '1', label: 'LOW' },
+  { value: '2', label: 'MEDIUM' },
+  { value: '3', label: 'HIGH' },
+  { value: '4', label: 'CRITICAL' },
+]
+
+const trafficOptions = [
+  { value: '0', label: 'WHITE' },
+  { value: '1', label: 'GREEN' },
+  { value: '2', label: 'AMBER' },
+  { value: '3', label: 'RED' },
+]
+
+const assigneeOptions = [
+  { value: '', label: 'Unassigned' },
+  { value: 'J. Tanaka', label: 'J. Tanaka' },
+  { value: 'P. Nguyen', label: 'P. Nguyen' },
+  { value: 'A. Whitford', label: 'A. Whitford' },
+  { value: 'S. Iyer', label: 'S. Iyer' },
+]
+
+const customFieldTypes: CustomFieldType[] = [
+  'string',
+  'integer',
+  'float',
+  'boolean',
+  'date',
+]
+
+function toSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 40)
+}
+
+function dueFromHours(hours: number) {
+  if (hours >= 24 && hours % 24 === 0) {
+    return { dueAmount: String(hours / 24), dueUnit: 'days' as const }
+  }
+
+  return { dueAmount: String(hours), dueUnit: 'hours' as const }
+}
+
+function hoursFromDue(amount: string, unit: DraftTask['dueUnit']) {
+  const parsed = Number(amount)
+  if (!Number.isFinite(parsed) || parsed < 0) return 0
+  return unit === 'days' ? Math.round(parsed * 24) : Math.round(parsed)
+}
+
+function toDraft(template: CaseTemplate): DraftTemplate {
+  return {
+    ...template,
+    tags: [...template.tags],
+    tasks: template.tasks.map((task) => ({
+      ...task,
+      ...dueFromHours(task.dueInHours),
+    })),
+    customFields: template.customFields.map((field) => ({ ...field })),
+  }
+}
+
+function newDraft(): DraftTemplate {
+  return {
+    id: '',
+    name: '',
+    builtin: false,
+    updated: 'just now',
+    description: '',
+    prefix: '',
+    assignee: '',
+    sev: 2,
+    tlp: 2,
+    pap: 2,
+    tags: [],
+    tasks: [],
+    customFields: [],
+  }
+}
+
+function Panel({
+  title,
+  badge,
+  action,
+  children,
+}: {
+  title: string
+  badge?: string | number
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <Paper withBorder radius="md" shadow="sm" bg="body" style={{ overflow: 'hidden' }}>
+      <Group
+        justify="space-between"
+        px="lg"
+        py="md"
+        style={{ borderBottom: '1px solid var(--line-soft)' }}
+      >
+        <Group gap="sm">
+          <Title order={2} size="h4">
+            {title}
+          </Title>
+          {badge !== undefined ? (
+            <Badge variant="default" color="gray" radius="xl" ff="monospace">
+              {badge}
+            </Badge>
+          ) : null}
+        </Group>
+        {action}
+      </Group>
+      {children}
+    </Paper>
+  )
+}
+
+function updateTask(
+  tasks: DraftTask[],
+  index: number,
+  patch: Partial<DraftTask>,
+) {
+  return tasks.map((task, taskIndex) =>
+    taskIndex === index ? { ...task, ...patch } : task,
+  )
+}
+
+function moveTask(tasks: DraftTask[], index: number, direction: -1 | 1) {
+  const next = [...tasks]
+  const target = index + direction
+  if (target < 0 || target >= next.length) return next
+  ;[next[index], next[target]] = [next[target], next[index]]
+  return next
+}
+
+function TaskEditor({
+  task,
+  index,
+  onUpdate,
+  onRemove,
+  onMove,
+}: {
+  task: DraftTask
+  index: number
+  onUpdate: (patch: Partial<DraftTask>) => void
+  onRemove: () => void
+  onMove: (direction: -1 | 1) => void
+}) {
+  return (
+    <Paper p="md" radius="md" bg="gray.0" withBorder>
+      <Stack gap="sm">
+        <Group gap="sm" align="center" wrap="nowrap">
+          <Text ff="monospace" c="dimmed" w={24} ta="right">
+            {index + 1}
+          </Text>
+          <TextInput
+            value={task.title}
+            onChange={(event) => onUpdate({ title: event.currentTarget.value })}
+            placeholder="Task title"
+            aria-label={`Task ${index + 1} title`}
+            style={{ flex: 1 }}
+          />
+          <TextInput
+            value={task.group}
+            onChange={(event) => onUpdate({ group: event.currentTarget.value })}
+            placeholder="Group"
+            aria-label={`Task ${index + 1} group`}
+            w={180}
+          />
+          <ActionIcon
+            variant={task.flagged ? 'filled' : 'default'}
+            color={task.flagged ? 'orange' : 'gray'}
+            aria-label={`Flag task ${index + 1}`}
+            onClick={() => onUpdate({ flagged: !task.flagged })}
+          >
+            <Flag size={15} />
+          </ActionIcon>
+          <ActionIcon
+            variant="default"
+            aria-label={`Move task ${index + 1} up`}
+            onClick={() => onMove(-1)}
+          >
+            <ArrowUp size={15} />
+          </ActionIcon>
+          <ActionIcon
+            variant="default"
+            aria-label={`Move task ${index + 1} down`}
+            onClick={() => onMove(1)}
+          >
+            <ArrowDown size={15} />
+          </ActionIcon>
+          <ActionIcon
+            variant="default"
+            color="red"
+            aria-label={`Remove task ${index + 1}`}
+            onClick={onRemove}
+          >
+            <X size={15} />
+          </ActionIcon>
+        </Group>
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          <Textarea
+            label="Description"
+            value={task.description}
+            minRows={2}
+            onChange={(event) =>
+              onUpdate({ description: event.currentTarget.value })
+            }
+          />
+          <Box>
+            <Text ff="monospace" fz={10} c="dimmed" tt="uppercase" mb={4}>
+              Due in
+            </Text>
+            <Group gap={6} wrap="nowrap">
+              <TextInput
+                type="number"
+                min={0}
+                value={task.dueAmount}
+                onChange={(event) =>
+                  onUpdate({ dueAmount: event.currentTarget.value })
+                }
+                aria-label={`Task ${index + 1} due amount`}
+              />
+              <Select
+                data={['hours', 'days']}
+                value={task.dueUnit}
+                onChange={(value) =>
+                  onUpdate({ dueUnit: value ?? 'hours' })
+                }
+                aria-label={`Task ${index + 1} due unit`}
+                w={96}
+              />
+            </Group>
+          </Box>
+        </SimpleGrid>
+      </Stack>
+    </Paper>
+  )
+}
+
+function CustomFieldEditor({
+  field,
+  index,
+  onUpdate,
+  onRemove,
+}: {
+  field: CaseTemplateCustomField
+  index: number
+  onUpdate: (patch: Partial<CaseTemplateCustomField>) => void
+  onRemove: () => void
+}) {
+  return (
+    <SimpleGrid cols={{ base: 1, md: 4 }} spacing="sm" verticalSpacing="sm">
+      <TextInput
+        value={field.label}
+        placeholder="Label"
+        aria-label={`Custom field ${index + 1} label`}
+        onChange={(event) => {
+          const label = event.currentTarget.value
+          onUpdate({
+            label,
+            key: label
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '_')
+              .replace(/(^_|_$)/g, ''),
+          })
+        }}
+      />
+      <Select
+        data={customFieldTypes}
+        value={field.type}
+        aria-label={`Custom field ${index + 1} type`}
+        onChange={(value) => onUpdate({ type: value ?? 'string' })}
+      />
+      <TextInput
+        value={field.defaultValue}
+        placeholder="Default value"
+        aria-label={`Custom field ${index + 1} default value`}
+        onChange={(event) => onUpdate({ defaultValue: event.currentTarget.value })}
+      />
+      <ActionIcon
+        variant="default"
+        color="red"
+        aria-label={`Remove custom field ${index + 1}`}
+        onClick={onRemove}
+      >
+        <X size={15} />
+      </ActionIcon>
+    </SimpleGrid>
+  )
+}
+
+function tagsToText(tags: string[]) {
+  return tags.join(', ')
+}
+
+function textToTags(value: string) {
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+}
+
+function toSavedTemplate(draft: DraftTemplate): CaseTemplate {
+  return {
+    ...draft,
+    id: toSlug(draft.id) || `tpl-${Date.now().toString(36)}`,
+    name: draft.name.trim(),
+    description: draft.description.trim(),
+    prefix: draft.prefix,
+    assignee: draft.assignee,
+    updated: 'just now',
+    tasks: draft.tasks
+      .filter((task) => task.title.trim())
+      .map(({ dueAmount, dueUnit, ...task }) => ({
+        ...task,
+        title: task.title.trim(),
+        group: task.group.trim() || 'default',
+        description: task.description.trim(),
+        dueInHours: hoursFromDue(dueAmount, dueUnit),
+      })),
+    customFields: draft.customFields
+      .filter((field) => field.label.trim())
+      .map((field) => ({
+        ...field,
+        label: field.label.trim(),
+        key:
+          field.key ||
+          field.label
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/(^_|_$)/g, ''),
+      })),
+  }
+}
+
+export function CaseTemplateEditorPage({
+  templateId,
+}: {
+  templateId: string
+}) {
+  const sourceTemplate = useMemo(() => getCaseTemplate(templateId), [templateId])
+  const [draft, setDraft] = useState<DraftTemplate>(() =>
+    sourceTemplate ? toDraft(sourceTemplate) : newDraft(),
+  )
+  const navigate = useNavigate()
+
+  const isNew = !sourceTemplate
+  const title = isNew ? 'New template' : 'Edit template'
+  const stamp = isNew
+    ? 'create a reusable case skeleton'
+    : draft.builtin
+      ? 'built-in template · changes save as an org override'
+      : 'custom template'
+
+  const saveTemplate = () => {
+    if (!draft.name.trim()) {
+      notifications.show({ color: 'red', message: 'Display name is required' })
+      return
+    }
+
+    const saved = toSavedTemplate(draft)
+    const existingIndex = caseTemplatesList.findIndex(
+      (template) => template.id === sourceTemplate?.id,
+    )
+    if (existingIndex >= 0) {
+      caseTemplatesList[existingIndex] = saved
+    } else {
+      caseTemplatesList.push(saved)
+    }
+
+    notifications.show({ color: 'green', message: 'Template saved' })
+    void navigate({ to: '/case-templates' })
+  }
+
+  const exportJson = () => {
+    const payload = toSavedTemplate(draft)
+    void navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
+    notifications.show({ message: 'Template JSON copied' })
+  }
+
+  return (
+    <Box className={classes.page} maw={1080} mx="auto">
+      <Group gap={8} mb="md">
+        <Button
+          component={Link}
+          to="/case-templates"
+          variant="transparent"
+          color="gray"
+          p={0}
+          h="auto"
+        >
+          ← Case templates
+        </Button>
+        <Text c="dimmed">/</Text>
+        <Text ff="monospace" fz="xs" c="dimmed">
+          {draft.name || 'New'}
+        </Text>
+      </Group>
+
+      <Group align="center" justify="space-between" mb="lg" wrap="nowrap">
+        <Group gap="md" align="baseline">
+          <Title order={1}>{title}</Title>
+          <Text ff="monospace" fz="xs" c="dimmed">
+            {stamp}
+          </Text>
+        </Group>
+        <Group gap="sm" wrap="nowrap">
+          <Button component={Link} to="/case-templates" variant="default">
+            Cancel
+          </Button>
+          <Button variant="default" onClick={exportJson}>
+            Export JSON
+          </Button>
+          <Button color="orange" onClick={saveTemplate}>
+            Save template
+          </Button>
+        </Group>
+      </Group>
+
+      <Stack gap="md">
+        <Panel title="Basics">
+          <Stack p="lg">
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <TextInput
+                label="Display name"
+                required
+                value={draft.name}
+                onChange={(event) => {
+                  const name = event.currentTarget.value
+                  setDraft((current) => ({
+                    ...current,
+                    name,
+                    id: current.id || toSlug(name),
+                  }))
+                }}
+              />
+              <TextInput
+                label="Slug / id"
+                value={draft.id}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    id: toSlug(event.currentTarget.value),
+                  }))
+                }
+                description="used in alert imports and API calls"
+              />
+            </SimpleGrid>
+            <Textarea
+              label="Description"
+              value={draft.description}
+              minRows={3}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  description: event.currentTarget.value,
+                }))
+              }
+            />
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <TextInput
+                label="Case title prefix"
+                value={draft.prefix}
+                placeholder="[Phishing]"
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    prefix: event.currentTarget.value,
+                  }))
+                }
+                description="prepended to case title on creation"
+              />
+              <Select
+                label="Default assignee"
+                data={assigneeOptions}
+                value={draft.assignee}
+                onChange={(value) =>
+                  setDraft((current) => ({ ...current, assignee: value ?? '' }))
+                }
+              />
+            </SimpleGrid>
+          </Stack>
+        </Panel>
+
+        <Panel title="Defaults" badge="applied to new cases">
+          <Stack p="lg">
+            <SimpleGrid cols={{ base: 1, md: 3 }}>
+              <Box>
+                <Text fw={600} size="sm" mb={6}>
+                  Severity
+                </Text>
+                <SegmentedControl
+                  data={severityOptions}
+                  value={String(draft.sev)}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      sev: Number(value) as Severity,
+                    }))
+                  }
+                />
+                <Text c="dimmed" size="xs" mt={4}>
+                  {severityTemplateLabel(draft.sev)}
+                </Text>
+              </Box>
+              <Box>
+                <Text fw={600} size="sm" mb={6}>
+                  TLP
+                </Text>
+                <SegmentedControl
+                  data={trafficOptions}
+                  value={String(draft.tlp)}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      tlp: Number(value) as Tlp,
+                    }))
+                  }
+                />
+                <Text c="dimmed" size="xs" mt={4}>
+                  TLP:{trafficTemplateLabel(draft.tlp)}
+                </Text>
+              </Box>
+              <Box>
+                <Text fw={600} size="sm" mb={6}>
+                  PAP
+                </Text>
+                <SegmentedControl
+                  data={trafficOptions}
+                  value={String(draft.pap)}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      pap: Number(value) as Pap,
+                    }))
+                  }
+                />
+                <Text c="dimmed" size="xs" mt={4}>
+                  PAP:{trafficTemplateLabel(draft.pap)}
+                </Text>
+              </Box>
+            </SimpleGrid>
+            <TextInput
+              label="Default tags"
+              value={tagsToText(draft.tags)}
+              placeholder="type a tag and press Enter... (MITRE T-codes auto-style)"
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  tags: textToTags(event.currentTarget.value),
+                }))
+              }
+            />
+          </Stack>
+        </Panel>
+
+        <Panel
+          title="Tasks"
+          badge={draft.tasks.length}
+          action={
+            <Button
+              variant="default"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  tasks: [
+                    ...current.tasks,
+                    {
+                      title: 'New template task',
+                      group: 'Triage',
+                      description: '',
+                      assignee: '',
+                      dueInHours: 1,
+                      flagged: false,
+                      dueAmount: '1',
+                      dueUnit: 'hours',
+                    },
+                  ],
+                }))
+              }
+            >
+              + Add task
+            </Button>
+          }
+        >
+          <Stack p="lg">
+            {draft.tasks.length ? (
+              draft.tasks.map((task, index) => (
+                <TaskEditor
+                  key={`${index}-${task.title}`}
+                  task={task}
+                  index={index}
+                  onUpdate={(patch) =>
+                    setDraft((current) => ({
+                      ...current,
+                      tasks: updateTask(current.tasks, index, patch),
+                    }))
+                  }
+                  onRemove={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      tasks: current.tasks.filter((_, taskIndex) => taskIndex !== index),
+                    }))
+                  }
+                  onMove={(direction) =>
+                    setDraft((current) => ({
+                      ...current,
+                      tasks: moveTask(current.tasks, index, direction),
+                    }))
+                  }
+                />
+              ))
+            ) : (
+              <Paper withBorder radius="md" p="xl" ta="center">
+                <Text c="dimmed">
+                  No tasks yet. Click + Add task to define the playbook steps.
+                </Text>
+              </Paper>
+            )}
+          </Stack>
+        </Panel>
+
+        <Panel
+          title="Custom fields"
+          badge={draft.customFields.length}
+          action={
+            <Button
+              variant="default"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  customFields: [
+                    ...current.customFields,
+                    {
+                      key: '',
+                      label: '',
+                      type: 'string',
+                      defaultValue: '',
+                    },
+                  ],
+                }))
+              }
+            >
+              + Add field
+            </Button>
+          }
+        >
+          <Stack p="lg">
+            {draft.customFields.length ? (
+              draft.customFields.map((field, index) => (
+                <CustomFieldEditor
+                  key={`${index}-${field.key}`}
+                  field={field}
+                  index={index}
+                  onUpdate={(patch) =>
+                    setDraft((current) => ({
+                      ...current,
+                      customFields: current.customFields.map((item, itemIndex) =>
+                        itemIndex === index ? { ...item, ...patch } : item,
+                      ),
+                    }))
+                  }
+                  onRemove={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      customFields: current.customFields.filter(
+                        (_, itemIndex) => itemIndex !== index,
+                      ),
+                    }))
+                  }
+                />
+              ))
+            ) : (
+              <Paper withBorder radius="md" p="xl" ta="center">
+                <Text c="dimmed">
+                  No custom fields. Add typed metadata (e.g. Affected users,
+                  Campaign ID) that analysts fill on the case.
+                </Text>
+              </Paper>
+            )}
+          </Stack>
+        </Panel>
+
+        <Group justify="space-between" mt="sm">
+          <Button variant="default" color="red" disabled={draft.builtin || isNew}>
+            Delete template
+          </Button>
+          <Group gap="sm">
+            <Button component={Link} to="/case-templates" variant="default">
+              Cancel
+            </Button>
+            <Button color="orange" onClick={saveTemplate}>
+              Save template
+            </Button>
+          </Group>
+        </Group>
+      </Stack>
+    </Box>
+  )
+}

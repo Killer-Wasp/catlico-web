@@ -1,0 +1,207 @@
+export type ConnectorKind = 'analyzer' | 'responder'
+export type ConnectorTab = 'all' | 'analyzers' | 'responders' | 'disabled'
+export type TlpLevel = 'GREEN' | 'AMBER' | 'RED'
+
+export type Connector = {
+  id: string
+  name: string
+  initials: string
+  version: string
+  kind: ConnectorKind
+  description: string
+  observables: string[]
+  tlp: TlpLevel
+  runs24h: number
+  latency: string
+  enabled: boolean
+  color: string
+}
+
+export const initialConnectors: Connector[] = [
+  {
+    id: 'virustotal',
+    name: 'VirusTotal',
+    initials: 'VT',
+    version: 'v3.1',
+    kind: 'analyzer',
+    description:
+      "Reputation lookups for hashes, domains, URLs and IPs against VT's corpus.",
+    observables: ['hash', 'domain', 'url', 'ip'],
+    tlp: 'AMBER',
+    runs24h: 1240,
+    latency: '2.1s',
+    enabled: true,
+    color: 'blue',
+  },
+  {
+    id: 'abuseipdb',
+    name: 'AbuseIPDB',
+    initials: 'AB',
+    version: 'v1.0',
+    kind: 'analyzer',
+    description:
+      'IP reputation and abuse confidence score from community reports.',
+    observables: ['ip'],
+    tlp: 'AMBER',
+    runs24h: 980,
+    latency: '0.8s',
+    enabled: true,
+    color: 'orange',
+  },
+  {
+    id: 'urlscan',
+    name: 'URLscan.io',
+    initials: 'US',
+    version: 'v0.4',
+    kind: 'analyzer',
+    description:
+      'Sandboxed page render, DOM, redirects and screenshot for suspicious URLs.',
+    observables: ['url', 'domain'],
+    tlp: 'GREEN',
+    runs24h: 411,
+    latency: '14s',
+    enabled: true,
+    color: 'green',
+  },
+  {
+    id: 'shodan',
+    name: 'Shodan',
+    initials: 'SH',
+    version: 'v1.2',
+    kind: 'analyzer',
+    description:
+      'Exposure data: open ports, banners and known services on a host.',
+    observables: ['ip', 'domain'],
+    tlp: 'AMBER',
+    runs24h: 188,
+    latency: '1.4s',
+    enabled: true,
+    color: 'violet',
+  },
+  {
+    id: 'misp-search',
+    name: 'MISP Search',
+    initials: 'MI',
+    version: 'v2.1',
+    kind: 'analyzer',
+    description: 'Searches connected MISP instances for sightings of an observable.',
+    observables: ['ip', 'domain', 'hash', 'url', 'mail'],
+    tlp: 'RED',
+    runs24h: 1730,
+    latency: '0.5s',
+    enabled: true,
+    color: 'yellow',
+  },
+  {
+    id: 'emailrep',
+    name: 'EmailRep',
+    initials: 'ER',
+    version: 'v1.0',
+    kind: 'analyzer',
+    description: 'Reputation and risk signals for sender email addresses.',
+    observables: ['mail'],
+    tlp: 'GREEN',
+    runs24h: 0,
+    latency: '-',
+    enabled: false,
+    color: 'gray',
+  },
+  {
+    id: 'hybrid-analysis',
+    name: 'Hybrid Analysis',
+    initials: 'HA',
+    version: 'v1.0',
+    kind: 'analyzer',
+    description:
+      'Detonates files and hashes in a sandbox and returns behavioural verdicts.',
+    observables: ['hash', 'file'],
+    tlp: 'AMBER',
+    runs24h: 96,
+    latency: '45s',
+    enabled: true,
+    color: 'red',
+  },
+  {
+    id: 'maxmind',
+    name: 'MaxMind GeoIP',
+    initials: 'GE',
+    version: 'v4.0',
+    kind: 'analyzer',
+    description: 'Geolocation and ASN enrichment for IP observables.',
+    observables: ['ip'],
+    tlp: 'RED',
+    runs24h: 2210,
+    latency: '0.1s',
+    enabled: true,
+    color: 'blue',
+  },
+  {
+    id: 'crowdstrike-isolate',
+    name: 'CrowdStrike RTR - Isolate host',
+    initials: 'CS',
+    version: 'v1.3',
+    kind: 'responder',
+    description: 'Network-contains an endpoint via Real Time Response.',
+    observables: ['host'],
+    tlp: 'RED',
+    runs24h: 12,
+    latency: '6s',
+    enabled: true,
+    color: 'red',
+  },
+  {
+    id: 'entra-revoke',
+    name: 'Entra ID - Revoke sessions',
+    initials: 'EN',
+    version: 'v1.1',
+    kind: 'responder',
+    description:
+      'Revokes refresh tokens and active sessions for a user account.',
+    observables: ['account'],
+    tlp: 'RED',
+    runs24h: 31,
+    latency: '3s',
+    enabled: true,
+    color: 'blue',
+  },
+  {
+    id: 'proofpoint-block',
+    name: 'Proofpoint - Block sender',
+    initials: 'PP',
+    version: 'v1.0',
+    kind: 'responder',
+    description: 'Adds sender or domain to the organisational block list.',
+    observables: ['mail', 'domain'],
+    tlp: 'RED',
+    runs24h: 44,
+    latency: '2s',
+    enabled: true,
+    color: 'yellow',
+  },
+  {
+    id: 'misp-export',
+    name: 'MISP - Export event',
+    initials: 'MI',
+    version: 'v2.0',
+    kind: 'responder',
+    description: 'Pushes case observables to MISP as a new or updated event.',
+    observables: ['case'],
+    tlp: 'RED',
+    runs24h: 57,
+    latency: '1s',
+    enabled: true,
+    color: 'violet',
+  },
+]
+
+export function filterConnectorsByTab(
+  connectors: Connector[],
+  tab: ConnectorTab,
+) {
+  if (tab === 'disabled') return connectors.filter((item) => !item.enabled)
+  if (tab === 'analyzers')
+    return connectors.filter((item) => item.kind === 'analyzer')
+  if (tab === 'responders')
+    return connectors.filter((item) => item.kind === 'responder')
+  return connectors
+}

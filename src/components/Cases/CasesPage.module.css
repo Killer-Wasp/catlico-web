@@ -1,0 +1,64 @@
+/* Cases + Alerts list pages. Semantic SOC colours are scoped here
+   (light/dark pairs) so severity, TLP, MITRE and status read correctly
+   regardless of the global calico theme. Values mirror docs/webdesign.html.
+   Everything else on these pages is expressed with Mantine props; this
+   block exists only to provide the `--sev-*` / `--line-soft` vars those
+   props (and the shared Severity / Tag components) reference. */
+.page {
+  padding: var(--mantine-spacing-lg) var(--mantine-spacing-xl);
+  --sev-critical: light-dark(#c42222, #ff5d54);
+  --sev-high: light-dark(#c2440c, #ff8e57);
+  --sev-medium: light-dark(#9f6b00, #ffc24a);
+  --sev-low: light-dark(#1264c8, #6fb1ff);
+  --tlp-red: light-dark(#c42222, #ff5d54);
+  --tlp-amber: light-dark(#9f6b00, #ffc24a);
+  --tlp-green: light-dark(#3f7e08, #9fd64e);
+  --tlp-white: light-dark(#42536b, #edeff3);
+  --ok: light-dark(#3f7e08, #9fd64e);
+  --mitre: light-dark(#5b45e0, #b7a9ff);
+  --muted: light-dark(#5c6470, #8c95a3);
+  --faint: var(--mantine-color-dimmed);
+  --desc: light-dark(#33414f, #c3cad5);
+  --line-soft: light-dark(
+    var(--mantine-color-gray-2),
+    var(--mantine-color-dark-5)
+  );
+}
+
+.knowledgeLayout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.settingsLayout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  max-width: 1320px;
+}
+
+.caseDetailLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 20px;
+  align-items: start;
+}
+
+.functionEditLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .knowledgeLayout,
+  .settingsLayout,
+  .caseDetailLayout,
+  .functionEditLayout {
+    grid-template-columns: 1fr;
+  }
+}
