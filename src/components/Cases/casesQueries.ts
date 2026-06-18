@@ -6,7 +6,7 @@
  *   2. fetchers + DTO mapping (`fetchCases`, `toCase`)
  *   3. `queryOptions` units (`casesQueryOptions`, `caseQueryOptions`)
  */
-import { queryOptions } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
 import type { CaseStatus, Severity, Tlp } from '#/lib/domain'
 import type {
@@ -20,12 +20,49 @@ import { toCaseDetail } from './caseDetails'
 import type { CaseDetail } from './caseDetails.types'
 import type { Case } from './cases.types'
 
+/** Column the list is sorted by, server-side. */
+export type CaseSort = 'id' | 'created' | 'updated'
+
+/**
+ * The complete query the cases list sends to the backend: filters (every field
+ * is OR-within / AND-across), the sort, and the page window. Empty/omitted
+ * fields impose no constraint. This is the single source of truth for both the
+ * query key and the request, so two calls with the same filters share a cache
+ * entry.
+ */
 export type CaseListFilters = {
   /** Backend `status_filter` (Open | Resolved | Duplicated). */
-  status?: string
+  status?: string[]
   /** Backend `severity` (1–4). */
-  severity?: number
+  severity?: number[]
+  /** Assignee emails, plus the literal `Unassigned` for unassigned cases. */
+  assignee?: string[]
+  /** Tag strings; a case matches if it carries any. */
+  tag?: string[]
+  /** Case-insensitive title substrings. */
+  title?: string[]
+  /** Case-number substrings (the leading `#` is tolerated). */
+  case?: string[]
+  sort?: CaseSort
+  order?: 'asc' | 'desc'
+  skip?: number
+  limit?: number
 }
+
+/**
+ * Initial query for the list view — newest first, first page of 10. Shared by
+ * the route loader's prefetch and the page's initial state so the first paint
+ * reads a warm cache (same filters ⇒ same query key).
+ */
+export const DEFAULT_CASE_FILTERS: CaseListFilters = {
+  sort: 'id',
+  order: 'desc',
+  skip: 0,
+  limit: 10,
+}
+
+/** A page of mapped cases plus the server's total (for pagination). */
+export type CasesResult = { cases: Case[]; total: number }
 
 /**
  * Hierarchical query-key factory. Always derive keys here — never hand-write
@@ -97,14 +134,35 @@ function toCase(c: CasePublic): Case {
 
 // --- fetchers --------------------------------------------------------------
 
-async function fetchCases(filters: CaseListFilters): Promise<Case[]> {
+// Append each value of a multi-value filter as a repeated query param
+// (`?tag=a&tag=b`), matching FastAPI's `list[...]` query parsing.
+function appendAll(params: URLSearchParams, key: string, values?: string[]) {
+  for (const v of values ?? []) params.append(key, v)
+}
+
+async function fetchCases(filters: CaseListFilters): Promise<CasesResult> {
   const params = new URLSearchParams()
-  if (filters.status) params.set('status_filter', filters.status)
-  if (filters.severity) params.set('severity', String(filters.severity))
+  appendAll(params, 'status_filter', filters.status)
+  appendAll(params, 'severity', filters.severity?.map(String))
+  appendAll(params, 'assignee', filters.assignee)
+  appendAll(params, 'tag', filters.tag)
+  appendAll(params, 'title', filters.title)
+  appendAll(params, 'case_q', filters.case)
+  if (filters.sort) params.set('sort', filters.sort)
+  if (filters.order) params.set('order', filters.order)
+  if (filters.skip != null) params.set('skip', String(filters.skip))
+  if (filters.limit != null) params.set('limit', String(filters.limit))
   const page = await api
     .get('cases/', { searchParams: params })
     .json<Page<CasePublic>>()
-  return page.items.map(toCase)
+  return { cases: page.items.map(toCase), total: page.total }
+}
+
+/** Distinct assignee/tag values across the org's cases, for the filter dropdowns. */
+export type CaseFacets = { assignees: string[]; unassigned: boolean; tags: string[] }
+
+async function fetchCaseFacets(): Promise<CaseFacets> {
+  return api.get('cases/filters').json<CaseFacets>()
 }
 
 async function fetchCase(id: string): Promise<Case> {
@@ -134,10 +192,21 @@ export async function fetchCaseDetail(id: string): Promise<CaseDetail> {
 
 // --- query options ---------------------------------------------------------
 
-export const casesQueryOptions = (filters: CaseListFilters = {}) =>
+export const casesQueryOptions = (
+  filters: CaseListFilters = DEFAULT_CASE_FILTERS,
+) =>
   queryOptions({
     queryKey: caseKeys.list(filters),
     queryFn: () => fetchCases(filters),
+    // Keep the prior page on screen while the next filter/page request is in
+    // flight, so the table doesn't flash empty on every change.
+    placeholderData: keepPreviousData,
+  })
+
+export const caseFacetsQueryOptions = () =>
+  queryOptions({
+    queryKey: [...caseKeys.all, 'facets'] as const,
+    queryFn: fetchCaseFacets,
   })
 
 export const caseQueryOptions = (id: string) =>

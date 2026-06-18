@@ -1,11 +1,17 @@
 import { CasesPage } from '#/components/pages/CasesPage'
-import { casesQueryOptions } from '#/components/Cases/casesQueries'
+import {
+  caseFacetsQueryOptions,
+  casesQueryOptions,
+} from '#/components/Cases/casesQueries'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_app/cases/')({
   // Prefetch into the shared QueryClient cache; the page reads the same
-  // queryOptions via useSuspenseQuery, so it hits a warm cache.
+  // queryOptions (default filters) and facets, so it hits a warm cache.
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData(casesQueryOptions()),
+    Promise.all([
+      context.queryClient.ensureQueryData(casesQueryOptions()),
+      context.queryClient.ensureQueryData(caseFacetsQueryOptions()),
+    ]),
   component: CasesPage,
 })

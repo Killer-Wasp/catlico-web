@@ -2,7 +2,11 @@ import { getCaseRouteId } from '#/components/Cases/caseDetails'
 import type { CaseStatus } from '#/lib/domain'
 import type { Case } from '#/components/Cases/cases.types'
 import { avatarFor } from '#/components/Cases/cases'
-import { casesQueryOptions } from '#/components/Cases/casesQueries'
+import {
+  caseFacetsQueryOptions,
+  casesQueryOptions,
+} from '#/components/Cases/casesQueries'
+import type { CaseListFilters, CaseSort } from '#/components/Cases/casesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Severity } from '#/components/Severity/Severity'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
@@ -25,23 +29,18 @@ import {
   Text,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import type {
   ColumnDef,
+  ColumnFiltersState,
   FilterFn,
+  OnChangeFn,
   RowData,
   SortingFn,
   SortingState,
 } from '@tanstack/react-table'
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
+import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import {
   ChevronDown,
   ChevronUp,
@@ -66,6 +65,15 @@ const SEV_OPTIONS = [
   { value: '2', label: 'Medium' },
   { value: '1', label: 'Low' },
 ]
+
+// Table column id → the backend sort key it maps to. Only these columns are
+// sortable server-side; the table's own filterFn/sortingFn are bypassed under
+// the manual* flags below.
+const SORT_FIELD: Record<string, CaseSort> = {
+  id: 'id',
+  created: 'created',
+  updated: 'updated',
+}
 
 // Mono, uppercase, dimmed inline field labels (status / severity / rows …).
 const filterLblProps = {
@@ -154,14 +162,57 @@ function AssigneeAvatar({ name }: { name: string }) {
 
 export function CasesPage() {
   const navigate = useNavigate()
-  const { data: cases } = useSuspenseQuery(casesQueryOptions())
 
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
-  const [pageSize, setPageSize] = useState(10)
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: 'id', desc: false },
-  ])
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'id', desc: true }])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+  const pageSize = pagination.pageSize
+
+  // Column filters + sort + page window → the backend query. Only fields that
+  // carry a value are set, so the unfiltered first page deep-equals
+  // DEFAULT_CASE_FILTERS and reads the route loader's warm cache.
+  const filters = useMemo<CaseListFilters>(() => {
+    const colVal = (id: string) =>
+      columnFilters.find((f) => f.id === id)?.value as string[] | undefined
+    const sort = sorting.at(0)
+    const out: CaseListFilters = {
+      sort: sort ? (SORT_FIELD[sort.id] ?? 'id') : 'id',
+      order: sort ? (sort.desc ? 'desc' : 'asc') : 'desc',
+      skip: pagination.pageIndex * pagination.pageSize,
+      limit: pagination.pageSize,
+    }
+    const status = colVal('status')
+    if (status?.length) out.status = status
+    const severity = colVal('id')
+    if (severity?.length) out.severity = severity.map(Number)
+    const assignee = colVal('assignee')
+    if (assignee?.length) out.assignee = assignee
+    const tag = colVal('tags')
+    if (tag?.length) out.tag = tag
+    const title = colVal('title')
+    if (title?.length) out.title = title
+    const caseNo = colVal('caseNo')
+    if (caseNo?.length) out.case = caseNo
+    return out
+  }, [columnFilters, sorting, pagination])
+
+  const { data, isFetching } = useQuery(casesQueryOptions(filters))
+  const cases = data?.cases ?? []
+  const total = data?.total ?? 0
+  const { data: facets } = useQuery(caseFacetsQueryOptions())
+
+  // Filters or sort changing can invalidate the current page index, so snap
+  // back to the first page whenever either does.
+  const onColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (updater) => {
+    setColumnFilters(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
   const openCase = (id: string) => {
     navigate({
@@ -170,19 +221,14 @@ export function CasesPage() {
     })
   }
 
+  // Filter dropdown options come from the org-wide facets, not the current
+  // page — so every assignee/tag stays selectable even when it's off-page.
+  const assignees = useMemo(() => facets?.assignees ?? [], [facets])
   const assigneeOptions = useMemo(
-    () => Array.from(new Set(cases.map((c) => c.assignee))).sort(),
-    [cases],
+    () => (facets?.unassigned ? [...assignees, 'Unassigned'] : assignees),
+    [assignees, facets],
   )
-  const tagOptions = useMemo(
-    () => Array.from(new Set(cases.flatMap((c) => c.tags))).sort(),
-    [cases],
-  )
-  // Assignable analysts for the row "Assign to" menu (Unassigned excluded).
-  const assignees = useMemo(
-    () => assigneeOptions.filter((name) => name !== 'Unassigned'),
-    [assigneeOptions],
-  )
+  const tagOptions = useMemo(() => facets?.tags ?? [], [facets])
 
   const columns = useMemo<ColumnDef<Case>[]>(
     () => [
@@ -271,11 +317,11 @@ export function CasesPage() {
         enableSorting: false,
         meta: { visibleFrom: 'md' } satisfies CaseColumnMeta,
         cell: (info) => {
-          const { done, total } = info.getValue<{
+          const { done, total: taskTotal } = info.getValue<{
             done: number
             total: number
           }>()
-          const pct = total ? (done / total) * 100 : 0
+          const pct = taskTotal ? (done / taskTotal) * 100 : 0
           return (
             <Group gap={8} wrap="nowrap" miw={110}>
               <Progress
@@ -291,7 +337,7 @@ export function CasesPage() {
                 c="var(--muted)"
                 style={{ whiteSpace: 'nowrap' }}
               >
-                {done}/{total}
+                {done}/{taskTotal}
               </Text>
             </Group>
           )
@@ -420,21 +466,26 @@ export function CasesPage() {
     state: {
       rowSelection,
       sorting,
+      columnFilters,
       columnVisibility: { select: selectMode, tags: false, caseNo: false },
-      pagination: { pageIndex: 0, pageSize },
+      pagination,
     },
     getRowId: (row) => row.id,
+    // Filtering, sorting and pagination all run on the backend; the table just
+    // renders the page the server returned. The column filter/sort state is
+    // still tracked here so it can drive the tokens and the query.
+    manualFiltering: true,
+    manualSorting: true,
+    manualPagination: true,
+    rowCount: total,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
     enableRowSelection: true,
-    // Sorting on; the non-sortable columns opt out via `enableSorting: false`,
-    // leaving only `id` (Case) and `updated`.
     enableSorting: true,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange,
+    onColumnFiltersChange,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    autoResetPageIndex: true,
   })
 
   // Token-search schema. Each field maps to a TanStack column; OR within a
@@ -476,14 +527,13 @@ export function CasesPage() {
     [assigneeOptions, tagOptions],
   )
 
-  const filtered = table.getFilteredRowModel().rows
-  const totalFiltered = filtered.length
-  const { pageIndex } = table.getState().pagination
+  const totalFiltered = total
+  const { pageIndex } = pagination
   const pageCount = table.getPageCount()
   const rangeStart = totalFiltered === 0 ? 0 : pageIndex * pageSize + 1
   const rangeEnd = Math.min((pageIndex + 1) * pageSize, totalFiltered)
 
-  const hasFilters = table.getState().columnFilters.length > 0
+  const hasFilters = columnFilters.length > 0
   const clearFilters = () => table.resetColumnFilters()
 
   const exitSelectMode = () => {
@@ -493,7 +543,6 @@ export function CasesPage() {
 
   // Derive tokens from the column filters (the single source of truth, so the
   // "Clear" button and tokens stay in sync), and push edits back to them.
-  const columnFilters = table.getState().columnFilters
   const tokens = useMemo<Token[]>(() => {
     const out: Token[] = []
     for (const f of filterFields) {
@@ -604,7 +653,13 @@ export function CasesPage() {
           </Button>
         </Group>
 
-        <Table.ScrollContainer minWidth={680}>
+        <Table.ScrollContainer
+          minWidth={680}
+          style={{
+            opacity: isFetching ? 0.55 : 1,
+            transition: 'opacity 120ms ease',
+          }}
+        >
           <Table
             highlightOnHover
             horizontalSpacing="lg"
@@ -749,7 +804,9 @@ export function CasesPage() {
                 w={76}
                 data={['10', '25', '50']}
                 value={String(pageSize)}
-                onChange={(v) => setPageSize(Number(v ?? '10'))}
+                onChange={(v) =>
+                  setPagination({ pageIndex: 0, pageSize: Number(v ?? '10') })
+                }
                 allowDeselect={false}
               />
             </Group>
