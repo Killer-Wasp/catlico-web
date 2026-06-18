@@ -2,7 +2,7 @@
 import { MantineProvider } from '@mantine/core'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
-import { LoginPage } from '#/components/Login/LoginPage'
+import { LoginPage } from '#/components/pages/LoginPage'
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -39,7 +39,7 @@ describe('LoginPage', () => {
     expect(
       screen.getByRole('button', { name: 'Continue with Entra ID SSO' }),
     ).toBeDefined()
-    expect(screen.getByLabelText('Username')).toBeDefined()
+    expect(screen.getByLabelText('Email')).toBeDefined()
     expect(screen.getByLabelText('Password')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeDefined()
     expect(screen.getByRole('link', { name: 'Forgot password' })).toBeDefined()

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { ObservablesPage } from '#/components/Observables/ObservablesPage'
+import { ObservablesPage } from '#/components/pages/ObservablesPage'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'

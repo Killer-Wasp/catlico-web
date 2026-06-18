@@ -2,7 +2,7 @@ import {
   createDraftKnowledgeBasePage,
   getKnowledgeBasePage,
   initialKnowledgeBasePages,
-} from './knowledgeBaseData'
+} from '#/components/KnowledgeBase/knowledgeBase'
 import { describe, expect, test } from 'vitest'
 
 describe('knowledge base data helpers', () => {

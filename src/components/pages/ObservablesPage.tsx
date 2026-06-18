@@ -1,14 +1,14 @@
-import { TLP } from '#/components/Cases/casesData'
+import { TLP } from '#/lib/domain'
 import classes from '#/components/Cases/CasesPage.module.css'
 import type {
   Observable,
   ObservableFlag,
   ObservableType,
-} from '#/components/Observables/observablesData'
+} from '#/components/Observables/observables.types'
 import {
   initialObservables,
   observableTypeLabels,
-} from '#/components/Observables/observablesData'
+} from '#/components/Observables/observables'
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import { TokenSearch } from '#/components/Table/TokenSearch'
 import {

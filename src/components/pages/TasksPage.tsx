@@ -2,14 +2,14 @@ import classes from '#/components/Cases/CasesPage.module.css'
 import { Severity } from '#/components/Severity/Severity'
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import { TokenSearch } from '#/components/Table/TokenSearch'
-import type { Task, TaskStatus } from '#/components/Tasks/tasksData'
+import type { Task, TaskStatus } from '#/components/Tasks/tasks.types'
 import {
   TASK_STATUS_COLOR,
   TASK_STATUS_LABEL,
   advanceTaskStatus,
   avatarFor,
   initialTasks,
-} from '#/components/Tasks/tasksData'
+} from '#/components/Tasks/tasks'
 import {
   Avatar,
   Badge,
@@ -23,7 +23,6 @@ import {
   Text,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { createFileRoute } from '@tanstack/react-router'
 import type {
   ColumnDef,
   FilterFn,
@@ -40,8 +39,6 @@ import {
 } from '@tanstack/react-table'
 import { ChevronDown, ChevronUp, ChevronsUpDown, Clock3 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-
-export const Route = createFileRoute('/_app/tasks')({ component: TasksPage })
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'waiting', label: 'Waiting' },
@@ -166,7 +163,7 @@ function TaskStatusBadge({
   )
 }
 
-function TasksPage() {
+export function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [pageSize, setPageSize] = useState(10)
   const [sorting, setSorting] = useState<SortingState>([

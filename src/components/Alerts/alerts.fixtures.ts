@@ -1,57 +1,8 @@
-// Mock alert data + lookup tables for the Alerts triage queue.
-// Ported from the design prototype (docs/webdesign.html). This is the
-// same shape TheHive's `listAlert` query returns, trimmed to what the
-// list view needs. Severity/TLP/MITRE helpers are shared with the
-// Cases list — see #/components/Cases/casesData.
+// Mock alert data for the Alerts triage queue, ported from the design
+// prototype (docs/webdesign.html). Test fixture: the live list is served by
+// alertsQueries; this seed only primes the query cache in tests.
 
-import type { Severity, Tlp } from '#/components/Cases/casesData'
-
-export type { Severity, Tlp }
-export { SEV, TLP } from '#/components/Cases/casesData'
-
-export type Alert = {
-  id: string
-  sev: Severity
-  tlp: Tlp
-  title: string
-  /** Detection source / connector that raised the alert. */
-  src: string
-  tags: string[]
-  /** Age of the alert in minutes — drives the "14m" / "1.5h" stamp. */
-  ageMin: number
-  /** True once the alert has blown its triage SLA. */
-  breach: boolean
-  description: string
-  observables: AlertObservable[]
-  similarCases: AlertSimilarCase[]
-}
-
-export type AlertObservable = {
-  type: string
-  value: string
-}
-
-export type AlertSimilarCase = {
-  id: string
-  title: string
-  status: string
-}
-
-// Detection source → brand dot colour. Sampled from each vendor's mark
-// in the prototype so the source column stays scannable at a glance.
-export const SRC_COLORS: Record<string, string> = {
-  'Defender XDR': '#2E8CF0',
-  'Splunk ES': '#5FA81E',
-  CrowdStrike: '#FF4B43',
-  Proofpoint: '#FFB627',
-  MISP: '#8C78FF',
-}
-
-export const srcColor = (src: string): string => SRC_COLORS[src] ?? '#7D6A55'
-
-// Minutes → compact age: "14m" under an hour, "1.5h" beyond.
-export const fmtAge = (m: number): string =>
-  m < 60 ? `${m}m` : `${(m / 60).toFixed(1)}h`
+import type { Alert } from './alerts.types'
 
 export const initialAlerts: Alert[] = [
   {

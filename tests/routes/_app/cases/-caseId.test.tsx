@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { getCaseDetail } from '#/components/Cases/caseDetailsData'
-import { CaseTabPanel } from './$caseId'
+import { getCaseDetail } from '#/components/Cases/caseDetails'
+import { CaseTabPanel } from '#/components/pages/CaseDetailPage'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'

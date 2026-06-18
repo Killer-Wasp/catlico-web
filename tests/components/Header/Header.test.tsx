@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Header } from './Header'
+import { Header } from '#/components/Header/Header'
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'

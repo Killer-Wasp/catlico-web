@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { FunctionsPage } from '#/components/Functions/FunctionsPage'
+import { FunctionsPage } from '#/components/pages/FunctionsPage'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'

@@ -1,31 +1,4 @@
-import type { Tlp } from '#/components/Cases/casesData'
-
-export type ObservableType =
-  | 'domain'
-  | 'url'
-  | 'mail'
-  | 'ip'
-  | 'other'
-  | 'hash'
-  | 'file'
-
-export type ObservableFlag = 'ioc' | 'sighted'
-
-export type ObservableAnalysis = {
-  analyzer: string
-  verdict: string
-}
-
-export type Observable = {
-  id: string
-  type: ObservableType
-  value: string
-  flags: ObservableFlag[]
-  tlp: Tlp
-  source: string
-  analysis?: ObservableAnalysis
-  added: string
-}
+import type { Observable, ObservableType } from './observables.types'
 
 export const observableTypeLabels: Record<ObservableType, string> = {
   domain: 'Domain',

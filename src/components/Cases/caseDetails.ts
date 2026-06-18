@@ -1,101 +1,104 @@
-import type { CaseStatus, Severity, Tlp } from './casesData'
-import { TLP } from './casesData'
+import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
+import { TLP } from '#/lib/domain'
+import type { CaseDetail } from './caseDetails.types'
 
-export type Pap = 0 | 1 | 2 | 3
-
-export type CaseDetailTaskStatus =
-  | 'waiting'
-  | 'inprogress'
-  | 'completed'
-  | 'cancel'
-
-export type CaseDetailTask = {
+export type CaseTaskSummary = {
   id: string
+  title: string
+  status: string
+}
+
+export type CasePublic = {
+  id: number
+  title: string
+  description: string
+  severity: number
+  tlp: number
+  pap: number
+  status: string
+  flagged: boolean
+  assignee_id: string | null
+  assignee_email: string | null
+  tags: string[]
+  tasks: CaseTaskSummary[]
+  start_date: string | null
+  end_date: string | null
+  summary: string | null
+  resolution_status: string | null
+  impact_status: string | null
+  duplicate_of_case_id: number | null
+  merged_into: number | null
+  merged_from: number[]
+  custom_fields: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+}
+
+export type TaskPublic = {
+  id: string
+  case_id: number
+  organisation_id: string
   title: string
   group: string
-  status: CaseDetailTaskStatus
-  assignee: string
-  flagged: boolean
-  due: string | null
-  start: string | null
-  end: string | null
   description: string
-  logs: number
-  workLogs: CaseDetailTaskLog[]
+  status: string
+  assignee_id: string | null
+  order: number
+  flagged: boolean
+  start_date: string | null
+  due_date: string | null
+  end_date: string | null
+  created_at: string
+  updated_at: string | null
 }
 
-export type CaseDetailTaskLog = {
-  author: string
-  time: string
-  body: string
-}
-
-export type CaseDetailObservable = {
-  type: string
-  value: string
+export type ObservablePublic = {
+  id: string
+  case_id: number | null
+  alert_id: number | null
+  observable_type: string
+  data: string
+  message: string
+  tlp: number
   ioc: boolean
   sighted: boolean
-  analysis: string
-  added: string
+  ignore_similarity: boolean
+  organisation_id: string
+  created_at: string
+  updated_at: string | null
 }
 
-export type CaseDetailAlert = {
+export type CommentPublic = {
   id: string
-  title: string
-  sev: Severity
-  tlp: Tlp
+  entity_type: string
+  entity_id: string
+  message: string
+  organisation_id: string
+  created_at: string
+  created_by: string
+  updated_at: string | null
 }
 
-export type CaseDetailComment = {
-  author: string
-  time: string
-  body: string
+export type AuditPublic = {
+  id: number
+  request_id: string
+  action: string
+  main_action: boolean
+  object_type: string
+  object_id: string
+  context_type: string | null
+  context_id: string | null
+  actor: string
+  details: Record<string, unknown> | null
+  created_at: string
 }
 
-export type CaseDetailAttachment = {
-  kind: string
-  name: string
-  size: string
-  sha256: string
-  author: string
-  time: string
-}
-
-export type CaseDetailTimelineEvent = {
-  when: string
-  text: string
-  who: string
-  tone?: 'warn' | 'ok'
-}
-
-export type CaseDetail = {
-  id: string
-  sev: Severity
-  tlp: Tlp
-  pap: Pap
-  status: CaseStatus
-  statusName: string
-  title: string
-  assignee: string
-  tags: string[]
-  tasksDone: number
-  tasksTotal: number
-  opened: string
-  sla: string
-  source: string
-  businessUnit: string
-  description: string[]
-  customFields: [string, string][]
-  linkedAlerts: CaseDetailAlert[]
-  tasks: CaseDetailTask[]
-  observables: CaseDetailObservable[]
-  comments: CaseDetailComment[]
-  attachments: CaseDetailAttachment[]
-  shares: number
-  timeline: CaseDetailTimelineEvent[]
-  responders: { action: string; provider: string }[]
-  related: { id: string; title: string }[]
-  ttps: string[]
+export type CaseDetailResources = {
+  case: CasePublic
+  tasks: TaskPublic[]
+  observables: ObservablePublic[]
+  comments: CommentPublic[]
+  activity: AuditPublic[]
 }
 
 export const caseDetails: CaseDetail[] = [
@@ -104,8 +107,8 @@ export const caseDetails: CaseDetail[] = [
     sev: 3,
     tlp: 2,
     pap: 2,
-    status: 'inprogress',
-    statusName: 'In progress',
+    status: 'open',
+    statusName: 'Open',
     title: 'OAuth consent grant — privileged account compromise',
     assignee: 'J. Tanaka',
     tags: ['T1528', 'identity', 'bec'],
@@ -425,4 +428,144 @@ export function getCaseDetail(routeId: string) {
 
 export function trafficLabel(value: Tlp | Pap) {
   return TLP[value].toUpperCase()
+}
+
+const STATUS_MAP: Record<string, { id: CaseStatus; name: string }> = {
+  Open: { id: 'open', name: 'Open' },
+  Resolved: { id: 'resolved', name: 'Resolved' },
+  Duplicated: { id: 'duplicated', name: 'Duplicated' },
+}
+
+const TASK_STATUS_MAP = {
+  Waiting: 'waiting',
+  InProgress: 'inprogress',
+  Completed: 'completed',
+  Cancelled: 'cancel',
+} as const
+
+const clamp = (n: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, Math.round(n)))
+
+function compactDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-AU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function compactTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-AU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function descriptionParts(description: string, summary: string | null) {
+  return [...description.split(/\n{2,}/), summary]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+}
+
+function customFieldRows(fields: Record<string, unknown>): [string, string][] {
+  return Object.entries(fields).map(([key, value]) => [
+    key.replaceAll('_', ' '),
+    value == null ? '' : String(value),
+  ])
+}
+
+function taskStatus(status: string) {
+  return (
+    TASK_STATUS_MAP[status as keyof typeof TASK_STATUS_MAP] ??
+    TASK_STATUS_MAP.Waiting
+  )
+}
+
+function auditText(event: AuditPublic) {
+  return `**${event.action}** ${event.object_type} ${event.object_id}`
+}
+
+export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
+  const { case: caseItem, tasks, observables, comments, activity } = resources
+  const status = STATUS_MAP[caseItem.status] ?? {
+    id: 'open' as const,
+    name: caseItem.status,
+  }
+  const activeTasks = tasks.filter((task) => task.status !== 'Cancelled')
+
+  return {
+    id: `#${caseItem.id}`,
+    sev: clamp(caseItem.severity, 1, 4) as Severity,
+    tlp: clamp(caseItem.tlp, 0, 3) as Tlp,
+    pap: clamp(caseItem.pap, 0, 3) as Pap,
+    status: status.id,
+    statusName: status.name,
+    title: caseItem.title,
+    assignee: caseItem.assignee_email ?? 'Unassigned',
+    tags: caseItem.tags,
+    tasksDone: activeTasks.filter((task) => task.status === 'Completed').length,
+    tasksTotal: activeTasks.length,
+    opened: compactDateTime(caseItem.start_date ?? caseItem.created_at),
+    sla: 'No SLA set',
+    source: 'Backend',
+    businessUnit:
+      caseItem.custom_fields.business_unit == null
+        ? 'Unspecified'
+        : String(caseItem.custom_fields.business_unit),
+    description: descriptionParts(caseItem.description, caseItem.summary),
+    customFields: customFieldRows(caseItem.custom_fields),
+    linkedAlerts: [],
+    tasks: tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      group: task.group || 'General',
+      status: taskStatus(task.status),
+      assignee: task.assignee_id ?? 'Unassigned',
+      flagged: task.flagged,
+      due: task.due_date,
+      start: task.start_date,
+      end: task.end_date,
+      description: task.description,
+      logs: 0,
+      workLogs: [],
+    })),
+    observables: observables.map((observable) => ({
+      type: observable.observable_type,
+      value: observable.data,
+      ioc: observable.ioc,
+      sighted: observable.sighted,
+      analysis: observable.message || '-',
+      added: compactTime(observable.created_at),
+    })),
+    comments: comments.map((comment) => ({
+      author: comment.created_by,
+      time: compactTime(comment.created_at),
+      body: comment.message,
+    })),
+    attachments: [],
+    shares: 0,
+    timeline: activity.map((event) => ({
+      when: compactTime(event.created_at),
+      text: auditText(event),
+      who: event.actor,
+      tone: event.action === 'delete' ? 'warn' : undefined,
+    })),
+    responders: [],
+    related: [
+      ...caseItem.merged_from.map((id) => ({
+        id: `#${id}`,
+        title: 'Merged source case',
+      })),
+      ...(caseItem.duplicate_of_case_id == null
+        ? []
+        : [
+            {
+              id: `#${caseItem.duplicate_of_case_id}`,
+              title: 'Duplicate of case',
+            },
+          ]),
+    ],
+    ttps: caseItem.tags.filter((tag) => /^T\d{4}(?:\.\d{3})?$/.test(tag)),
+  }
 }

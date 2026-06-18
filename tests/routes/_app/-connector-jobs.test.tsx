@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { ConnectorJobsPage } from '#/components/Connectors/ConnectorJobsPage'
+import { ConnectorJobsPage } from '#/components/pages/ConnectorJobsPage'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import {

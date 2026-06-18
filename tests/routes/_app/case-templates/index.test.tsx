@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { CaseTemplatesPage } from './case-templates'
+import { CaseTemplatesPage } from '#/components/pages/CaseTemplatesPage'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { cleanup, render, screen } from '@testing-library/react'

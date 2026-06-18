@@ -4,11 +4,11 @@ import type {
   ConnectorKind,
   ConnectorTab,
   TlpLevel,
-} from '#/components/Connectors/connectorsData'
+} from '#/components/Connectors/connectors.types'
 import {
   filterConnectorsByTab,
   initialConnectors,
-} from '#/components/Connectors/connectorsData'
+} from '#/components/Connectors/connectors'
 import { Tag } from '#/components/Tag/Tag'
 import {
   Badge,
@@ -25,13 +25,8 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { createFileRoute } from '@tanstack/react-router'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-
-export const Route = createFileRoute('/_app/connectors')({
-  component: ConnectorsPage,
-})
 
 const tabOptions: { value: ConnectorTab; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -216,7 +211,7 @@ function ConnectorCard({
   )
 }
 
-function ConnectorsPage() {
+export function ConnectorsPage() {
   const [connectors, setConnectors] = useState<Connector[]>(initialConnectors)
   const [activeTab, setActiveTab] = useState<ConnectorTab>('all')
   const stamp = useStamp()

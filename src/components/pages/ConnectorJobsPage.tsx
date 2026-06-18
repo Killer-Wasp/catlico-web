@@ -5,14 +5,14 @@ import type {
   ConnectorJobStatus,
   ConnectorJobTab,
   ConnectorJobVerdict,
-} from '#/components/Connectors/connectorJobsData'
+} from '#/components/Connectors/connectorJobs.types'
 import {
   connectorJobTabs,
   countConnectorJobsByTab,
   filterConnectorJobsByTab,
   getConnectorJobReport,
   initialConnectorJobs,
-} from '#/components/Connectors/connectorJobsData'
+} from '#/components/Connectors/connectorJobs'
 import classes from '#/components/Cases/CasesPage.module.css'
 import {
   Badge,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import type { Token, TokenField } from './TokenSearch'
-import { TokenSearch } from './TokenSearch'
+import type { Token, TokenField } from '#/components/Table/TokenSearch'
+import { TokenSearch } from '#/components/Table/TokenSearch'
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
@@ -8,8 +8,9 @@ import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 
 // Mantine + Combobox need browser APIs jsdom doesn't implement.
 beforeAll(() => {
-  window.matchMedia ??= (query: string) =>
-    ({
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
       matches: false,
       media: query,
       onchange: null,
@@ -18,8 +19,12 @@ beforeAll(() => {
       addEventListener: () => {},
       removeEventListener: () => {},
       dispatchEvent: () => false,
-    }) as unknown as MediaQueryList
-  window.HTMLElement.prototype.scrollIntoView ??= () => {}
+    }),
+  })
+  Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+    writable: true,
+    value: () => {},
+  })
 })
 
 const FIELDS: TokenField[] = [

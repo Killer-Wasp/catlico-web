@@ -1,4 +1,4 @@
-import { AV } from '#/components/Cases/casesData'
+import { AV } from '#/components/Cases/cases'
 import { Button, Menu, Text } from '@mantine/core'
 import { useState } from 'react'
 

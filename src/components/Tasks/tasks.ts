@@ -1,25 +1,4 @@
-export type TaskStatus =
-  | 'waiting'
-  | 'inprogress'
-  | 'completed'
-  | 'cancelled'
-
-export type TaskStatusFilter = TaskStatus | 'open' | 'all'
-
-export type Task = {
-  id: string
-  title: string
-  description: string
-  kind: string
-  flagged?: boolean
-  caseId: string
-  caseSeverity: 'critical' | 'high'
-  assignee?: string
-  due: string
-  overdue?: boolean
-  urgent?: boolean
-  status: TaskStatus
-}
+import type { Task, TaskStatus, TaskStatusFilter } from './tasks.types'
 
 export const TASK_STATUS_TABS: { value: TaskStatusFilter; label: string }[] = [
   { value: 'open', label: 'Open' },
@@ -46,7 +25,7 @@ export const TASK_STATUS_COLOR: Record<TaskStatus, string> = {
 
 export const initialTasks: Task[] = [
   {
-    id: 'task-001',
+    id: 'T-1842-1',
     title: 'Disable malicious app registration tenant-wide',
     description: 'OAuth consent grant - privileged account compromise',
     kind: 'Contain',
@@ -59,7 +38,7 @@ export const initialTasks: Task[] = [
     status: 'inprogress',
   },
   {
-    id: 'task-002',
+    id: 'T-1842-2',
     title: 'Remove mailbox rules and check forwarding',
     description: 'OAuth consent grant - privileged account compromise',
     kind: 'Eradicate',
@@ -71,7 +50,7 @@ export const initialTasks: Task[] = [
     status: 'inprogress',
   },
   {
-    id: 'task-003',
+    id: 'T-1842-3',
     title: 'Hunt for same app id across all tenants',
     description: 'OAuth consent grant - privileged account compromise',
     kind: 'Hunt',
@@ -82,7 +61,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-004',
+    id: 'T-1842-4',
     title: 'User comms + phishing-resistant MFA enrolment',
     description: 'OAuth consent grant - privileged account compromise',
     kind: 'Recover',
@@ -93,7 +72,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-005',
+    id: 'T-1841-1',
     title: 'Identify ransomware family and variant',
     description: 'Ransomware staging on FILESRV-AU02',
     kind: 'Identify',
@@ -105,7 +84,7 @@ export const initialTasks: Task[] = [
     status: 'inprogress',
   },
   {
-    id: 'task-006',
+    id: 'T-1839-1',
     title: 'Engage OT/ICS team before any blocking',
     description: 'Beaconing from OT jump host - rare destination',
     kind: 'Scoping',
@@ -117,7 +96,7 @@ export const initialTasks: Task[] = [
     status: 'inprogress',
   },
   {
-    id: 'task-007',
+    id: 'T-1841-2',
     title: 'Snapshot affected hypervisor cluster',
     description: 'Ransomware staging on FILESRV-AU02',
     kind: 'Contain',
@@ -128,7 +107,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-008',
+    id: 'T-1842-5',
     title: 'Publish executive situation summary',
     description: 'OAuth consent grant - privileged account compromise',
     kind: 'Comms',
@@ -139,7 +118,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-009',
+    id: 'T-1841-3',
     title: 'Pull EDR timeline for initial access',
     description: 'Ransomware staging on FILESRV-AU02',
     kind: 'Forensics',
@@ -150,7 +129,7 @@ export const initialTasks: Task[] = [
     status: 'inprogress',
   },
   {
-    id: 'task-010',
+    id: 'T-1838-1',
     title: 'Review service account conditional access',
     description: 'Suspicious service principal sign-in burst',
     kind: 'Review',
@@ -160,7 +139,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-011',
+    id: 'T-1841-4',
     title: 'Confirm backups are clean and restorable',
     description: 'Ransomware staging on FILESRV-AU02',
     kind: 'Recover',
@@ -171,7 +150,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-012',
+    id: 'T-1842-6',
     title: 'Collect SaaS audit logs for legal hold',
     description: 'OAuth consent grant - privileged account compromise',
     kind: 'Evidence',
@@ -182,7 +161,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-013',
+    id: 'T-1839-2',
     title: 'Validate containment on edge firewall',
     description: 'Beaconing from OT jump host - rare destination',
     kind: 'Contain',
@@ -192,7 +171,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-014',
+    id: 'T-1838-2',
     title: 'Prepare customer impact statement',
     description: 'Suspicious service principal sign-in burst',
     kind: 'Comms',
@@ -203,7 +182,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-015',
+    id: 'T-1842-7',
     title: 'Archive mailbox investigation artefacts',
     description: 'OAuth consent grant - privileged account compromise',
     kind: 'Closeout',
@@ -214,7 +193,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-016',
+    id: 'T-1837-1',
     title: 'Draft unused endpoint quarantine plan',
     description: 'Duplicate endpoint telemetry review',
     kind: 'Planning',
@@ -224,7 +203,7 @@ export const initialTasks: Task[] = [
     status: 'waiting',
   },
   {
-    id: 'task-017',
+    id: 'T-1842-8',
     title: 'Check privileged inbox delegates',
     description: 'OAuth consent grant - privileged account compromise',
     kind: 'Review',
@@ -253,6 +232,23 @@ export function advanceTaskStatus(status: TaskStatus): TaskStatus {
   if (status === 'waiting') return 'inprogress'
   if (status === 'inprogress') return 'completed'
   return status
+}
+
+export function allocateNextTaskId(
+  tasks: Array<Pick<Task, 'id' | 'caseId'>>,
+  caseId: string,
+) {
+  const caseNumber = caseId.replace('#', '')
+  const prefix = `T-${caseNumber}-`
+  const maxSequence = tasks
+    .filter((task) => task.caseId.replace('#', '') === caseNumber)
+    .reduce((max, task) => {
+      if (!task.id.startsWith(prefix)) return max
+      const sequence = Number(task.id.slice(prefix.length))
+      return Number.isInteger(sequence) ? Math.max(max, sequence) : max
+    }, 0)
+
+  return `${prefix}${maxSequence + 1}`
 }
 
 export function avatarFor(name: string): [string, string] {

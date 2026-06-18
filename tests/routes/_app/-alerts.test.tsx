@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
-import { AlertsPage } from './-AlertsPage'
+import { AlertsPage } from '#/components/pages/AlertsPage'
+import { initialAlerts } from '#/components/Alerts/alerts.fixtures'
+import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { Suspense } from 'react'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 
 beforeAll(() => {
@@ -34,11 +38,22 @@ beforeAll(() => {
 })
 
 function Harness() {
+  // Fresh client per render so cache never leaks between tests. Prime the alerts
+  // query with mock data and pin it fresh (staleTime Infinity) so the component
+  // reads the cache and the real `api` client is never called from a test.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  })
+  queryClient.setQueryData(alertsQueryOptions().queryKey, initialAlerts)
   return (
-    <MantineProvider>
-      <Notifications />
-      <AlertsPage />
-    </MantineProvider>
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <Notifications />
+        <Suspense fallback={null}>
+          <AlertsPage />
+        </Suspense>
+      </MantineProvider>
+    </QueryClientProvider>
   )
 }
 

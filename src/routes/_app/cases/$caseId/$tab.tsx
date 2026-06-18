@@ -1,7 +1,7 @@
-import type { CaseTab } from '../$caseId'
-import { getCaseDetail } from '#/components/Cases/caseDetailsData'
+import type { CaseTab } from '#/components/pages/CaseDetailPage'
+import { caseDetailQueryOptions } from '#/components/Cases/casesQueries'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { CASE_TABS, CaseTabPanel } from '../$caseId'
+import { CASE_TABS, CaseTabPanel } from '#/components/pages/CaseDetailPage'
 
 export const Route = createFileRoute('/_app/cases/$caseId/$tab')({
   beforeLoad: ({ params }) => {
@@ -13,11 +13,13 @@ export const Route = createFileRoute('/_app/cases/$caseId/$tab')({
       })
     }
   },
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(caseDetailQueryOptions(params.caseId)),
   component: CaseTabRoute,
 })
 
 function CaseTabRoute() {
-  const { caseId, tab } = Route.useParams()
-  const caseDetail = getCaseDetail(caseId)
+  const { tab } = Route.useParams()
+  const caseDetail = Route.useLoaderData()
   return <CaseTabPanel tab={tab as CaseTab} caseDetail={caseDetail} />
 }

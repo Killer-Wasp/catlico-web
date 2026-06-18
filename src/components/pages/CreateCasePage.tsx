@@ -1,15 +1,15 @@
-import { AV } from '#/components/Cases/casesData'
+import { AV } from '#/components/Cases/cases'
 import {
   buildCustomFieldsForTemplate,
   caseTemplatesList,
   formatTemplateDue,
   getCaseTemplate,
-} from '#/components/Cases/caseTemplatesData'
+} from '#/components/Cases/caseTemplates'
 import type {
   CaseTemplateTask,
   CustomFieldType,
-  Pap,
-} from '#/components/Cases/caseTemplatesData'
+} from '#/components/Cases/caseTemplates.types'
+import type { Pap } from '#/lib/domain'
 import classes from '#/components/Cases/CasesPage.module.css'
 import {
   Anchor,
@@ -29,13 +29,9 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, Hourglass, TriangleAlert } from 'lucide-react'
 import { useMemo, useState } from 'react'
-
-export const Route = createFileRoute('/_app/cases/create')({
-  component: CreateCasePage,
-})
 
 type TrafficLight = 0 | 1 | 2 | 3
 type SeverityChoice = 1 | 2 | 3 | 4
@@ -274,7 +270,7 @@ function TaskTemplateRow({ task }: { task: CaseTemplateTask }) {
   )
 }
 
-function CreateCasePage() {
+export function CreateCasePage() {
   const navigate = useNavigate()
 
   const [title, setTitle] = useState('')

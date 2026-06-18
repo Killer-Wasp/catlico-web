@@ -1,8 +1,9 @@
 import {
   advanceTaskStatus,
+  allocateNextTaskId,
   filterTasksByStatus,
   initialTasks,
-} from './tasksData'
+} from '#/components/Tasks/tasks'
 import { describe, expect, test } from 'vitest'
 
 describe('tasks data helpers', () => {
@@ -19,5 +20,27 @@ describe('tasks data helpers', () => {
     expect(advanceTaskStatus('inprogress')).toBe('completed')
     expect(advanceTaskStatus('completed')).toBe('completed')
     expect(advanceTaskStatus('cancelled')).toBe('cancelled')
+  })
+
+  test('uses case-scoped task ids instead of generated uuid-style ids', () => {
+    expect(
+      initialTasks.every((task) =>
+        task.id.startsWith(`T-${task.caseId.replace('#', '')}-`),
+      ),
+    ).toBe(true)
+    expect(initialTasks.map((task) => task.id)).not.toContain('task-001')
+  })
+
+  test('allocates the next task id without reusing deleted sequence numbers', () => {
+    expect(
+      allocateNextTaskId(
+        [
+          { id: 'T-1843-1', caseId: '#1843' },
+          { id: 'T-1843-4', caseId: '#1843' },
+          { id: 'T-1842-12', caseId: '#1842' },
+        ],
+        '#1843',
+      ),
+    ).toBe('T-1843-5')
   })
 })

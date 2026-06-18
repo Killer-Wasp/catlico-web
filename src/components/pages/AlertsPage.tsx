@@ -1,12 +1,9 @@
-import type { Alert } from '#/components/Alerts/alertsData'
-import {
-  TLP,
-  SEV,
-  fmtAge,
-  initialAlerts,
-  srcColor,
-} from '#/components/Alerts/alertsData'
-import { caseTemplatesList } from '#/components/Cases/caseTemplatesData'
+import type { Alert } from '#/components/Alerts/alerts.types'
+import { SEV, TLP } from '#/lib/domain'
+import { fmtAge, srcColor } from '#/components/Alerts/alerts'
+import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { caseTemplatesList } from '#/components/Cases/caseTemplates'
 // Reuse the Cases page var scope so both tables share the SOC palette
 // (severity / TLP / MITRE colours, soft borders) defined on `.page`.
 import classes from '#/components/Cases/CasesPage.module.css'
@@ -138,7 +135,10 @@ const byAlertId: SortingFn<Alert> = (a, b) =>
 const byAge: SortingFn<Alert> = (a, b) => a.original.ageMin - b.original.ageMin
 
 export function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>(initialAlerts)
+  // Reads the loader-warmed cache (see the route's `ensureQueryData`). Local
+  // edits still live in `useState`, seeded from the fetched data.
+  const { data } = useSuspenseQuery(alertsQueryOptions())
+  const [alerts, setAlerts] = useState<Alert[]>(data)
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null)
@@ -357,12 +357,12 @@ export function AlertsPage() {
   })
 
   const sourceOptions = useMemo(
-    () => Array.from(new Set(initialAlerts.map((a) => a.src))).sort(),
-    [],
+    () => Array.from(new Set(alerts.map((a) => a.src))).sort(),
+    [alerts],
   )
   const tagOptions = useMemo(
-    () => Array.from(new Set(initialAlerts.flatMap((a) => a.tags))).sort(),
-    [],
+    () => Array.from(new Set(alerts.flatMap((a) => a.tags))).sort(),
+    [alerts],
   )
 
   const toOpts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }))

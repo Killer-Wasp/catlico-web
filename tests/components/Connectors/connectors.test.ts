@@ -1,7 +1,7 @@
 import {
   filterConnectorsByTab,
   initialConnectors,
-} from './connectorsData'
+} from '#/components/Connectors/connectors'
 import { describe, expect, test } from 'vitest'
 
 describe('connectors data helpers', () => {

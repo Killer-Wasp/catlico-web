@@ -6,7 +6,7 @@ import {
   getCaseTemplateStats,
   severityTemplateLabel,
   trafficTemplateLabel,
-} from './caseTemplatesData'
+} from '#/components/Cases/caseTemplates'
 import { describe, expect, test } from 'vitest'
 
 describe('case template data helpers', () => {

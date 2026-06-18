@@ -4,15 +4,14 @@ import type {
   CaseTemplateCustomField,
   CaseTemplateTask,
   CustomFieldType,
-  Pap,
-} from '#/components/Cases/caseTemplatesData'
+} from '#/components/Cases/caseTemplates.types'
 import {
   caseTemplatesList,
   getCaseTemplate,
   severityTemplateLabel,
   trafficTemplateLabel,
-} from '#/components/Cases/caseTemplatesData'
-import type { Severity, Tlp } from '#/components/Cases/casesData'
+} from '#/components/Cases/caseTemplates'
+import type { Pap, Severity, Tlp } from '#/lib/domain'
 import {
   ActionIcon,
   Badge,

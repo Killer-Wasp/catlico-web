@@ -1,13 +1,10 @@
-import type { CaseStatus } from '#/components/Cases/casesData'
+import type { CaseStatus } from '#/lib/domain'
 import type { MantineColor } from '@mantine/core'
 import { Badge } from '@mantine/core'
 
 // Case status → Mantine theme colour, driving the light badge tint.
 const STATUS_COLOR: Record<CaseStatus, MantineColor> = {
-  new: 'violet',
   open: 'blue',
-  inprogress: 'yellow',
-  waiting: 'gray',
   resolved: 'green',
   duplicated: 'gray',
 }

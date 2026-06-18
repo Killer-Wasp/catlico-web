@@ -6,10 +6,11 @@ import type {
   CaseDetailObservable,
   CaseDetailTask,
   CaseDetailTimelineEvent,
-} from '#/components/Cases/caseDetailsData'
+} from '#/components/Cases/caseDetails.types'
 import type { ReactNode } from 'react'
-import { avatarFor, SEV } from '#/components/Cases/casesData'
-import { getCaseDetail, trafficLabel } from '#/components/Cases/caseDetailsData'
+import { SEV } from '#/lib/domain'
+import { avatarFor } from '#/components/Cases/cases'
+import { trafficLabel } from '#/components/Cases/caseDetails'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
 import { Tag } from '#/components/Tag/Tag'
@@ -37,12 +38,7 @@ import {
   VisuallyHidden,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import {
-  createFileRoute,
-  Link,
-  Outlet,
-  useLocation,
-} from '@tanstack/react-router'
+import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import {
   Clock3,
   Download,
@@ -69,10 +65,6 @@ export const CASE_TABS = [
 ] as const
 export type CaseTab = (typeof CASE_TABS)[number]
 
-export const Route = createFileRoute('/_app/cases/$caseId')({
-  component: CaseDetailPage,
-})
-
 const fieldLabelProps = {
   ff: 'monospace',
   tt: 'uppercase',
@@ -84,10 +76,13 @@ const fieldLabelProps = {
 const actionNotice = (message: string) =>
   notifications.show({ color: 'orange', message })
 
-function CaseDetailPage() {
-  const { caseId } = Route.useParams()
-  const caseDetail = getCaseDetail(caseId)
-
+export function CaseDetailPage({
+  caseDetail,
+  caseId,
+}: {
+  caseDetail: CaseDetail
+  caseId: string
+}) {
   return (
     <Box className={classes.page}>
       <Group gap={8} mb={16}>
@@ -112,7 +107,7 @@ function CaseDetailPage() {
       <CaseSummaryCard caseDetail={caseDetail} />
 
       <Box className={classes.caseDetailLayout} mt="md">
-        <CaseBody caseDetail={caseDetail} />
+        <CaseBody caseDetail={caseDetail} caseId={caseId} />
         <CaseSideRail caseDetail={caseDetail} />
       </Box>
     </Box>
@@ -278,8 +273,13 @@ function TrafficBadge({
   )
 }
 
-function CaseBody({ caseDetail }: { caseDetail: CaseDetail }) {
-  const { caseId } = Route.useParams()
+function CaseBody({
+  caseDetail,
+  caseId,
+}: {
+  caseDetail: CaseDetail
+  caseId: string
+}) {
   const lastSegment = useLocation({
     select: (location) => location.pathname.split('/').filter(Boolean).pop(),
   })

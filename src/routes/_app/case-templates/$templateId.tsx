@@ -1,4 +1,4 @@
-import { CaseTemplateEditorPage } from '#/components/Cases/CaseTemplateEditorPage'
+import { CaseTemplateEditorPage } from '#/components/pages/CaseTemplateEditorPage'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_app/case-templates/$templateId')({

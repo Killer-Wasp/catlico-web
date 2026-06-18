@@ -1,4 +1,5 @@
 import {
+  Alert,
   Anchor,
   Button,
   Center,
@@ -11,9 +12,38 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
+import { useNavigate } from '@tanstack/react-router'
 import { Grid2X2 } from 'lucide-react'
+import { useState } from 'react'
+import { isHTTPError } from 'ky'
+import { login } from '#/lib/auth/session'
 
 export function LoginPage() {
+  const navigate = useNavigate()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit() {
+    setLoading(true)
+    setError(null)
+    try {
+      await login(email, password)
+      await navigate({ to: '/' })
+    } catch (err) {
+      setError(
+        isHTTPError(err) && err.response.status === 401
+          ? 'Incorrect email or password.'
+          : err instanceof Error
+            ? err.message
+            : 'Sign-in failed. Please try again.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Center bg="gray.0" mih="100vh" p="xl">
       <Paper
@@ -86,10 +116,27 @@ export function LoginPage() {
             }}
           />
 
-          <Stack component="form" gap="md">
+          <Stack
+            component="form"
+            gap="md"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void handleSubmit()
+            }}
+          >
+            {error && (
+              <Alert color="red" variant="light" radius="md" py="xs">
+                {error}
+              </Alert>
+            )}
             <TextInput
-              label="Username"
-              placeholder="j.tanaka"
+              label="Email"
+              type="email"
+              placeholder="admin@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.currentTarget.value)}
+              required
+              withAsterisk={false}
               size="lg"
               radius="md"
               styles={{
@@ -111,6 +158,10 @@ export function LoginPage() {
             <PasswordInput
               label="Password"
               placeholder="••••••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.currentTarget.value)}
+              required
+              withAsterisk={false}
               size="lg"
               radius="md"
               styles={{
@@ -139,6 +190,7 @@ export function LoginPage() {
               radius="md"
               fullWidth
               mt={4}
+              loading={loading}
               styles={{
                 root: {
                   height: 58,

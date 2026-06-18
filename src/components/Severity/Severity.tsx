@@ -1,15 +1,7 @@
 import type { MantineColor } from '@mantine/core'
 import { Box, Flex, Text } from '@mantine/core'
-// Severity scale: 1 = lowest. Index by severity number → semantic name,
-// which drives the heat-bar colour and the uppercase label below.
-export type Severity = 1 | 2 | 3 | 4
-
-export const SEV: Record<Severity, string> = {
-  1: 'low',
-  2: 'medium',
-  3: 'high',
-  4: 'critical',
-}
+import type { Severity } from '#/lib/domain'
+import { SEV } from '#/lib/domain'
 
 // Severity name → Mantine theme colour. Passed to the `c`/`bg` props so
 // the heat bar and label track the active theme palette.

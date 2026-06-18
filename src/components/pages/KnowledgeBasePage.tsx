@@ -2,11 +2,11 @@ import {
   createDraftKnowledgeBasePage,
   getKnowledgeBasePage,
   initialKnowledgeBasePages,
-} from '#/components/KnowledgeBase/knowledgeBaseData'
+} from '#/components/KnowledgeBase/knowledgeBase'
 import type {
   KnowledgeBaseBlock,
   KnowledgeBasePage,
-} from '#/components/KnowledgeBase/knowledgeBaseData'
+} from '#/components/KnowledgeBase/knowledgeBase.types'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Tag } from '#/components/Tag/Tag'
 import {
@@ -20,13 +20,8 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { createFileRoute } from '@tanstack/react-router'
 import { Pencil } from 'lucide-react'
 import { useState } from 'react'
-
-export const Route = createFileRoute('/_app/knowledge-base')({
-  component: KnowledgeBasePage,
-})
 
 function PageListItem({
   page,
@@ -124,7 +119,7 @@ function DocumentBlock({ block }: { block: KnowledgeBaseBlock }) {
   )
 }
 
-function KnowledgeBasePage() {
+export function KnowledgeBasePage() {
   const [pages, setPages] = useState(initialKnowledgeBasePages)
   const [selectedId, setSelectedId] = useState(initialKnowledgeBasePages[0].id)
 

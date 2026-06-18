@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { SettingsPage } from '#/components/Settings/SettingsPage'
+import { SettingsPage } from '#/components/pages/SettingsPage'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'

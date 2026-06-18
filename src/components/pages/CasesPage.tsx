@@ -1,6 +1,8 @@
-import { getCaseRouteId } from '#/components/Cases/caseDetailsData'
-import type { Case, CaseStatus } from '#/components/Cases/casesData'
-import { avatarFor, initialCases } from '#/components/Cases/casesData'
+import { getCaseRouteId } from '#/components/Cases/caseDetails'
+import type { CaseStatus } from '#/lib/domain'
+import type { Case } from '#/components/Cases/cases.types'
+import { avatarFor } from '#/components/Cases/cases'
+import { casesQueryOptions } from '#/components/Cases/casesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Severity } from '#/components/Severity/Severity'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
@@ -23,7 +25,8 @@ import {
   Text,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import type {
   ColumnDef,
   FilterFn,
@@ -51,13 +54,8 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-export const Route = createFileRoute('/_app/cases/')({ component: CasesPage })
-
 const STATUS_OPTIONS: { value: CaseStatus; label: string }[] = [
-  { value: 'new', label: 'New' },
   { value: 'open', label: 'Open' },
-  { value: 'inprogress', label: 'In progress' },
-  { value: 'waiting', label: 'Waiting' },
   { value: 'resolved', label: 'Resolved' },
   { value: 'duplicated', label: 'Duplicated' },
 ]
@@ -68,11 +66,6 @@ const SEV_OPTIONS = [
   { value: '2', label: 'Medium' },
   { value: '1', label: 'Low' },
 ]
-
-// Assignable analysts for the row "Assign to" menu (Unassigned excluded).
-const ASSIGNEES = Array.from(new Set(initialCases.map((c) => c.assignee)))
-  .filter((name) => name !== 'Unassigned')
-  .sort()
 
 // Mono, uppercase, dimmed inline field labels (status / severity / rows …).
 const filterLblProps = {
@@ -132,15 +125,17 @@ const byCaseId: SortingFn<Case> = (a, b) =>
   Number(a.original.id.replace(/\D/g, '')) -
   Number(b.original.id.replace(/\D/g, ''))
 
-// "updated" is a relative string ("8m" / "1h" / "6d"); convert to minutes
-// so smaller = more recent and the column sorts chronologically.
+// "created"/"updated" are relative strings ("8m" / "1h" / "6d"); convert to
+// minutes so smaller = more recent and the columns sort chronologically.
 const UNIT_MIN: Record<string, number> = { m: 1, h: 60, d: 1440 }
-const updatedMinutes = (s: string) => {
+const ageMinutes = (s: string) => {
   const m = /^(\d+)\s*([mhd])$/.exec(s.trim())
   return m ? Number(m[1]) * UNIT_MIN[m[2]] : Number.POSITIVE_INFINITY
 }
+const byCreated: SortingFn<Case> = (a, b) =>
+  ageMinutes(a.original.created) - ageMinutes(b.original.created)
 const byUpdated: SortingFn<Case> = (a, b) =>
-  updatedMinutes(a.original.updated) - updatedMinutes(b.original.updated)
+  ageMinutes(a.original.updated) - ageMinutes(b.original.updated)
 
 function AssigneeAvatar({ name }: { name: string }) {
   const [initials, color] = avatarFor(name)
@@ -157,8 +152,9 @@ function AssigneeAvatar({ name }: { name: string }) {
   )
 }
 
-function CasesPage() {
+export function CasesPage() {
   const navigate = useNavigate()
+  const { data: cases } = useSuspenseQuery(casesQueryOptions())
 
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
@@ -173,6 +169,20 @@ function CasesPage() {
       params: { caseId: getCaseRouteId(id) },
     })
   }
+
+  const assigneeOptions = useMemo(
+    () => Array.from(new Set(cases.map((c) => c.assignee))).sort(),
+    [cases],
+  )
+  const tagOptions = useMemo(
+    () => Array.from(new Set(cases.flatMap((c) => c.tags))).sort(),
+    [cases],
+  )
+  // Assignable analysts for the row "Assign to" menu (Unassigned excluded).
+  const assignees = useMemo(
+    () => assigneeOptions.filter((name) => name !== 'Unassigned'),
+    [assigneeOptions],
+  )
 
   const columns = useMemo<ColumnDef<Case>[]>(
     () => [
@@ -313,6 +323,25 @@ function CasesPage() {
         enableSorting: false,
       },
       {
+        id: 'created',
+        header: 'Created',
+        accessorFn: (row) => row.created,
+        enableColumnFilter: false,
+        enableSorting: true,
+        sortingFn: byCreated,
+        meta: { visibleFrom: 'lg' } satisfies CaseColumnMeta,
+        cell: (info) => (
+          <Text
+            ff="monospace"
+            fz={11}
+            c="dimmed"
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {info.getValue<string>()}
+          </Text>
+        ),
+      },
+      {
         id: 'updated',
         header: 'Updated',
         accessorFn: (row) => row.updated,
@@ -361,7 +390,7 @@ function CasesPage() {
                   </Menu.Sub.Item>
                 </Menu.Sub.Target>
                 <Menu.Sub.Dropdown>
-                  {ASSIGNEES.map((name) => (
+                  {assignees.map((name) => (
                     <Menu.Item
                       key={name}
                       onClick={() =>
@@ -380,12 +409,13 @@ function CasesPage() {
         ),
       },
     ],
-    // openCase only closes over the stable `navigate`.
-    [],
+    // openCase closes over the stable `navigate`; `assignees` feeds the
+    // row "Assign to" submenu.
+    [assignees],
   )
 
   const table = useReactTable({
-    data: initialCases,
+    data: cases,
     columns,
     state: {
       rowSelection,
@@ -406,15 +436,6 @@ function CasesPage() {
     getPaginationRowModel: getPaginationRowModel(),
     autoResetPageIndex: true,
   })
-
-  const assigneeOptions = useMemo(
-    () => Array.from(new Set(initialCases.map((c) => c.assignee))).sort(),
-    [],
-  )
-  const tagOptions = useMemo(
-    () => Array.from(new Set(initialCases.flatMap((c) => c.tags))).sort(),
-    [],
-  )
 
   // Token-search schema. Each field maps to a TanStack column; OR within a
   // field (array filter), AND across fields. `columnId` is internal wiring.

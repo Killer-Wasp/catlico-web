@@ -2,7 +2,7 @@ import {
   countConnectorJobsByTab,
   filterConnectorJobsByTab,
   initialConnectorJobs,
-} from './connectorJobsData'
+} from '#/components/Connectors/connectorJobs'
 import { describe, expect, test } from 'vitest'
 
 describe('connector jobs data helpers', () => {
