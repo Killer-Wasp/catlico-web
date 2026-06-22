@@ -1,23 +1,26 @@
 import type {
   ConnectorJob,
-  ConnectorJobReport,
-  ConnectorJobReportEnrichment,
+  ConnectorJobDetail,
   ConnectorJobStatus,
   ConnectorJobTab,
   ConnectorJobVerdict,
 } from '#/components/Connectors/connectorJobs.types'
 import {
+  analyzerJobDetailQueryOptions,
+  analyzerJobsQueryOptions,
+  cancelAnalyzerJob,
+  clearFinishedAnalyzerJobs,
   connectorJobTabs,
   countConnectorJobsByTab,
   filterConnectorJobsByTab,
-  getConnectorJobReport,
-  initialConnectorJobs,
+  retryFailedAnalyzerJobs,
 } from '#/components/Connectors/connectorJobs'
 import classes from '#/components/Cases/CasesPage.module.css'
 import {
   Badge,
   Box,
   Button,
+  Code,
   Divider,
   Drawer,
   Group,
@@ -32,7 +35,8 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 const headerProps = {
@@ -68,6 +72,14 @@ const verdictColor: Record<ConnectorJobVerdict, string> = {
 
 function isConnectorJobTab(value: string | null): value is ConnectorJobTab {
   return connectorJobTabs.some((tab) => tab.value === value)
+}
+
+function isTerminal(status: ConnectorJobStatus) {
+  return status === 'success' || status === 'failure'
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Request failed'
 }
 
 function StatusPill({ job }: { job: ConnectorJob }) {
@@ -141,152 +153,42 @@ function VerdictCell({ verdict }: { verdict?: ConnectorJobVerdict }) {
 function ReportProperty({
   label,
   children,
-  highlight,
 }: {
   label: string
   children: React.ReactNode
-  highlight?: boolean
 }) {
   return (
     <Group gap={24} align="baseline" wrap="nowrap">
-      <Text ff="monospace" fz={13} c="dimmed" w={150}>
+      <Text ff="monospace" fz={13} c="dimmed" w={120} style={{ flexShrink: 0 }}>
         {label}
       </Text>
-      <Text
-        ff="monospace"
-        fz={13}
-        fw={highlight ? 800 : 600}
-        c={highlight ? 'red.7' : 'dark.9'}
-      >
+      <Text ff="monospace" fz={13} fw={600} c="dark.9" style={{ wordBreak: 'break-word' }}>
         {children}
       </Text>
     </Group>
   )
 }
 
-function ReportChip({
-  children,
-  color = 'gray',
-}: {
-  children: React.ReactNode
-  color?: string
-}) {
-  return (
-    <Badge variant="outline" color={color} radius="sm" ff="monospace" fz={11}>
-      {children}
-    </Badge>
-  )
-}
-
-function EnrichmentCard({
-  enrichment,
-}: {
-  enrichment: ConnectorJobReportEnrichment
-}) {
-  return (
-    <Paper bg="gray.0" p="md" radius="md" withBorder={false}>
-      <Group justify="space-between" align="flex-start" gap="md" mb={10}>
-        <Group gap={10} wrap="nowrap">
-          <Badge
-            variant="light"
-            color={verdictColor[enrichment.verdict]}
-            radius="sm"
-            ff="monospace"
-            size="sm"
-          >
-            {enrichment.verdict}
-          </Badge>
-          <Text fw={800}>{enrichment.analyzer}</Text>
-        </Group>
-        <Text
-          ff="monospace"
-          fz={12}
-          c="dimmed"
-          style={{ whiteSpace: 'nowrap' }}
-        >
-          {enrichment.meta}
-        </Text>
-      </Group>
-
-      <Group
-        gap={8}
-        mb={
-          enrichment.artifacts?.length || enrichment.operations?.length ? 12 : 0
-        }
-      >
-        {enrichment.chips.map((chip) => (
-          <ReportChip key={chip.label} color={chip.color}>
-            {chip.label}
-          </ReportChip>
-        ))}
-      </Group>
-
-      {enrichment.artifacts?.length ? (
-        <Stack gap={8} mb={12}>
-          <Text {...headerProps}>Extracted artifacts</Text>
-          {enrichment.artifacts.map((artifact) => (
-            <Group key={`${artifact.type}-${artifact.value}`} gap={12}>
-              <Badge variant="default" radius="sm" ff="monospace" fz={11}>
-                {artifact.type}
-              </Badge>
-              <Text ff="monospace" fz={13} fw={700}>
-                {artifact.value}
-              </Text>
-              <Button
-                ml="auto"
-                size="xs"
-                variant="default"
-                leftSection={<Plus size={13} />}
-                onClick={() =>
-                  notifications.show({
-                    message: `${artifact.value} added to observables`,
-                  })
-                }
-              >
-                Add
-              </Button>
-            </Group>
-          ))}
-        </Stack>
-      ) : null}
-
-      {enrichment.operations?.length ? (
-        <Stack gap={8}>
-          <Text {...headerProps}>Case operations</Text>
-          {enrichment.operations.map((operation) => (
-            <Group
-              key={`${operation.action}-${operation.argument ?? ''}`}
-              gap={8}
-            >
-              <Text component="span" ff="monospace" fz={11} c="dark.7">
-                ▶
-              </Text>
-              <Badge variant="default" radius="sm" ff="monospace" fz={12}>
-                {operation.action}
-              </Badge>
-              {operation.argument && (
-                <Text ff="monospace" fz={13} fw={700}>
-                  {operation.argument}
-                </Text>
-              )}
-            </Group>
-          ))}
-        </Stack>
-      ) : null}
-    </Paper>
-  )
+function renderReportValue(value: unknown): string {
+  if (value == null) return '—'
+  if (typeof value === 'object') return JSON.stringify(value, null, 2)
+  return String(value)
 }
 
 function AnalysisReportDrawer({
-  report,
+  detail,
+  loading,
   onClose,
 }: {
-  report: ConnectorJobReport | null
+  detail: ConnectorJobDetail | null
+  loading: boolean
   onClose: () => void
 }) {
+  const reportEntries = detail?.report ? Object.entries(detail.report) : []
+
   return (
     <Drawer
-      opened={report !== null}
+      opened={loading || detail !== null}
       onClose={onClose}
       position="right"
       size={760}
@@ -305,161 +207,194 @@ function AnalysisReportDrawer({
         body: { padding: 0 },
       }}
     >
-      {report && (
+      {loading && !detail ? (
+        <Group justify="center" p="xl">
+          <Loader size="sm" />
+        </Group>
+      ) : detail ? (
         <Box>
           <Box
             px="xl"
             py="lg"
             style={{
-              borderLeft: `5px solid var(--mantine-color-${verdictColor[report.verdict]}-6)`,
+              borderLeft: detail.verdict
+                ? `5px solid var(--mantine-color-${verdictColor[detail.verdict]}-6)`
+                : '5px solid var(--mantine-color-gray-4)',
             }}
           >
-            <Text {...headerProps}>Observable · {report.observableType}</Text>
-            <Text ff="monospace" fz={18} fw={800} mt={8}>
-              {report.observable}
+            <Text {...headerProps}>Observable · {detail.observableType}</Text>
+            <Text ff="monospace" fz={18} fw={800} mt={8} style={{ wordBreak: 'break-word' }}>
+              {detail.observable}
             </Text>
-            <Badge
-              mt="sm"
-              variant="light"
-              color={verdictColor[report.verdict]}
-              radius="sm"
-              ff="monospace"
-            >
-              {report.verdict}
-            </Badge>
+            <Group gap={8} mt="sm">
+              <Badge
+                variant="light"
+                color={statusColor[detail.status]}
+                radius="sm"
+                ff="monospace"
+              >
+                {detail.status}
+              </Badge>
+              {detail.verdict && (
+                <Badge
+                  variant="light"
+                  color={verdictColor[detail.verdict]}
+                  radius="sm"
+                  ff="monospace"
+                >
+                  {detail.verdict}
+                </Badge>
+              )}
+              {detail.cached && (
+                <Badge variant="default" radius="sm" ff="monospace">
+                  cached
+                </Badge>
+              )}
+            </Group>
           </Box>
 
           <Divider />
 
           <Stack gap={10} px="xl" py="lg">
-            <Text {...headerProps}>Properties</Text>
-            <ReportProperty label="Type">
-              {report.observableType}
+            <Text {...headerProps}>Job</Text>
+            <ReportProperty label="Analyzer">
+              {detail.plugin} {detail.version && `· ${detail.version}`}
             </ReportProperty>
-            <ReportProperty label="Value">{report.observable}</ReportProperty>
-            <ReportProperty label="IOC" highlight={report.properties.ioc}>
-              {report.properties.ioc ? 'yes' : 'no'}
-            </ReportProperty>
-            <ReportProperty label="Sighted">
-              {report.properties.sighted ? 'yes' : 'no'}
-            </ReportProperty>
-            <ReportProperty label="First seen">
-              {report.properties.firstSeen}
-            </ReportProperty>
-            <ReportProperty label="Source">
-              {report.properties.source}
-            </ReportProperty>
+            <ReportProperty label="Type">{detail.observableType}</ReportProperty>
+            <ReportProperty label="TLP">{detail.tlp}</ReportProperty>
+            <ReportProperty label="Attempts">{detail.attempts}</ReportProperty>
+            <ReportProperty label="Queued">{detail.queued ?? '—'}</ReportProperty>
+            <ReportProperty label="Started">{detail.started ?? '—'}</ReportProperty>
+            <ReportProperty label="Ended">{detail.ended ?? '—'}</ReportProperty>
+            <ReportProperty label="Duration">{detail.duration ?? '—'}</ReportProperty>
           </Stack>
 
-          <Divider />
+          {detail.error && (
+            <>
+              <Divider />
+              <Stack gap={8} px="xl" py="lg">
+                <Text {...headerProps}>Error</Text>
+                <Text ff="monospace" fz={13} c="red.7" style={{ wordBreak: 'break-word' }}>
+                  {detail.error}
+                </Text>
+              </Stack>
+            </>
+          )}
 
-          <Stack gap="sm" px="xl" py="lg">
-            <Group justify="space-between" align="center">
-              <Text {...headerProps}>Enrichment</Text>
-              <Button
-                size="xs"
-                variant="default"
-                leftSection={
-                  <Text component="span" fz={11}>
-                    ▶
-                  </Text>
-                }
-                onClick={() =>
-                  notifications.show({
-                    message: `Analyzers queued for ${report.observable}`,
-                  })
-                }
-              >
-                Run analyzers
-              </Button>
-            </Group>
-            {report.enrichments.map((enrichment) => (
-              <EnrichmentCard key={enrichment.id} enrichment={enrichment} />
-            ))}
-          </Stack>
-
-          <Divider />
-
-          <Stack gap="sm" px="xl" py="lg">
-            <Text {...headerProps}>Seen in cases</Text>
-            {report.seenInCases.length ? (
-              report.seenInCases.map((caseItem) => (
-                <Group
-                  key={caseItem.id}
-                  gap={10}
-                  justify="space-between"
-                  align="center"
-                  wrap="nowrap"
-                >
-                  <Text fw={700}>
-                    {caseItem.id} {caseItem.title}
-                  </Text>
-                  <Badge
-                    variant="light"
-                    color="yellow"
-                    radius="sm"
-                    ff="monospace"
-                    style={{ flexShrink: 0 }}
-                  >
-                    {caseItem.status}
-                  </Badge>
+          {detail.tags.length > 0 && (
+            <>
+              <Divider />
+              <Stack gap={10} px="xl" py="lg">
+                <Text {...headerProps}>Verdict badges</Text>
+                <Group gap={8}>
+                  {detail.tags.map((tag) => (
+                    <Badge
+                      key={`${tag.namespace}-${tag.predicate}-${tag.value}`}
+                      variant="outline"
+                      color={verdictColor[tag.level]}
+                      radius="sm"
+                      ff="monospace"
+                      fz={11}
+                    >
+                      {tag.namespace}:{tag.predicate}={tag.value}
+                    </Badge>
+                  ))}
                 </Group>
-              ))
+              </Stack>
+            </>
+          )}
+
+          <Divider />
+
+          <Stack gap={10} px="xl" py="lg">
+            <Text {...headerProps}>Analyzer report</Text>
+            {reportEntries.length > 0 ? (
+              <Stack gap={8}>
+                {reportEntries.map(([key, value]) => (
+                  <Group key={key} gap={24} align="flex-start" wrap="nowrap">
+                    <Text ff="monospace" fz={13} c="dimmed" w={150} style={{ flexShrink: 0 }}>
+                      {key}
+                    </Text>
+                    <Code block style={{ flex: 1, fontSize: 12 }}>
+                      {renderReportValue(value)}
+                    </Code>
+                  </Group>
+                ))}
+              </Stack>
             ) : (
               <Text c="dimmed" fz={13}>
-                This observable has not been linked to a case yet.
+                This job returned no report payload.
               </Text>
             )}
           </Stack>
-
-          <Divider />
-
-          <Group gap="sm" px="xl" py="md" justify="flex-end">
-            <Button
-              variant="default"
-              onClick={() =>
-                notifications.show({
-                  message: `${report.observable} IOC flag toggled`,
-                })
-              }
-            >
-              Toggle IOC
-            </Button>
-            <Button
-              variant="default"
-              onClick={() =>
-                notifications.show({
-                  message: `${report.observable} marked sighted`,
-                })
-              }
-            >
-              Mark sighted
-            </Button>
-            <Button
-              onClick={() =>
-                notifications.show({
-                  color: 'ginger',
-                  message: `${report.observable} export queued for MISP`,
-                })
-              }
-            >
-              Export to MISP
-            </Button>
-          </Group>
         </Box>
-      )}
+      ) : null}
     </Drawer>
   )
 }
 
 export function ConnectorJobsPage() {
-  const [jobs, setJobs] = useState<ConnectorJob[]>(initialConnectorJobs)
+  const queryClient = useQueryClient()
+  const { data: jobs = [], isLoading } = useQuery(analyzerJobsQueryOptions())
   const [activeTab, setActiveTab] = useState<ConnectorJobTab>('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState('6')
-  const [activeReport, setActiveReport] = useState<ConnectorJobReport | null>(
-    null,
-  )
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+
+  const detailQuery = useQuery(analyzerJobDetailQueryOptions(selectedJobId))
+
+  const invalidateList = () =>
+    queryClient.invalidateQueries({ queryKey: analyzerJobsQueryOptions().queryKey })
+
+  const retryMutation = useMutation({
+    mutationFn: retryFailedAnalyzerJobs,
+    onSuccess: (count) => {
+      invalidateList()
+      notifications.show({
+        color: count > 0 ? 'blue' : 'gray',
+        message:
+          count > 0
+            ? `${count} failed job${count > 1 ? 's' : ''} queued for retry`
+            : 'No failed jobs to retry',
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: `Unable to retry jobs: ${errorMessage(error)}`,
+      }),
+  })
+
+  const clearMutation = useMutation({
+    mutationFn: clearFinishedAnalyzerJobs,
+    onSuccess: (count) => {
+      invalidateList()
+      notifications.show({
+        message:
+          count > 0
+            ? `${count} finished job${count > 1 ? 's' : ''} cleared`
+            : 'No finished jobs to clear',
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: `Unable to clear jobs: ${errorMessage(error)}`,
+      }),
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: cancelAnalyzerJob,
+    onSuccess: (_data, id) => {
+      invalidateList()
+      notifications.show({ message: `${id.slice(0, 8)} cancelled` })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: `Unable to cancel job: ${errorMessage(error)}`,
+      }),
+  })
 
   const visible = useMemo(
     () => filterConnectorJobsByTab(jobs, activeTab),
@@ -486,71 +421,6 @@ export function ConnectorJobsPage() {
   const rangeStart = visible.length === 0 ? 0 : (page - 1) * perPage + 1
   const rangeEnd = Math.min(page * perPage, visible.length)
 
-  const retryFailed = () => {
-    const failed = jobs.filter((job) => job.status === 'failure')
-    if (failed.length === 0) {
-      notifications.show({ message: 'No failed connector jobs to retry' })
-      return
-    }
-
-    setJobs((current) =>
-      current.map((job) =>
-        job.status === 'failure'
-          ? {
-              ...job,
-              status: 'queued',
-              verdict: undefined,
-              duration: undefined,
-              started: undefined,
-              cached: false,
-            }
-          : job,
-      ),
-    )
-    notifications.show({
-      color: 'blue',
-      message: `${failed.length} failed connector job${
-        failed.length > 1 ? 's' : ''
-      } queued for retry`,
-    })
-  }
-
-  const clearFinished = () => {
-    const finished = jobs.filter(
-      (job) => job.status === 'success' || job.status === 'failure',
-    )
-    if (finished.length === 0) {
-      notifications.show({ message: 'No finished connector jobs to clear' })
-      return
-    }
-
-    setJobs((current) =>
-      current.filter(
-        (job) => job.status !== 'success' && job.status !== 'failure',
-      ),
-    )
-    notifications.show({
-      message: `${finished.length} finished connector job${
-        finished.length > 1 ? 's' : ''
-      } cleared`,
-    })
-  }
-
-  const cancelJob = (id: string) => {
-    setJobs((current) => current.filter((job) => job.id !== id))
-    notifications.show({ message: `${id} cancelled` })
-  }
-
-  const openReport = (id: string) => {
-    const report = getConnectorJobReport(id)
-    if (!report) {
-      notifications.show({ message: `No report available for ${id}` })
-      return
-    }
-
-    setActiveReport(report)
-  }
-
   return (
     <Box className={classes.page}>
       <Group align="center" gap={14} mb={24} wrap="wrap">
@@ -567,14 +437,16 @@ export function ConnectorJobsPage() {
           <Button
             variant="default"
             leftSection={<RotateCcw size={16} />}
-            onClick={retryFailed}
+            loading={retryMutation.isPending}
+            onClick={() => retryMutation.mutate()}
           >
             Retry failed
           </Button>
           <Button
             variant="default"
             leftSection={<Trash2 size={16} />}
-            onClick={clearFinished}
+            loading={clearMutation.isPending}
+            onClick={() => clearMutation.mutate()}
           >
             Clear finished
           </Button>
@@ -657,14 +529,14 @@ export function ConnectorJobsPage() {
                 <Table.Tr
                   key={job.id}
                   tabIndex={0}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() =>
-                    job.status === 'success'
-                      ? openReport(job.id)
-                      : notifications.show({ message: `${job.id} selected` })
-                  }
+                  style={{ cursor: isTerminal(job.status) ? 'pointer' : 'default' }}
+                  onClick={() => {
+                    if (isTerminal(job.status)) setSelectedJobId(job.id)
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter') openReport(job.id)
+                    if (event.key === 'Enter' && isTerminal(job.status)) {
+                      setSelectedJobId(job.id)
+                    }
                   }}
                 >
                   <Table.Td
@@ -674,7 +546,7 @@ export function ConnectorJobsPage() {
                     c="var(--muted)"
                     style={{ whiteSpace: 'nowrap' }}
                   >
-                    {job.id}
+                    {job.ref}
                   </Table.Td>
                   <Table.Td maw={420}>
                     <ObservableCell job={job} />
@@ -706,11 +578,11 @@ export function ConnectorJobsPage() {
                     ta="right"
                     onClick={(event) => event.stopPropagation()}
                   >
-                    {job.status === 'success' ? (
+                    {isTerminal(job.status) ? (
                       <Button
                         variant="default"
                         size="xs"
-                        onClick={() => openReport(job.id)}
+                        onClick={() => setSelectedJobId(job.id)}
                       >
                         Report
                       </Button>
@@ -718,7 +590,11 @@ export function ConnectorJobsPage() {
                       <Button
                         variant="default"
                         size="xs"
-                        onClick={() => cancelJob(job.id)}
+                        loading={
+                          cancelMutation.isPending &&
+                          cancelMutation.variables === job.id
+                        }
+                        onClick={() => cancelMutation.mutate(job.id)}
                       >
                         Cancel
                       </Button>
@@ -729,7 +605,9 @@ export function ConnectorJobsPage() {
               {visible.length === 0 && (
                 <Table.Tr>
                   <Table.Td colSpan={8} ta="center" c="dimmed" fz={13} py={42}>
-                    No connector jobs match this queue.
+                    {isLoading
+                      ? 'Loading analyzer jobs…'
+                      : 'No analyzer jobs match this queue.'}
                   </Table.Td>
                 </Table.Tr>
               )}
@@ -789,8 +667,9 @@ export function ConnectorJobsPage() {
       </Paper>
 
       <AnalysisReportDrawer
-        report={activeReport}
-        onClose={() => setActiveReport(null)}
+        detail={detailQuery.data ?? null}
+        loading={selectedJobId !== null && detailQuery.isLoading}
+        onClose={() => setSelectedJobId(null)}
       />
     </Box>
   )

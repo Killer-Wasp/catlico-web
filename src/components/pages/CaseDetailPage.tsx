@@ -7,9 +7,28 @@ import type {
   CaseDetailTask,
   CaseDetailTimelineEvent,
 } from '#/components/Cases/caseDetails.types'
+import type {
+  Observable,
+  ObservableFlag,
+  ObservableType,
+} from '#/components/Observables/observables.types'
+import { ObservableDetailDrawer } from '#/components/pages/ObservablesPage'
 import type { ReactNode } from 'react'
 import { SEV } from '#/lib/domain'
 import { avatarFor } from '#/components/Cases/cases'
+import { CaseDescription } from '#/components/Cases/CaseDescription'
+import type { MentionUser } from '#/components/Cases/mentionSuggestion'
+import {
+  mentionableUsersQueryOptions,
+  mentionSuggestion,
+} from '#/components/Cases/mentionSuggestion'
+import {
+  caseKeys,
+  createTaskWorkLog,
+  updateTaskDetailFields,
+  updateTaskWorkLog,
+  updateCaseDescription,
+} from '#/components/Cases/casesQueries'
 import { trafficLabel } from '#/components/Cases/caseDetails'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
@@ -21,11 +40,10 @@ import {
   Box,
   Button,
   Checkbox,
-  Code,
   Divider,
-  Drawer,
   Group,
   Paper,
+  ScrollArea,
   Select,
   SimpleGrid,
   Stack,
@@ -35,15 +53,24 @@ import {
   Textarea,
   TextInput,
   Title,
-  VisuallyHidden,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { RichTextEditor } from '@mantine/tiptap'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import FileHandler from '@tiptap/extension-file-handler'
+import { Mention } from '@tiptap/extension-mention'
+import { Markdown } from '@tiptap/markdown'
+import { useEditor } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import {
+  ArrowLeft,
   Clock3,
   Download,
   Flag,
   Hourglass,
+  Paperclip,
+  Pencil,
   Play,
   Plus,
   ShieldCheck,
@@ -52,7 +79,7 @@ import {
   UserPlus,
   XCircle,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export const CASE_TABS = [
   'details',
@@ -145,7 +172,7 @@ function CaseSummaryCard({ caseDetail }: { caseDetail: CaseDetail }) {
             />
           </Group>
 
-          <Title order={1} size="h2" maw={860} mb={14}>
+          <Title order={1} size="h2" mb={14}>
             {caseDetail.title}
           </Title>
 
@@ -305,12 +332,13 @@ function CaseBody({
 
   return (
     <Paper radius="md" withBorder>
-      <Tabs value={activeTab}>
+      <Tabs value={activeTab} color="orange">
         <Tabs.List px="md">
           {tabDefs.map(({ value, label }) => (
             <Tabs.Tab
               key={value}
               value={value}
+              p="md"
               renderRoot={(props) => (
                 <Link
                   to="/cases/$caseId/$tab"
@@ -334,13 +362,15 @@ function CaseBody({
 export function CaseTabPanel({
   tab,
   caseDetail,
+  caseId,
 }: {
   tab: CaseTab
   caseDetail: CaseDetail
+  caseId: string
 }) {
   switch (tab) {
     case 'tasks':
-      return <TasksPanel caseDetail={caseDetail} />
+      return <TasksPanel caseDetail={caseDetail} caseId={caseId} />
     case 'observables':
       return <ObservablesPanel caseDetail={caseDetail} />
     case 'comments':
@@ -358,35 +388,53 @@ export function CaseTabPanel({
       )
     case 'details':
     default:
-      return <DetailsPanel caseDetail={caseDetail} />
+      return <DetailsPanel caseDetail={caseDetail} caseId={caseId} />
   }
 }
 
-function DetailsPanel({ caseDetail }: { caseDetail: CaseDetail }) {
+function DetailsPanel({
+  caseDetail,
+  caseId,
+}: {
+  caseDetail: CaseDetail
+  caseId: string
+}) {
+  const queryClient = useQueryClient()
+  const saveDescription = useMutation({
+    mutationFn: (markdown: string) => updateCaseDescription(caseId, markdown),
+    onSuccess: (_data, markdown) => {
+      // Reflect the saved value immediately in the cached detail (the tab reads
+      // it via useSuspenseQuery), then refetch to reconcile with the server.
+      queryClient.setQueryData(
+        caseKeys.fullDetail(caseId),
+        (old: CaseDetail | undefined) =>
+          old ? { ...old, descriptionMarkdown: markdown } : old,
+      )
+      queryClient.invalidateQueries({ queryKey: caseKeys.detail(caseId) })
+    },
+  })
+
   return (
     <Stack gap="lg" p="lg">
-      <Stack gap="sm" maw={850}>
-        {caseDetail.description.map((paragraph, index) => (
-          <Text key={paragraph} fz={15} lh={1.45} c="var(--desc)">
-            {index === caseDetail.description.length - 1 ? (
-              <>
-                <Text component="span" fw={700}>
-                  Working hypothesis:
-                </Text>{' '}
-                {paragraph.replace('Working hypothesis: ', '')}
-              </>
-            ) : (
-              <HighlightedDescription text={paragraph} />
-            )}
-          </Text>
-        ))}
-      </Stack>
+      <CaseDescription
+        markdown={caseDetail.descriptionMarkdown}
+        onSave={(markdown) => saveDescription.mutateAsync(markdown)}
+      />
+
+      {caseDetail.summary && (
+        <Text fz={15} lh={1.45} c="var(--desc)">
+          <Text component="span" fw={700}>
+            Working hypothesis:
+          </Text>{' '}
+          {caseDetail.summary}
+        </Text>
+      )}
 
       <Box>
         <Text {...fieldLabelProps} mb="sm">
           Custom fields
         </Text>
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" maw={900}>
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
           {caseDetail.customFields.map(([label, value]) => (
             <Box key={label}>
               <Text {...fieldLabelProps} mb={4}>
@@ -417,35 +465,6 @@ function DetailsPanel({ caseDetail }: { caseDetail: CaseDetail }) {
         </Stack>
       </Box>
     </Stack>
-  )
-}
-
-function HighlightedDescription({ text }: { text: string }) {
-  const parts = [
-    'AL-9119',
-    'app id 7f3c…91ab',
-    'Mail.ReadWrite',
-    'offline_access',
-    'AL-9102',
-    'svc-finops@origin…',
-  ]
-  const escaped = parts.map((part) =>
-    part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-  )
-  const regex = new RegExp(`(${escaped.join('|')})`, 'g')
-
-  return (
-    <>
-      {text
-        .split(regex)
-        .map((part, index) =>
-          parts.includes(part) ? (
-            <Code key={`${part}-${index}`}>{part}</Code>
-          ) : (
-            <span key={`${part}-${index}`}>{part}</span>
-          ),
-        )}
-    </>
   )
 }
 
@@ -484,6 +503,10 @@ const TASK_STATUS: Record<
   cancel: { color: 'gray', label: 'Cancelled' },
 }
 
+const TASK_STATUS_OPTIONS = (
+  ['waiting', 'inprogress', 'completed', 'cancel'] as const
+).map((value) => ({ value, label: TASK_STATUS[value].label }))
+
 // "2026-06-12T10:00" → "Fri 10:00 am" — the relative weekday + time shown
 // on each task's due badge.
 function formatDue(due: string) {
@@ -520,17 +543,34 @@ const TEAM_OPTIONS = [
   'S. Iyer',
 ]
 
-function TasksPanel({ caseDetail }: { caseDetail: CaseDetail }) {
+function TasksPanel({
+  caseDetail,
+  caseId,
+}: {
+  caseDetail: CaseDetail
+  caseId: string
+}) {
   const [activeTask, setActiveTask] = useState<CaseDetailTask | null>(null)
   const tasks = caseDetail.tasks
 
+  if (activeTask) {
+    return (
+      <Stack gap={0} p="lg">
+        <TaskDetailPanel
+          task={activeTask}
+          caseDetail={caseDetail}
+          caseId={caseId}
+          onTaskChange={(patch) =>
+            setActiveTask((task) => (task ? { ...task, ...patch } : task))
+          }
+          onBack={() => setActiveTask(null)}
+        />
+      </Stack>
+    )
+  }
+
   return (
     <Stack gap={0} p="lg">
-      <TaskDetailDrawer
-        task={activeTask}
-        caseDetail={caseDetail}
-        onClose={() => setActiveTask(null)}
-      />
       {tasks.map((task) => {
         const done = task.status === 'completed'
         return (
@@ -610,211 +650,471 @@ function TasksPanel({ caseDetail }: { caseDetail: CaseDetail }) {
   )
 }
 
-function TaskDetailDrawer({
+function TaskDetailPanel({
   task,
   caseDetail,
-  onClose,
+  caseId,
+  onTaskChange,
+  onBack,
 }: {
-  task: CaseDetailTask | null
+  task: CaseDetailTask
   caseDetail: CaseDetail
-  onClose: () => void
+  caseId: string
+  onTaskChange: (patch: Partial<CaseDetailTask>) => void
+  onBack: () => void
 }) {
-  if (!task) return null
+  const queryClient = useQueryClient()
+  const [editingDescription, setEditingDescription] = useState(false)
+  const [savingDescription, setSavingDescription] = useState(false)
+
+  async function saveDescription(markdown: string) {
+    setSavingDescription(true)
+    try {
+      await updateTaskDetailFields({
+        taskId: task.apiId,
+        description: markdown,
+      })
+      onTaskChange({ description: markdown })
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      setEditingDescription(false)
+      actionNotice('Task description saved')
+    } finally {
+      setSavingDescription(false)
+    }
+  }
+
+  async function updateStatus(status: CaseDetailTask['status'] | null) {
+    if (!status || status === task.status) return
+    onTaskChange({ status })
+    await updateTaskDetailFields({ taskId: task.apiId, status })
+    queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+    actionNotice(`Task status set to ${TASK_STATUS[status].label}`)
+  }
 
   return (
-    <Drawer
-      opened
-      onClose={onClose}
-      position="right"
-      size="min(560px, 94vw)"
-      padding={0}
-      title={<VisuallyHidden>Task detail</VisuallyHidden>}
-      aria-label="Task detail"
-      closeButtonProps={{ 'aria-label': 'Close task detail' }}
-      overlayProps={{ backgroundOpacity: 0.55, blur: 2 }}
-      styles={{
-        content: { borderLeft: '1px solid var(--line-soft)' },
-        header: {
-          alignItems: 'flex-start',
-          borderBottom: '1px solid var(--line-soft)',
-          padding: '18px 22px 0',
-        },
-        body: { padding: 0 },
+    <Box
+      style={{
+        borderLeft: `4px solid ${TASK_EDGE_COLOR[task.status]}`,
       }}
     >
-      <Box
-        style={{
-          borderLeft: `4px solid ${TASK_EDGE_COLOR[task.status]}`,
-          marginTop: -44,
-          paddingTop: 44,
-        }}
-      >
-        <Box px={22} pb={16}>
-          <Text ff="monospace" fz={12} c="dimmed" mb={8}>
-            {caseDetail.id} · task {task.id}
-          </Text>
-          <TextInput
-            value={task.title}
-            readOnly
-            rightSection={
-              task.flagged ? (
-                <Flag
-                  size={16}
-                  color="var(--sev-high)"
-                  fill="var(--sev-high)"
-                />
-              ) : null
-            }
-            styles={{ input: { fontWeight: 700, fontSize: 18 } }}
-          />
-        </Box>
-
-        <CaseDrawerSection title="Status">
-          <Group gap={8} wrap="wrap">
-            {(
-              [
-                ['waiting', 'Waiting'],
-                ['inprogress', 'In progress'],
-                ['completed', 'Completed'],
-                ['cancel', 'Cancelled'],
-              ] as const
-            ).map(([status, label]) => (
-              <Button
-                key={status}
-                size="xs"
-                variant={task.status === status ? 'light' : 'default'}
-                color={TASK_STATUS[status].color}
-                tt="uppercase"
-                ff="monospace"
-                onClick={() => actionNotice(`Task status set to ${label}`)}
-              >
-                {label}
-              </Button>
-            ))}
-          </Group>
-          <Group gap={8} mt={12} wrap="wrap">
-            <Text ff="monospace" fz={12} c="dimmed">
-              start {task.start ? formatTaskDateTime(task.start) : '—'}
-            </Text>
-            <Text ff="monospace" fz={12} c="dimmed">
-              end {task.end ? formatTaskDateTime(task.end) : '—'}
-            </Text>
-            <Text ff="monospace" fz={12} c="red">
-              {task.due && task.status !== 'completed'
-                ? isTaskOverdue(task)
-                  ? 'overdue'
-                  : ''
-                : ''}
-            </Text>
-          </Group>
-        </CaseDrawerSection>
-
-        <CaseDrawerSection title="Details">
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <Box>
-              <Text {...fieldLabelProps} mb={6}>
-                Group
-              </Text>
-              <TextInput value={task.group} readOnly />
-            </Box>
-            <Box>
-              <Text {...fieldLabelProps} mb={6}>
-                Assignee
-              </Text>
-              <Select
-                data={TEAM_OPTIONS}
-                value={task.assignee}
-                onChange={() => actionNotice('Assignee changed')}
-                allowDeselect={false}
-              />
-            </Box>
-            <Box style={{ gridColumn: '1 / -1' }}>
-              <Text {...fieldLabelProps} mb={6}>
-                Due date
-              </Text>
-              <TextInput
-                value={task.due ? formatDueInput(task.due) : ''}
-                readOnly
-              />
-            </Box>
-          </SimpleGrid>
-        </CaseDrawerSection>
-
-        <CaseDrawerSection title="Description">
-          <Textarea value={task.description} readOnly minRows={4} />
-        </CaseDrawerSection>
-
-        <CaseDrawerSection title={`Work logs ${task.workLogs.length}`}>
-          <Stack gap={8}>
-            {task.workLogs.length ? (
-              task.workLogs.map((log) => (
-                <Paper
-                  key={`${log.author}-${log.time}`}
-                  radius="sm"
-                  p="sm"
-                  bg="gray.0"
-                >
-                  <Text ff="monospace" fz={12} c="dimmed" mb={6}>
-                    {log.author} · {log.time}
-                  </Text>
-                  <Text fz={13} lh={1.45}>
-                    {log.body}
-                  </Text>
-                </Paper>
-              ))
-            ) : (
-              <Text fz={13} c="dimmed">
-                No work logs yet.
-              </Text>
-            )}
-            <Textarea
-              placeholder="Add a work log entry — what you did, what you found... (Ctrl+Enter to post)"
-              minRows={3}
-            />
-            <Group justify="flex-end">
-              <Button
-                size="xs"
-                color="orange"
-                onClick={() => actionNotice('Work log posted')}
-              >
-                Post log
-              </Button>
-            </Group>
-          </Stack>
-        </CaseDrawerSection>
-
-        <Group
-          p={16}
-          gap={10}
-          wrap="nowrap"
-          style={{
-            position: 'sticky',
-            bottom: 0,
-            background: 'var(--mantine-color-body)',
-            borderTop: '1px solid var(--line-soft)',
-          }}
+      <Group px={22} pb={12}>
+        <Button
+          variant="subtle"
+          color="gray"
+          size="xs"
+          leftSection={<ArrowLeft size={14} />}
+          onClick={onBack}
         >
-          <Button
-            fullWidth
-            variant="default"
-            color="red"
-            onClick={() => actionNotice('Task delete confirmation opened')}
-          >
-            Delete
-          </Button>
-          <Button fullWidth variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            fullWidth
-            color="orange"
-            onClick={() => actionNotice('Task saved')}
-          >
-            Save
-          </Button>
-        </Group>
+          Back to tasks
+        </Button>
+      </Group>
+
+      <Box px={22} pb={16}>
+        <Text ff="monospace" fz={12} c="dimmed" mb={8}>
+          {caseDetail.id} · task {task.id}
+        </Text>
+        <TextInput
+          value={task.title}
+          readOnly
+          rightSection={
+            task.flagged ? (
+              <Flag size={16} color="var(--sev-high)" fill="var(--sev-high)" />
+            ) : null
+          }
+          styles={{ input: { fontWeight: 700, fontSize: 18 } }}
+        />
       </Box>
-    </Drawer>
+
+      <CaseDrawerSection title="Status">
+        <Select
+          label="Status"
+          data={TASK_STATUS_OPTIONS}
+          value={task.status}
+          onChange={(value) =>
+            updateStatus(value as CaseDetailTask['status'] | null)
+          }
+          allowDeselect={false}
+          w={{ base: '100%', sm: 240 }}
+        />
+        <Group gap={8} mt={12} wrap="wrap">
+          <Text ff="monospace" fz={12} c="dimmed">
+            start {task.start ? formatTaskDateTime(task.start) : '—'}
+          </Text>
+          <Text ff="monospace" fz={12} c="dimmed">
+            end {task.end ? formatTaskDateTime(task.end) : '—'}
+          </Text>
+          <Text ff="monospace" fz={12} c="red">
+            {task.due && task.status !== 'completed'
+              ? isTaskOverdue(task)
+                ? 'overdue'
+                : ''
+              : ''}
+          </Text>
+        </Group>
+      </CaseDrawerSection>
+
+      <CaseDrawerSection title="Details">
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          <Box>
+            <Text {...fieldLabelProps} mb={6}>
+              Group
+            </Text>
+            <TextInput value={task.group} readOnly />
+          </Box>
+          <Box>
+            <Text {...fieldLabelProps} mb={6}>
+              Assignee
+            </Text>
+            <Select
+              data={TEAM_OPTIONS}
+              value={task.assignee}
+              onChange={() => actionNotice('Assignee changed')}
+              allowDeselect={false}
+            />
+          </Box>
+          <Box style={{ gridColumn: '1 / -1' }}>
+            <Text {...fieldLabelProps} mb={6}>
+              Due date
+            </Text>
+            <TextInput
+              value={task.due ? formatDueInput(task.due) : ''}
+              readOnly
+            />
+          </Box>
+        </SimpleGrid>
+      </CaseDrawerSection>
+
+      <CaseDrawerSection
+        title="Description"
+        action={
+          !editingDescription ? (
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<Pencil size={13} />}
+              onClick={() => setEditingDescription(true)}
+            >
+              Edit description
+            </Button>
+          ) : null
+        }
+      >
+        {editingDescription ? (
+          <TaskMarkdownEditor
+            ariaLabel="Task description"
+            initialMarkdown={task.description}
+            saveLabel="Save description"
+            saving={savingDescription}
+            onSave={saveDescription}
+          />
+        ) : (
+          <Paper withBorder radius="sm" p="sm" bg="gray.0">
+            <Text fz={14} lh={1.45}>
+              {task.description || 'No description yet.'}
+            </Text>
+          </Paper>
+        )}
+      </CaseDrawerSection>
+
+      <TaskWorkLogsSection
+        task={task}
+        caseId={caseId}
+        onTaskChange={onTaskChange}
+      />
+    </Box>
+  )
+}
+
+function TaskMarkdownEditor({
+  initialMarkdown,
+  saveLabel,
+  ariaLabel,
+  saving = false,
+  files,
+  onFilesChange,
+  onSave,
+}: {
+  initialMarkdown: string
+  saveLabel: string
+  ariaLabel: string
+  saving?: boolean
+  files?: File[]
+  onFilesChange?: (files: File[]) => void
+  onSave: (markdown: string) => Promise<void> | void
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const filesRef = useRef<File[]>(files ?? [])
+  const onFilesChangeRef = useRef<typeof onFilesChange>(onFilesChange)
+
+  useEffect(() => {
+    filesRef.current = files ?? []
+    onFilesChangeRef.current = onFilesChange
+  }, [files, onFilesChange])
+
+  const appendFiles = (nextFiles: File[]) => {
+    if (!onFilesChangeRef.current || !nextFiles.length) return
+    onFilesChangeRef.current([...filesRef.current, ...nextFiles])
+  }
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Markdown,
+      ...(onFilesChange
+        ? [
+            FileHandler.configure({
+              onDrop: (_editor, droppedFiles) => appendFiles(droppedFiles),
+              onPaste: (_editor, pastedFiles) => appendFiles(pastedFiles),
+            }),
+          ]
+        : []),
+    ],
+    content: initialMarkdown,
+    contentType: 'markdown',
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        'aria-label': ariaLabel,
+      },
+    },
+  })
+
+  useEffect(() => {
+    editor?.commands.setContent(initialMarkdown, { contentType: 'markdown' })
+  }, [editor, initialMarkdown])
+
+  const save = async () => {
+    if (!editor) return
+    await onSave(editor.isEmpty ? '' : editor.getMarkdown())
+  }
+
+  return (
+    <RichTextEditor editor={editor}>
+      <RichTextEditor.Toolbar>
+        <RichTextEditor.ControlsGroup>
+          <RichTextEditor.Bold />
+          <RichTextEditor.Italic />
+          <RichTextEditor.Strikethrough />
+          <RichTextEditor.Code />
+        </RichTextEditor.ControlsGroup>
+        <RichTextEditor.ControlsGroup>
+          <RichTextEditor.BulletList />
+          <RichTextEditor.OrderedList />
+          <RichTextEditor.Blockquote />
+          <RichTextEditor.CodeBlock />
+        </RichTextEditor.ControlsGroup>
+        <RichTextEditor.ControlsGroup>
+          <RichTextEditor.Link />
+          <RichTextEditor.Unlink />
+        </RichTextEditor.ControlsGroup>
+        {onFilesChange ? (
+          <Box ml="auto">
+            <RichTextEditor.Control
+              aria-label="Attach files"
+              title="Attach files"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip size={16} />
+            </RichTextEditor.Control>
+          </Box>
+        ) : (
+          <Box ml="auto" />
+        )}
+        <Button
+          size="compact-xs"
+          color="orange"
+          loading={saving}
+          onClick={save}
+        >
+          {saveLabel}
+        </Button>
+      </RichTextEditor.Toolbar>
+      {onFilesChange ? (
+        <input
+          ref={fileInputRef}
+          aria-label={
+            ariaLabel === 'Add work log'
+              ? 'Work log attachments'
+              : `${ariaLabel} file picker`
+          }
+          type="file"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(event) => {
+            appendFiles(Array.from(event.currentTarget.files ?? []))
+            event.currentTarget.value = ''
+          }}
+        />
+      ) : null}
+      <RichTextEditor.Content />
+      {files?.length ? (
+        <Group gap={6} p="xs" wrap="wrap">
+          {files.map((file) => (
+            <Badge
+              key={`${file.name}-${file.size}`}
+              variant="default"
+              radius="sm"
+              leftSection={<Paperclip size={12} />}
+            >
+              {file.name}
+            </Badge>
+          ))}
+        </Group>
+      ) : null}
+    </RichTextEditor>
+  )
+}
+
+function TaskWorkLogsSection({
+  task,
+  caseId,
+  onTaskChange,
+}: {
+  task: CaseDetailTask
+  caseId: string
+  onTaskChange: (patch: Partial<CaseDetailTask>) => void
+}) {
+  const queryClient = useQueryClient()
+  const [files, setFiles] = useState<File[]>([])
+  const [savingNew, setSavingNew] = useState(false)
+
+  async function saveNewLog(markdown: string) {
+    setSavingNew(true)
+    try {
+      const log = await createTaskWorkLog({
+        taskId: task.apiId,
+        bodyMarkdown: markdown,
+        files,
+      })
+      onTaskChange({
+        workLogs: [...task.workLogs, log],
+        logs: task.workLogs.length + 1,
+      })
+      setFiles([])
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      actionNotice('Work log saved')
+    } finally {
+      setSavingNew(false)
+    }
+  }
+
+  return (
+    <CaseDrawerSection title={`Work logs ${task.workLogs.length}`}>
+      <Stack gap="sm">
+        {task.workLogs.length ? (
+          task.workLogs.map((log) => (
+            <TaskWorkLogCard
+              key={log.id}
+              task={task}
+              log={log}
+              caseId={caseId}
+              onTaskChange={onTaskChange}
+            />
+          ))
+        ) : (
+          <Text fz={13} c="dimmed">
+            No work logs yet.
+          </Text>
+        )}
+
+        <TaskMarkdownEditor
+          ariaLabel="Add work log"
+          initialMarkdown=""
+          saveLabel="Save work log"
+          saving={savingNew}
+          files={files}
+          onFilesChange={setFiles}
+          onSave={saveNewLog}
+        />
+      </Stack>
+    </CaseDrawerSection>
+  )
+}
+
+function TaskWorkLogCard({
+  task,
+  log,
+  caseId,
+  onTaskChange,
+}: {
+  task: CaseDetailTask
+  log: CaseDetailTask['workLogs'][number]
+  caseId: string
+  onTaskChange: (patch: Partial<CaseDetailTask>) => void
+}) {
+  const queryClient = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function save(markdown: string) {
+    setSaving(true)
+    try {
+      const updated = await updateTaskWorkLog({
+        taskId: task.apiId,
+        logId: log.id,
+        bodyMarkdown: markdown,
+      })
+      onTaskChange({
+        workLogs: task.workLogs.map((item) =>
+          item.id === log.id ? { ...item, ...updated } : item,
+        ),
+      })
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      setEditing(false)
+      actionNotice('Work log updated')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Paper radius="sm" p="sm" bg="gray.0" withBorder>
+      <Group justify="space-between" align="flex-start" gap="sm" mb={6}>
+        <Text ff="monospace" fz={12} c="dimmed">
+          {log.author} · {log.time}
+        </Text>
+        {!editing ? (
+          <Button
+            size="compact-xs"
+            variant="subtle"
+            color="gray"
+            leftSection={<Pencil size={13} />}
+            onClick={() => setEditing(true)}
+          >
+            Edit work log from {log.author} at {log.time}
+          </Button>
+        ) : null}
+      </Group>
+
+      {editing ? (
+        <TaskMarkdownEditor
+          ariaLabel={`Edit work log ${log.id}`}
+          initialMarkdown={log.body}
+          saveLabel="Save work log"
+          saving={saving}
+          onSave={save}
+        />
+      ) : (
+        <Text fz={13} lh={1.45}>
+          {log.body}
+        </Text>
+      )}
+
+      {log.attachments.length ? (
+        <Group gap={6} mt="sm" wrap="wrap">
+          {log.attachments.map((attachment) => (
+            <Badge
+              key={attachment.id}
+              variant="outline"
+              radius="sm"
+              leftSection={<Paperclip size={12} />}
+            >
+              {attachment.name}
+              {attachment.size ? ` · ${attachment.size}` : ''}
+            </Badge>
+          ))}
+        </Group>
+      ) : null}
+    </Paper>
   )
 }
 
@@ -858,16 +1158,54 @@ function DueBadge({ due, done }: { due: string; done: boolean }) {
   )
 }
 
+const CASE_OBSERVABLE_TYPE_MAP: Record<string, ObservableType> = {
+  domain: 'domain',
+  url: 'url',
+  mail: 'mail',
+  email: 'mail',
+  ip: 'ip',
+  ipv4: 'ip',
+  ipv6: 'ip',
+  hash: 'hash',
+  file: 'file',
+  filename: 'file',
+  other: 'other',
+}
+
+function toObservable(
+  observable: CaseDetailObservable,
+  caseDetail: CaseDetail,
+): Observable {
+  const flags: ObservableFlag[] = []
+  if (observable.ioc) flags.push('ioc')
+  if (observable.sighted) flags.push('sighted')
+
+  return {
+    id: observable.id,
+    type: CASE_OBSERVABLE_TYPE_MAP[observable.type.toLowerCase()] ?? 'other',
+    value: observable.value,
+    flags,
+    tlp: caseDetail.tlp,
+    source: caseDetail.id,
+    ...(observable.analysis.trim() && observable.analysis !== '—'
+      ? { analysis: { analyzer: 'Note', verdict: observable.analysis } }
+      : {}),
+    added: observable.added,
+  }
+}
+
 function ObservablesPanel({ caseDetail }: { caseDetail: CaseDetail }) {
   const [activeObservable, setActiveObservable] =
     useState<CaseDetailObservable | null>(null)
   const observables = caseDetail.observables
+  const drawerObservable = activeObservable
+    ? toObservable(activeObservable, caseDetail)
+    : null
 
   return (
     <Stack gap="md" p="lg">
       <ObservableDetailDrawer
-        observable={activeObservable}
-        caseDetail={caseDetail}
+        observable={drawerObservable}
         onClose={() => setActiveObservable(null)}
       />
       <Table verticalSpacing="sm" horizontalSpacing={0} highlightOnHover>
@@ -965,427 +1303,6 @@ function ObservablesPanel({ caseDetail }: { caseDetail: CaseDetail }) {
         </Button>
       </Box>
     </Stack>
-  )
-}
-
-type ObservableVerdict = 'malicious' | 'suspicious' | 'info' | 'clean'
-
-type ObservableTaxonomy = {
-  namespace: string
-  predicate: string
-  value: string
-  level: ObservableVerdict
-}
-
-type ObservableArtifact = {
-  type: string
-  value: string
-}
-
-type ObservableOperation = {
-  kind: string
-  params: Record<string, string>
-}
-
-type ObservableReport = {
-  plugin: string
-  version: string
-  verdict: ObservableVerdict
-  when: string
-  cached?: boolean
-  taxonomies: ObservableTaxonomy[]
-  artifacts: ObservableArtifact[]
-  operations: ObservableOperation[]
-}
-
-const VERDICT_COLOR: Record<ObservableVerdict, string> = {
-  malicious: 'red',
-  suspicious: 'yellow',
-  info: 'blue',
-  clean: 'green',
-}
-
-function taxonomy(
-  namespace: string,
-  predicate: string,
-  value: string,
-  level: ObservableVerdict,
-): ObservableTaxonomy {
-  return { namespace, predicate, value, level }
-}
-
-function buildObservableReports(
-  observable: CaseDetailObservable,
-): ObservableReport[] {
-  if (observable.type === 'url') {
-    return [
-      {
-        plugin: 'URLscan.io',
-        version: '0.4',
-        verdict: 'malicious',
-        when: '10:33',
-        taxonomies: [
-          taxonomy('URLscan', 'verdict', 'phishing', 'malicious'),
-          taxonomy('URLscan', 'brand', 'China', 'suspicious'),
-        ],
-        artifacts: [
-          { type: 'domain', value: 'cdn-au-billing.net' },
-          { type: 'ip', value: '203.0.113.47' },
-        ],
-        operations: [
-          {
-            kind: 'create_task',
-            params: { title: 'Block landing URL at proxy' },
-          },
-        ],
-      },
-      {
-        plugin: 'Google Safe Browsing',
-        version: '1.0',
-        verdict: 'malicious',
-        when: '10:32',
-        taxonomies: [
-          taxonomy('GoogleSB', 'threat', 'SOCIAL_ENGINEERING', 'malicious'),
-        ],
-        artifacts: [],
-        operations: [],
-      },
-    ]
-  }
-
-  if (observable.type === 'domain') {
-    return [
-      {
-        plugin: 'VirusTotal',
-        version: '3.1',
-        verdict: 'suspicious',
-        when: '10:30',
-        taxonomies: [
-          taxonomy('VirusTotal', 'detection', '12/93', 'suspicious'),
-        ],
-        artifacts: [{ type: 'ip', value: '203.0.113.47' }],
-        operations: [{ kind: 'set_severity', params: { severity: 'High' } }],
-      },
-    ]
-  }
-
-  if (observable.type === 'ip') {
-    return [
-      {
-        plugin: 'AbuseIPDB',
-        version: '1.0',
-        verdict: 'malicious',
-        when: '10:31',
-        taxonomies: [
-          taxonomy('AbuseIPDB', 'abuse-score', '97%', 'malicious'),
-          taxonomy('AbuseIPDB', 'reports', '41', 'suspicious'),
-        ],
-        artifacts: [{ type: 'domain', value: 'cdn-au-billing.net' }],
-        operations: [{ kind: 'mark_as_ioc', params: {} }],
-      },
-      {
-        plugin: 'MaxMind GeoIP',
-        version: '4.0',
-        verdict: 'info',
-        when: '10:31',
-        cached: true,
-        taxonomies: [
-          taxonomy('GeoIP', 'country', 'AU', 'info'),
-          taxonomy('GeoIP', 'asn', 'AS7545 TPG', 'info'),
-        ],
-        artifacts: [],
-        operations: [],
-      },
-    ]
-  }
-
-  return [
-    {
-      plugin: 'ValidateObservable',
-      version: '1.0',
-      verdict: 'info',
-      when: 'now',
-      taxonomies: [taxonomy('Validate', 'format', 'valid', 'info')],
-      artifacts: [],
-      operations: [],
-    },
-  ]
-}
-
-function worstObservableVerdict(
-  reports: ObservableReport[],
-): ObservableVerdict {
-  return (
-    (['malicious', 'suspicious', 'info', 'clean'] as const).find((verdict) =>
-      reports.some((report) => report.verdict === verdict),
-    ) ?? 'info'
-  )
-}
-
-function ObservableDetailDrawer({
-  observable,
-  caseDetail,
-  onClose,
-}: {
-  observable: CaseDetailObservable | null
-  caseDetail: CaseDetail
-  onClose: () => void
-}) {
-  if (!observable) return null
-
-  const reports = buildObservableReports(observable)
-  const verdict = worstObservableVerdict(reports)
-
-  return (
-    <Drawer
-      opened
-      onClose={onClose}
-      position="right"
-      size="min(560px, 94vw)"
-      padding={0}
-      title={<VisuallyHidden>Observable detail</VisuallyHidden>}
-      aria-label="Observable detail"
-      closeButtonProps={{ 'aria-label': 'Close observable detail' }}
-      overlayProps={{ backgroundOpacity: 0.55, blur: 2 }}
-      styles={{
-        content: { borderLeft: '1px solid var(--line-soft)' },
-        header: {
-          alignItems: 'flex-start',
-          borderBottom: '1px solid var(--line-soft)',
-          padding: '18px 22px 0',
-        },
-        body: { padding: 0 },
-      }}
-    >
-      <Box
-        style={{
-          borderLeft: `4px solid var(--mantine-color-${VERDICT_COLOR[verdict]}-6)`,
-          marginTop: -44,
-          paddingTop: 44,
-        }}
-      >
-        <Box px={22} pb={16}>
-          <Text ff="monospace" fz={11} c="dimmed" mb={8}>
-            OBSERVABLE · {observable.type}
-          </Text>
-          <Text
-            ff="monospace"
-            fw={700}
-            fz={16}
-            lh={1.35}
-            pr={36}
-            style={{ wordBreak: 'break-all' }}
-          >
-            {observable.value}
-          </Text>
-          <Badge
-            mt={14}
-            color={VERDICT_COLOR[verdict]}
-            variant="light"
-            radius="sm"
-          >
-            {verdict.toUpperCase()}
-          </Badge>
-        </Box>
-
-        <CaseDrawerSection title="Properties">
-          <CaseKeyValue label="Type">{observable.type}</CaseKeyValue>
-          <CaseKeyValue label="Value">
-            <Text
-              component="span"
-              ff="monospace"
-              fz={12}
-              style={{ wordBreak: 'break-all' }}
-            >
-              {observable.value}
-            </Text>
-          </CaseKeyValue>
-          <CaseKeyValue label="IOC">
-            <Text
-              component="span"
-              c={observable.ioc ? 'red.6' : undefined}
-              fw={observable.ioc ? 700 : undefined}
-            >
-              {observable.ioc ? 'yes' : 'no'}
-            </Text>
-          </CaseKeyValue>
-          <CaseKeyValue label="Sighted">
-            {observable.sighted ? 'yes' : 'no'}
-          </CaseKeyValue>
-          <CaseKeyValue label="First seen">{observable.added}</CaseKeyValue>
-          <CaseKeyValue label="Source">{caseDetail.id}</CaseKeyValue>
-        </CaseDrawerSection>
-
-        <CaseDrawerSection
-          title="Enrichment"
-          action={
-            <Button
-              size="xs"
-              variant="default"
-              leftSection={<Play size={12} />}
-              onClick={() =>
-                actionNotice(`Queued analyzers on ${observable.value}`)
-              }
-            >
-              Run analyzers
-            </Button>
-          }
-        >
-          <Stack gap={10}>
-            {reports.map((report) => (
-              <Paper
-                key={report.plugin}
-                radius="sm"
-                p="sm"
-                bg="gray.0"
-                withBorder
-              >
-                <Group gap={8} mb={8} wrap="nowrap">
-                  <Badge
-                    color={VERDICT_COLOR[report.verdict]}
-                    variant="light"
-                    radius="sm"
-                  >
-                    {report.verdict.toUpperCase()}
-                  </Badge>
-                  <Text fw={700} fz={13}>
-                    {report.plugin}
-                  </Text>
-                  <Text ml="auto" ff="monospace" fz={11} c="dimmed">
-                    v{report.version} · {report.when}
-                    {report.cached ? ' · cached' : ''}
-                  </Text>
-                </Group>
-
-                <Group
-                  gap={6}
-                  wrap="wrap"
-                  mb={
-                    report.artifacts.length || report.operations.length ? 10 : 0
-                  }
-                >
-                  {report.taxonomies.map((taxonomyItem) => (
-                    <Badge
-                      key={`${report.plugin}-${taxonomyItem.namespace}-${taxonomyItem.predicate}`}
-                      variant="outline"
-                      color={VERDICT_COLOR[taxonomyItem.level]}
-                      radius="sm"
-                      ff="monospace"
-                      tt="none"
-                    >
-                      {taxonomyItem.namespace}:{taxonomyItem.predicate}=
-                      {taxonomyItem.value}
-                    </Badge>
-                  ))}
-                </Group>
-
-                {report.artifacts.length ? (
-                  <Box mt={8}>
-                    <Text {...fieldLabelProps} mb={4}>
-                      Extracted artifacts
-                    </Text>
-                    {report.artifacts.map((artifact) => (
-                      <Group
-                        key={`${report.plugin}-${artifact.type}-${artifact.value}`}
-                        py={5}
-                        gap={10}
-                        wrap="nowrap"
-                        style={{ borderBottom: '1px solid var(--line-soft)' }}
-                      >
-                        <Badge variant="default" radius="sm" ff="monospace">
-                          {artifact.type}
-                        </Badge>
-                        <Text
-                          ff="monospace"
-                          fz={12}
-                          truncate
-                          style={{ flex: 1 }}
-                        >
-                          {artifact.value}
-                        </Text>
-                        <Button size="compact-xs" variant="default">
-                          + add
-                        </Button>
-                      </Group>
-                    ))}
-                  </Box>
-                ) : null}
-
-                {report.operations.length ? (
-                  <Box mt={10}>
-                    <Text {...fieldLabelProps} mb={4}>
-                      Case operations
-                    </Text>
-                    {report.operations.map((operation) => (
-                      <Text
-                        key={`${report.plugin}-${operation.kind}`}
-                        fz={12}
-                        c="dimmed"
-                        py={2}
-                      >
-                        ▸ <Code>{operation.kind}</Code>{' '}
-                        {Object.entries(operation.params)
-                          .map(([key, value]) => `${key}=${value}`)
-                          .join(' ')}
-                      </Text>
-                    ))}
-                  </Box>
-                ) : null}
-              </Paper>
-            ))}
-          </Stack>
-        </CaseDrawerSection>
-
-        <CaseDrawerSection title="Seen in cases">
-          <Group gap={10} wrap="nowrap">
-            <Text ff="monospace" fz={12} c="dimmed">
-              {caseDetail.id}
-            </Text>
-            <Text fz={13} fw={600} truncate style={{ flex: 1 }}>
-              {caseDetail.title}
-            </Text>
-            <StatusBadge
-              status={caseDetail.status}
-              label={caseDetail.statusName}
-            />
-          </Group>
-        </CaseDrawerSection>
-
-        <Group
-          p={16}
-          gap={10}
-          wrap="nowrap"
-          style={{
-            position: 'sticky',
-            bottom: 0,
-            background: 'var(--mantine-color-body)',
-            borderTop: '1px solid var(--line-soft)',
-          }}
-        >
-          <Button
-            fullWidth
-            variant="default"
-            onClick={() => actionNotice('IOC flag toggled')}
-          >
-            Toggle IOC
-          </Button>
-          <Button
-            fullWidth
-            variant="default"
-            onClick={() => actionNotice('Observable marked sighted')}
-          >
-            Mark sighted
-          </Button>
-          <Button
-            fullWidth
-            color="orange"
-            onClick={() => actionNotice('Pushed to MISP event 4417')}
-          >
-            Export to MISP
-          </Button>
-        </Group>
-      </Box>
-    </Drawer>
   )
 }
 
@@ -1548,18 +1465,89 @@ function CommentsPanel({ comments }: { comments: CaseDetailComment[] }) {
         )
       })}
 
-      <Stack gap="sm" pt="md">
-        <Textarea
-          autosize
-          minRows={3}
-          placeholder="Add a comment… @mention a teammate · markdown supported (Ctrl+Enter to post)"
-        />
-        <Group justify="flex-end">
-          <Button color="orange" onClick={() => actionNotice('Comment posted')}>
+      <CaseCommentEditor />
+    </Stack>
+  )
+}
+
+function CaseCommentEditor() {
+  const [empty, setEmpty] = useState(true)
+  const { data: mentionUsers } = useQuery(mentionableUsersQueryOptions())
+  const usersRef = useRef<MentionUser[]>([])
+
+  useEffect(() => {
+    usersRef.current = mentionUsers ?? []
+  }, [mentionUsers])
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Markdown,
+      Mention.configure({
+        suggestion: mentionSuggestion(() => usersRef.current),
+      }),
+    ],
+    content: '',
+    contentType: 'markdown',
+    immediatelyRender: false,
+    onCreate: ({ editor: activeEditor }) => setEmpty(activeEditor.isEmpty),
+    onUpdate: ({ editor: activeEditor }) => setEmpty(activeEditor.isEmpty),
+    editorProps: {
+      attributes: {
+        'aria-label': 'Add a comment',
+      },
+      handleKeyDown: (_view, event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+          post()
+          return true
+        }
+        return false
+      },
+    },
+  })
+
+  function post() {
+    if (!editor || editor.isEmpty) return
+    actionNotice('Comment posted')
+    editor.commands.clearContent()
+    setEmpty(true)
+  }
+
+  return (
+    <Stack gap="sm" pt="md">
+      <RichTextEditor editor={editor}>
+        <RichTextEditor.Toolbar>
+          <RichTextEditor.ControlsGroup>
+            <RichTextEditor.Bold />
+            <RichTextEditor.Italic />
+            <RichTextEditor.Strikethrough />
+            <RichTextEditor.ClearFormatting />
+            <RichTextEditor.Code />
+          </RichTextEditor.ControlsGroup>
+          <RichTextEditor.ControlsGroup>
+            <RichTextEditor.BulletList />
+            <RichTextEditor.OrderedList />
+            <RichTextEditor.Blockquote />
+            <RichTextEditor.CodeBlock />
+          </RichTextEditor.ControlsGroup>
+          <RichTextEditor.ControlsGroup>
+            <RichTextEditor.Link />
+            <RichTextEditor.Unlink />
+          </RichTextEditor.ControlsGroup>
+          <Button
+            color="orange"
+            size="xs"
+            onClick={post}
+            disabled={empty}
+            ml="auto"
+          >
             Post comment
           </Button>
-        </Group>
-      </Stack>
+        </RichTextEditor.Toolbar>
+        <ScrollArea h={120}>
+          <RichTextEditor.Content />
+        </ScrollArea>
+      </RichTextEditor>
     </Stack>
   )
 }

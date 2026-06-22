@@ -16,7 +16,19 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Badge, Box, Flex, Image, NavLink, Text } from '@mantine/core'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from '@tanstack/react-router'
+import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
+import { caseTemplatesList } from '#/components/Cases/caseTemplates'
+import { casesQueryOptions } from '#/components/Cases/casesQueries'
+import { connectorsQueryOptions } from '#/components/Connectors/connectors'
+import {
+  analyzerJobsQueryOptions,
+  countConnectorJobsByTab,
+} from '#/components/Connectors/connectorJobs'
+import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
+import { filterTasksByStatus, initialTasks } from '#/components/Tasks/tasks'
+import { tasksQueryOptions } from '#/components/Tasks/tasksQueries'
 
 type NavItem = {
   icon: LucideIcon
@@ -32,58 +44,85 @@ type NavSection = {
   items: NavItem[]
 }
 
-const sections: NavSection[] = [
-  {
-    title: 'Operate',
-    items: [
-      { icon: LayoutDashboard, label: 'Overview', to: '/' },
-      { icon: Gauge, label: 'Dashboards' },
-      {
-        icon: AlertTriangle,
-        label: 'Alerts',
-        to: '/alerts',
-        badge: 10,
-        badgeColor: 'red',
-      },
-      { icon: Briefcase, label: 'Cases', to: '/cases', badge: 6 },
-      { icon: ListTodo, label: 'Tasks', to: '/tasks', badge: 17 },
-    ],
-  },
-  {
-    title: 'Intelligence',
-    items: [
-      { icon: Eye, label: 'Observables', to: '/observables', badge: 8 },
-      { icon: Grid3x3, label: 'ATT&CK matrix' },
-      { icon: Cable, label: 'Connectors', to: '/connectors', badge: 12 },
-      {
-        icon: ListFilter,
-        label: 'Connector jobs',
-        to: '/connector-jobs',
-        badge: 3,
-      },
-    ],
-  },
-  {
-    title: 'Automate',
-    items: [
-      { icon: SquareFunction, label: 'Functions', to: '/functions', badge: 3 },
-      { icon: BookOpen, label: 'Knowledge base', to: '/knowledge-base' },
-    ],
-  },
-  {
-    title: 'Manage',
-    items: [
-      {
-        icon: ClipboardList,
-        label: 'Case templates',
-        to: '/case-templates',
-        badge: 5,
-      },
-      { icon: ScrollText, label: 'Audit trail' },
-      { icon: Settings, label: 'Settings', to: '/settings' },
-    ],
-  },
-]
+type NavbarCounts = {
+  alerts?: number
+  cases?: number
+  tasks: number
+  observables?: number
+  connectors?: number
+  connectorJobs?: number
+  caseTemplates: number
+}
+
+const fixtureCounts = {
+  tasks: filterTasksByStatus(initialTasks, 'open').length,
+  caseTemplates: caseTemplatesList.length,
+}
+
+function sectionsForCounts(counts: NavbarCounts): NavSection[] {
+  return [
+    {
+      title: 'Operate',
+      items: [
+        { icon: LayoutDashboard, label: 'Overview', to: '/' },
+        { icon: Gauge, label: 'Dashboards' },
+        {
+          icon: AlertTriangle,
+          label: 'Alerts',
+          to: '/alerts',
+          badge: counts.alerts,
+          badgeColor: 'red',
+        },
+        { icon: Briefcase, label: 'Cases', to: '/cases', badge: counts.cases },
+        { icon: ListTodo, label: 'Tasks', to: '/tasks', badge: counts.tasks },
+      ],
+    },
+    {
+      title: 'Intelligence',
+      items: [
+        {
+          icon: Eye,
+          label: 'Observables',
+          to: '/observables',
+          badge: counts.observables,
+        },
+        { icon: Grid3x3, label: 'ATT&CK matrix' },
+        {
+          icon: Cable,
+          label: 'Connectors',
+          to: '/connectors',
+          badge: counts.connectors,
+        },
+        {
+          icon: ListFilter,
+          label: 'Analyzer jobs',
+          to: '/connector-jobs',
+          badge: counts.connectorJobs,
+        },
+      ],
+    },
+    {
+      title: 'Automate',
+      items: [
+        { icon: SquareFunction, label: 'Functions', to: '/functions' },
+        { icon: BookOpen, label: 'Knowledge base', to: '/knowledge-base' },
+      ],
+    },
+    {
+      title: 'Manage',
+      items: [
+        {
+          icon: ClipboardList,
+          label: 'Case templates',
+          to: '/case-templates',
+          badge: counts.caseTemplates,
+        },
+        { icon: ScrollText, label: 'Audit trail' },
+        { icon: Settings, label: 'Settings', to: '/settings' },
+      ],
+    },
+  ]
+}
 
 // Active links flip to a high-contrast dark fill; danger links read red.
 // `light-dark()` mirrors theme.ts so both colour schemes stay on-palette.
@@ -147,6 +186,26 @@ function NavItemLink({ item, active }: { item: NavItem; active: boolean }) {
 
 export function Navbar() {
   const { pathname } = useLocation()
+  const { data: alerts } = useQuery(alertsQueryOptions())
+  const { data: cases } = useQuery(casesQueryOptions())
+  const { data: observables } = useQuery(observablesQueryOptions())
+  const { data: taskQueue } = useQuery(tasksQueryOptions())
+  const { data: connectors } = useQuery(connectorsQueryOptions())
+  const { data: connectorJobs } = useQuery(analyzerJobsQueryOptions())
+  const connectorJobCounts = connectorJobs
+    ? countConnectorJobsByTab(connectorJobs)
+    : undefined
+  const sections = sectionsForCounts({
+    ...fixtureCounts,
+    tasks: filterTasksByStatus(taskQueue?.tasks ?? initialTasks, 'open').length,
+    alerts: alerts?.length,
+    cases: cases?.total,
+    observables: observables?.length,
+    connectors: connectors?.length,
+    connectorJobs: connectorJobCounts
+      ? connectorJobCounts.queued + connectorJobCounts.running
+      : undefined,
+  })
 
   return (
     <Flex

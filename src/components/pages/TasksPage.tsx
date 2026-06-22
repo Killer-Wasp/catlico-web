@@ -1,4 +1,5 @@
 import classes from '#/components/Cases/CasesPage.module.css'
+import { getCaseRouteId } from '#/components/Cases/caseDetails'
 import { Severity } from '#/components/Severity/Severity'
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import { TokenSearch } from '#/components/Table/TokenSearch'
@@ -11,11 +12,19 @@ import {
   initialTasks,
 } from '#/components/Tasks/tasks'
 import {
+  DEFAULT_TASK_FILTERS,
+  taskKeys,
+  tasksQueryOptions,
+  updateTaskStatus,
+} from '#/components/Tasks/tasksQueries'
+import {
+  ActionIcon,
   Avatar,
   Badge,
   Box,
   Checkbox,
   Group,
+  Menu,
   Pagination,
   Paper,
   Select,
@@ -23,6 +32,7 @@ import {
   Text,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   ColumnDef,
   FilterFn,
@@ -37,7 +47,17 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { ChevronDown, ChevronUp, ChevronsUpDown, Clock3 } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  Clock3,
+  EllipsisVertical,
+  ExternalLink,
+  Play,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -87,6 +107,12 @@ const includesAnySubstring: FilterFn<Task> = (
 const byCaseId: SortingFn<Task> = (a, b) =>
   Number(a.original.caseId.replace(/\D/g, '')) -
   Number(b.original.caseId.replace(/\D/g, ''))
+
+const byDueDate: SortingFn<Task> = (a, b) => {
+  const aTime = a.original.dueAt ? new Date(a.original.dueAt).getTime() : Infinity
+  const bTime = b.original.dueAt ? new Date(b.original.dueAt).getTime() : Infinity
+  return aTime - bTime
+}
 
 function Assignee({ name }: { name?: string }) {
   if (!name) {
@@ -147,7 +173,12 @@ function TaskStatusBadge({
       radius="sm"
       size="sm"
       ff="monospace"
-      onClick={onAdvance}
+      onClick={(event) => {
+        // Keep status advances on the badge — don't bubble to the row's
+        // navigate-to-case handler.
+        event.stopPropagation()
+        onAdvance()
+      }}
       styles={{
         root: {
           border: 0,
@@ -164,35 +195,69 @@ function TaskStatusBadge({
 }
 
 export function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { data } = useQuery(tasksQueryOptions(DEFAULT_TASK_FILTERS))
+  const tasks = data?.tasks ?? initialTasks
   const [pageSize, setPageSize] = useState(10)
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'caseId', desc: false },
   ])
 
-  const completeTask = (id: string) => {
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === id ? { ...task, status: 'completed' } : task,
-      ),
-    )
-    notifications.show({ color: 'green', message: 'Task completed' })
+  // Clicking a task row opens its parent case on the Tasks tab.
+  const openTaskCase = (caseId: string) => {
+    navigate({
+      to: '/cases/$caseId/$tab',
+      params: { caseId: getCaseRouteId(caseId), tab: 'tasks' },
+    })
   }
 
-  const advanceStatus = (id: string) => {
-    setTasks((current) =>
-      current.map((task) => {
-        if (task.id !== id) return task
-        const nextStatus = advanceTaskStatus(task.status)
-        if (nextStatus !== task.status) {
-          notifications.show({
-            color: nextStatus === 'completed' ? 'green' : 'yellow',
-            message: `${task.title} moved to ${TASK_STATUS_LABEL[nextStatus]}`,
-          })
-        }
-        return { ...task, status: nextStatus }
+  const invalidateTasks = () =>
+    queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+
+  const statusMutation = useMutation({
+    mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) => {
+      if (!task.apiId) throw new Error('Task is not linked to the API yet')
+      return updateTaskStatus({ apiId: task.apiId, status })
+    },
+    onSuccess: (task) => {
+      invalidateTasks()
+      notifications.show({
+        color: task.status === 'completed' ? 'green' : 'yellow',
+        message: `${task.title} moved to ${TASK_STATUS_LABEL[task.status]}`,
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: error instanceof Error ? error.message : 'Unable to update task',
       }),
-    )
+  })
+
+  const completeMutation = useMutation({
+    mutationFn: async (task: Task) => {
+      if (!task.apiId) throw new Error('Task is not linked to the API yet')
+      if (task.status === 'waiting') {
+        await updateTaskStatus({ apiId: task.apiId, status: 'inprogress' })
+      }
+      return updateTaskStatus({ apiId: task.apiId, status: 'completed' })
+    },
+    onSuccess: () => {
+      invalidateTasks()
+      notifications.show({ color: 'green', message: 'Task completed' })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: error instanceof Error ? error.message : 'Unable to complete task',
+      }),
+  })
+
+  const advanceStatus = (task: Task) => {
+    const nextStatus = advanceTaskStatus(task.status)
+    if (nextStatus !== task.status) {
+      statusMutation.mutate({ task, status: nextStatus })
+    }
   }
 
   const columns = useMemo<ColumnDef<Task>[]>(
@@ -208,7 +273,8 @@ export function TasksPage() {
             size="sm"
             checked={row.original.status === 'completed'}
             disabled={row.original.status === 'cancelled'}
-            onChange={() => completeTask(row.original.id)}
+            onChange={() => completeMutation.mutate(row.original)}
+            onClick={(event) => event.stopPropagation()}
             aria-label={`Complete ${row.original.title}`}
           />
         ),
@@ -231,7 +297,6 @@ export function TasksPage() {
         header: 'Task',
         accessorFn: (row) => row.title,
         filterFn: includesAnySubstring,
-        enableSorting: false,
         cell: ({ row }) => {
           const task = row.original
           return (
@@ -281,7 +346,6 @@ export function TasksPage() {
         header: 'Assignee',
         accessorFn: (row) => row.assignee ?? 'Unassigned',
         filterFn: includesOne,
-        enableSorting: false,
         cell: ({ row }) => <Assignee name={row.original.assignee} />,
       },
       {
@@ -289,7 +353,7 @@ export function TasksPage() {
         header: 'Due',
         accessorFn: (row) => row.due,
         enableColumnFilter: false,
-        enableSorting: false,
+        sortingFn: byDueDate,
         cell: ({ row }) => <DuePill task={row.original} />,
       },
       {
@@ -297,16 +361,67 @@ export function TasksPage() {
         header: 'Status',
         accessorFn: (row) => row.status,
         filterFn: includesOne,
-        enableSorting: false,
         cell: ({ row }) => (
           <TaskStatusBadge
             status={row.original.status}
-            onAdvance={() => advanceStatus(row.original.id)}
+            onAdvance={() => advanceStatus(row.original)}
           />
         ),
       },
+      {
+        id: 'actions',
+        header: '',
+        enableColumnFilter: false,
+        enableSorting: false,
+        meta: { ta: 'right' },
+        cell: ({ row }) => {
+          const task = row.original
+          const canAdvance = task.status === 'waiting' || task.status === 'inprogress'
+          const canComplete =
+            task.status !== 'completed' && task.status !== 'cancelled'
+          return (
+            <Menu position="bottom-end" withinPortal>
+              <Menu.Target>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  radius="md"
+                  title="Task actions"
+                  aria-label={`Task actions for ${task.title}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <EllipsisVertical size={16} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown onClick={(event) => event.stopPropagation()}>
+                <Menu.Item
+                  leftSection={<ExternalLink size={14} />}
+                  onClick={() => openTaskCase(task.caseId)}
+                >
+                  Open case
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<Play size={14} />}
+                  disabled={!canAdvance}
+                  onClick={() => advanceStatus(task)}
+                >
+                  Advance status
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<Check size={14} />}
+                  disabled={!canComplete}
+                  onClick={() => completeMutation.mutate(task)}
+                >
+                  Complete task
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          )
+        },
+      },
     ],
-    [],
+    [completeMutation, statusMutation],
   )
 
   const table = useReactTable({
@@ -455,10 +570,11 @@ export function TasksPage() {
             fields={filterFields}
             tokens={tokens}
             onChange={setTokens}
+            placeholder="Filter tasks — pick a field, then a value"
           />
         </Group>
 
-        <Table.ScrollContainer minWidth={1040}>
+        <Table.ScrollContainer minWidth={1120}>
           <Table
             highlightOnHover
             horizontalSpacing="lg"
@@ -511,7 +627,16 @@ export function TasksPage() {
             </Table.Thead>
             <Table.Tbody>
               {rows.map((row) => (
-                <Table.Tr key={row.id}>
+                <Table.Tr
+                  key={row.id}
+                  tabIndex={0}
+                  onClick={() => openTaskCase(row.original.caseId)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter')
+                      openTaskCase(row.original.caseId)
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
                   {row.getVisibleCells().map((cell) => {
                     const meta = cell.column.columnDef.meta
                     return (

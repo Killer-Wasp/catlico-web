@@ -1,30 +1,44 @@
 import classes from '#/components/Cases/CasesPage.module.css'
+import {
+  buildConnectorConfigPayload,
+  connectorsQueryOptions,
+  filterConnectorsByTab,
+  getMissingRequiredConfigItems,
+  initialConnectors,
+  isSecretConfigItem,
+  saveConnectorConfig,
+  setConnectorEnabled,
+  testConnectorConfig,
+} from '#/components/Connectors/connectors'
 import type {
   Connector,
+  ConnectorConfigItem,
   ConnectorKind,
   ConnectorTab,
   TlpLevel,
 } from '#/components/Connectors/connectors.types'
-import {
-  filterConnectorsByTab,
-  initialConnectors,
-} from '#/components/Connectors/connectors'
 import { Tag } from '#/components/Tag/Tag'
 import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Divider,
+  Drawer,
   Group,
+  NumberInput,
   Paper,
+  PasswordInput,
   SimpleGrid,
   Stack,
   Switch,
   Tabs,
   Text,
+  TextInput,
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -81,6 +95,10 @@ function useStamp() {
   return stamp
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Request failed'
+}
+
 function ConnectorMark({ connector }: { connector: Connector }) {
   return (
     <Box
@@ -108,10 +126,12 @@ function ConnectorCard({
   connector,
   onConfigure,
   onToggle,
+  toggling,
 }: {
   connector: Connector
   onConfigure: (connector: Connector) => void
-  onToggle: (id: string, enabled: boolean) => void
+  onToggle: (connector: Connector, enabled: boolean) => void
+  toggling: boolean
 }) {
   return (
     <Paper
@@ -145,8 +165,9 @@ function ConnectorCard({
           </Box>
           <Switch
             checked={connector.enabled}
+            disabled={toggling}
             onChange={(event) =>
-              onToggle(connector.id, event.currentTarget.checked)
+              onToggle(connector, event.currentTarget.checked)
             }
             color="green"
             size="md"
@@ -211,10 +232,263 @@ function ConnectorCard({
   )
 }
 
+function valueForItem(connector: Connector, item: ConnectorConfigItem) {
+  if (isSecretConfigItem(item)) return ''
+  return connector.settings[item.name] ?? item.defaultValue ?? ''
+}
+
+function ConfigField({
+  item,
+  value,
+  storedSecret,
+  onChange,
+}: {
+  item: ConnectorConfigItem
+  value: unknown
+  storedSecret: boolean
+  onChange: (value: unknown) => void
+}) {
+  const description = item.description || undefined
+
+  if (isSecretConfigItem(item)) {
+    return (
+      <PasswordInput
+        label={item.name}
+        aria-label={item.name}
+        description={description}
+        value={String(value ?? '')}
+        placeholder={storedSecret ? 'Leave blank to keep stored secret' : ''}
+        required={item.required}
+        rightSection={
+          storedSecret ? (
+            <Badge size="xs" color="green" variant="light" radius="sm">
+              Secret stored
+            </Badge>
+          ) : null
+        }
+        rightSectionWidth={storedSecret ? 112 : undefined}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
+    )
+  }
+
+  if (item.type === 'integer' || item.type === 'number') {
+    return (
+      <NumberInput
+        label={item.name}
+        aria-label={item.name}
+        description={description}
+        value={typeof value === 'number' || typeof value === 'string' ? value : ''}
+        required={item.required}
+        onChange={onChange}
+      />
+    )
+  }
+
+  if (item.type === 'boolean') {
+    return (
+      <Checkbox
+        label={item.name}
+        aria-label={item.name}
+        description={description}
+        checked={Boolean(value)}
+        onChange={(event) => onChange(event.currentTarget.checked)}
+      />
+    )
+  }
+
+  return (
+    <TextInput
+      label={item.name}
+      aria-label={item.name}
+      description={description}
+      value={String(value ?? '')}
+      required={item.required}
+      onChange={(event) => onChange(event.currentTarget.value)}
+    />
+  )
+}
+
+function ConnectorConfigDrawer({
+  connector,
+  saving,
+  testing,
+  onClose,
+  onSave,
+  onTest,
+}: {
+  connector: Connector | null
+  saving: boolean
+  testing: boolean
+  onClose: () => void
+  onSave: (connector: Connector, values: Record<string, unknown>) => void
+  onTest: (connector: Connector) => void
+}) {
+  const [values, setValues] = useState<Record<string, unknown>>({})
+
+  useEffect(() => {
+    if (!connector) {
+      setValues({})
+      return
+    }
+
+    setValues(
+      Object.fromEntries(
+        connector.configItems.map((item) => [
+          item.name,
+          valueForItem(connector, item),
+        ]),
+      ),
+    )
+  }, [connector])
+
+  return (
+    <Drawer
+      opened={connector !== null}
+      onClose={onClose}
+      title={connector ? `Configure ${connector.name}` : 'Configure connector'}
+      position="right"
+      size="md"
+      padding="lg"
+    >
+      {connector ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            onSave(connector, values)
+          }}
+        >
+          <Stack gap="md">
+            <Group gap={8} wrap="wrap">
+              <Badge variant="light" color={kindColor[connector.kind]} radius="sm">
+                {connector.kind}
+              </Badge>
+              <Badge variant="light" color="gray" radius="sm">
+                {connector.version}
+              </Badge>
+              {connector.hasSecrets ? (
+                <Badge variant="light" color="green" radius="sm">
+                  Secret stored
+                </Badge>
+              ) : null}
+            </Group>
+
+            <Text fz={14} c="dimmed">
+              {connector.description || 'No description available.'}
+            </Text>
+
+            {connector.configItems.length ? (
+              <Stack gap="sm">
+                {connector.configItems.map((item) => (
+                  <ConfigField
+                    key={item.name}
+                    item={item}
+                    value={values[item.name]}
+                    storedSecret={connector.hasSecrets && isSecretConfigItem(item)}
+                    onChange={(value) =>
+                      setValues((current) => ({
+                        ...current,
+                        [item.name]: value,
+                      }))
+                    }
+                  />
+                ))}
+              </Stack>
+            ) : (
+              <Text fz={14} c="dimmed">
+                This connector does not require configuration.
+              </Text>
+            )}
+
+            <Group justify="flex-end" mt="sm">
+              <Button
+                variant="default"
+                type="button"
+                loading={testing}
+                onClick={() => onTest(connector)}
+              >
+                Test credentials
+              </Button>
+              <Button type="submit" loading={saving}>
+                Save config
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      ) : null}
+    </Drawer>
+  )
+}
+
 export function ConnectorsPage() {
-  const [connectors, setConnectors] = useState<Connector[]>(initialConnectors)
+  const queryClient = useQueryClient()
+  const { data: connectors = initialConnectors, refetch } = useQuery(
+    connectorsQueryOptions(),
+  )
   const [activeTab, setActiveTab] = useState<ConnectorTab>('all')
+  const [activeConnector, setActiveConnector] = useState<Connector | null>(null)
   const stamp = useStamp()
+
+  const invalidateCatalog = () =>
+    queryClient.invalidateQueries({ queryKey: connectorsQueryOptions().queryKey })
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      setConnectorEnabled(id, enabled),
+    onSuccess: (connector) => {
+      invalidateCatalog()
+      notifications.show({
+        color: connector.enabled ? 'green' : 'gray',
+        message: `${connector.name} ${connector.enabled ? 'enabled' : 'disabled'}`,
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: `Unable to update connector: ${errorMessage(error)}`,
+      }),
+  })
+
+  const saveConfigMutation = useMutation({
+    mutationFn: ({
+      connector,
+      values,
+    }: {
+      connector: Connector
+      values: Record<string, unknown>
+    }) =>
+      saveConnectorConfig(
+        connector.id,
+        buildConnectorConfigPayload(connector.configItems, values),
+      ),
+    onSuccess: (connector) => {
+      invalidateCatalog()
+      setActiveConnector(connector)
+      notifications.show({
+        color: 'green',
+        message: `${connector.name} configuration saved`,
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: `Unable to save configuration: ${errorMessage(error)}`,
+      }),
+  })
+
+  const testConfigMutation = useMutation({
+    mutationFn: (connector: Connector) => testConnectorConfig(connector.id),
+    onSuccess: (result) =>
+      notifications.show({
+        color: 'green',
+        message: result.message,
+      }),
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: `Credential test failed: ${errorMessage(error)}`,
+      }),
+  })
 
   const visible = useMemo(
     () => filterConnectorsByTab(connectors, activeTab),
@@ -231,32 +505,33 @@ export function ConnectorsPage() {
     [connectors],
   )
 
-  const toggleConnector = (id: string, enabled: boolean) => {
-    setConnectors((current) =>
-      current.map((connector) =>
-        connector.id === id ? { ...connector, enabled } : connector,
-      ),
-    )
-    const connector = connectors.find((item) => item.id === id)
-    notifications.show({
-      color: enabled ? 'green' : 'gray',
-      message: `${connector?.name ?? 'Connector'} ${
-        enabled ? 'enabled' : 'disabled'
-      }`,
-    })
-  }
-
-  const configureConnector = (connector: Connector) =>
-    notifications.show({ message: `Configuring ${connector.name}...` })
-
   const refreshCatalog = () =>
-    notifications.show({
-      color: 'blue',
-      message: 'Connector catalog refreshed',
-    })
+    refetch().then(() =>
+      notifications.show({
+        color: 'blue',
+        message: 'Connector catalog refreshed',
+      }),
+    )
 
   const addInstance = () =>
     notifications.show({ color: 'orange', message: 'New connector instance' })
+
+  const toggleConnector = (connector: Connector, enabled: boolean) => {
+    if (enabled) {
+      const missing = getMissingRequiredConfigItems(connector)
+      if (missing.length) {
+        notifications.show({
+          color: 'red',
+          message: `Configure ${connector.name} before enabling it. Missing: ${missing.join(
+            ', ',
+          )}`,
+        })
+        return
+      }
+    }
+
+    toggleMutation.mutate({ id: connector.id, enabled })
+  }
 
   return (
     <Box className={classes.page}>
@@ -318,11 +593,26 @@ export function ConnectorsPage() {
           <ConnectorCard
             key={connector.id}
             connector={connector}
-            onConfigure={configureConnector}
+            onConfigure={setActiveConnector}
             onToggle={toggleConnector}
+            toggling={
+              toggleMutation.isPending &&
+              toggleMutation.variables.id === connector.id
+            }
           />
         ))}
       </SimpleGrid>
+
+      <ConnectorConfigDrawer
+        connector={activeConnector}
+        saving={saveConfigMutation.isPending}
+        testing={testConfigMutation.isPending}
+        onClose={() => setActiveConnector(null)}
+        onSave={(connector, values) =>
+          saveConfigMutation.mutate({ connector, values })
+        }
+        onTest={(connector) => testConfigMutation.mutate(connector)}
+      />
     </Box>
   )
 }

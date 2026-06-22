@@ -1,6 +1,12 @@
 import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
 import { TLP } from '#/lib/domain'
-import type { CaseDetail } from './caseDetails.types'
+import type { MemberPublic } from './caseUsers'
+import { memberDisplayNameById } from './caseUsers'
+import type {
+  CaseDetail,
+  CaseDetailTaskLog,
+  CaseDetailTaskStatus,
+} from './caseDetails.types'
 
 export type CaseTaskSummary = {
   id: string
@@ -36,6 +42,7 @@ export type CasePublic = {
 
 export type TaskPublic = {
   id: string
+  public_id?: string
   case_id: number
   organisation_id: string
   title: string
@@ -93,12 +100,32 @@ export type AuditPublic = {
   created_at: string
 }
 
+export type WorkLogAttachmentPublic = {
+  id: string
+  filename?: string
+  name?: string
+  size?: number | string | null
+  url?: string | null
+}
+
+export type WorkLogPublic = {
+  id: string
+  message?: string
+  body?: string
+  created_by: string
+  created_at: string
+  updated_at: string | null
+  attachments?: WorkLogAttachmentPublic[]
+}
+
 export type CaseDetailResources = {
   case: CasePublic
   tasks: TaskPublic[]
   observables: ObservablePublic[]
   comments: CommentPublic[]
   activity: AuditPublic[]
+  members?: MemberPublic[]
+  workLogs?: Record<string, WorkLogPublic[]>
 }
 
 export const caseDetails: CaseDetail[] = [
@@ -118,11 +145,10 @@ export const caseDetails: CaseDetail[] = [
     sla: '3h 18m to SLA',
     source: 'Defender XDR',
     businessUnit: 'Corporate IT',
-    description: [
-      'Defender XDR raised AL-9119 after an unverified multi-tenant application (app id 7f3c…91ab) was granted Mail.ReadWrite and offline_access by three privileged users within 11 minutes.',
-      'Consent grants followed a credential-phish lure (see linked alert AL-9102) referencing a fake billing portal. One account (svc-finops@origin…) shows mailbox rule creation post-consent — consistent with BEC staging.',
-      'Working hypothesis: single actor, phish → consent grant → mailbox persistence. Containment is underway; tokens revoked for 2 of 3 accounts.',
-    ],
+    descriptionMarkdown:
+      'Defender XDR raised AL-9119 after an unverified multi-tenant application (app id 7f3c…91ab) was granted **Mail.ReadWrite** and **offline_access** by three privileged users within 11 minutes.\n\nConsent grants followed a credential-phish lure (see linked alert AL-9102) referencing a fake billing portal. One account (svc-finops@origin…) shows mailbox rule creation post-consent — consistent with BEC staging.',
+    summary:
+      'single actor, phish → consent grant → mailbox persistence. Containment is underway; tokens revoked for 2 of 3 accounts.',
     customFields: [
       ['Campaign ID', 'BILL-2026-Q2'],
       ['Affected users', '3'],
@@ -145,7 +171,8 @@ export const caseDetails: CaseDetail[] = [
     ],
     tasks: [
       {
-        id: 'T-1843-1',
+        id: 'T-1842-1',
+        apiId: 'T-1842-1',
         title: 'Triage consent grant alert and confirm scope',
         group: 'Identify',
         status: 'completed',
@@ -159,19 +186,24 @@ export const caseDetails: CaseDetail[] = [
         logs: 2,
         workLogs: [
           {
+            id: 'wl-1843-1',
             author: 'J. Tanaka',
             time: '12 June, 09:32 am',
             body: 'Confirmed alert as true positive. Three privileged users granted consent to the same unverified app.',
+            attachments: [],
           },
           {
+            id: 'wl-1843-2',
             author: 'J. Tanaka',
             time: '12 June, 09:38 am',
             body: 'Scoped initial blast radius to identity and mailbox access. Opened containment tasks.',
+            attachments: [],
           },
         ],
       },
       {
-        id: 'T-1843-2',
+        id: 'T-1842-2',
+        apiId: 'T-1842-2',
         title: 'Pull unified audit log for the 3 accounts (±24h)',
         group: 'Identify',
         status: 'completed',
@@ -185,14 +217,17 @@ export const caseDetails: CaseDetail[] = [
         logs: 1,
         workLogs: [
           {
+            id: 'wl-1843-3',
             author: 'P. Nguyen',
             time: '12 June, 10:21 am',
             body: 'UAL exported to evidence share. Consent grants preceded by click on hxxps://cdn-au-billing[.]net/invoice.php from Outlook on iOS for 2 of 3 users.',
+            attachments: [],
           },
         ],
       },
       {
-        id: 'T-1843-3',
+        id: 'T-1842-3',
+        apiId: 'T-1842-3',
         title: 'Revoke refresh tokens + reset credentials',
         group: 'Contain',
         status: 'completed',
@@ -206,14 +241,17 @@ export const caseDetails: CaseDetail[] = [
         logs: 1,
         workLogs: [
           {
+            id: 'wl-1843-4',
             author: 'J. Tanaka',
             time: '12 June, 09:54 am',
             body: 'Tokens revoked for all 3 accounts via Entra ID responder. Password reset enforced. Re-auth confirmed for m.keller and t.harland.',
+            attachments: [],
           },
         ],
       },
       {
-        id: 'T-1843-4',
+        id: 'T-1842-4',
+        apiId: 'T-1842-4',
         title: 'Disable malicious app registration tenant-wide',
         group: 'Contain',
         status: 'inprogress',
@@ -227,14 +265,23 @@ export const caseDetails: CaseDetail[] = [
         logs: 1,
         workLogs: [
           {
+            id: 'wl-1843-5',
             author: 'J. Tanaka',
             time: '12 June, 10:08 am',
             body: "App registration disabled in our tenant. Awaiting Identity team confirmation that it can be added to the tenant-wide blocklist (need approval as it's a 3-tenant policy change).",
+            attachments: [
+              {
+                id: 'att-1843-1',
+                name: 'tenant-blocklist-approval.pdf',
+                size: '184 KB',
+              },
+            ],
           },
         ],
       },
       {
-        id: 'T-1843-5',
+        id: 'T-1842-5',
+        apiId: 'T-1842-5',
         title: 'Remove mailbox rules and check forwarding',
         group: 'Eradicate',
         status: 'inprogress',
@@ -248,14 +295,17 @@ export const caseDetails: CaseDetail[] = [
         logs: 1,
         workLogs: [
           {
+            id: 'wl-1843-6',
             author: 'A. Whitford',
             time: '12 June, 10:32 am',
             body: 'svc-finops: removed "RSS Feeds2" rule that was moving billing@* to RSS Feeds and marking read. Captured rule definition as evidence.',
+            attachments: [],
           },
         ],
       },
       {
-        id: 'T-1843-6',
+        id: 'T-1842-6',
+        apiId: 'T-1842-6',
         title: 'Hunt for same app id across all tenants',
         group: 'Hunt',
         status: 'waiting',
@@ -270,7 +320,8 @@ export const caseDetails: CaseDetail[] = [
         workLogs: [],
       },
       {
-        id: 'T-1843-7',
+        id: 'T-1842-7',
+        apiId: 'T-1842-7',
         title: 'User comms + phishing-resistant MFA enrolment',
         group: 'Recover',
         status: 'waiting',
@@ -287,6 +338,7 @@ export const caseDetails: CaseDetail[] = [
     ],
     observables: [
       {
+        id: 'obs-1',
         type: 'domain',
         value: 'login-originenergy.support',
         ioc: true,
@@ -295,6 +347,7 @@ export const caseDetails: CaseDetail[] = [
         added: '09:18',
       },
       {
+        id: 'obs-2',
         type: 'url',
         value: 'hxxps://cdn-au-billing[.]net/invoice.php',
         ioc: true,
@@ -303,6 +356,7 @@ export const caseDetails: CaseDetail[] = [
         added: '09:21',
       },
       {
+        id: 'obs-3',
         type: 'mail',
         value: 'accounts@billing-origin.co',
         ioc: true,
@@ -311,6 +365,7 @@ export const caseDetails: CaseDetail[] = [
         added: '09:24',
       },
       {
+        id: 'obs-4',
         type: 'ip',
         value: '203.0.113.47',
         ioc: true,
@@ -319,6 +374,7 @@ export const caseDetails: CaseDetail[] = [
         added: '09:30',
       },
       {
+        id: 'obs-5',
         type: 'other',
         value: 'app id 7f3c…91ab',
         ioc: false,
@@ -436,12 +492,12 @@ const STATUS_MAP: Record<string, { id: CaseStatus; name: string }> = {
   Duplicated: { id: 'duplicated', name: 'Duplicated' },
 }
 
-const TASK_STATUS_MAP = {
+const TASK_STATUS_MAP: Record<string, CaseDetailTaskStatus> = {
   Waiting: 'waiting',
   InProgress: 'inprogress',
   Completed: 'completed',
   Cancelled: 'cancel',
-} as const
+}
 
 const clamp = (n: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, Math.round(n)))
@@ -462,10 +518,34 @@ function compactTime(iso: string): string {
   })
 }
 
-function descriptionParts(description: string, summary: string | null) {
-  return [...description.split(/\n{2,}/), summary]
-    .map((part) => part?.trim())
-    .filter((part): part is string => Boolean(part))
+function taskPublicId(task: TaskPublic): string {
+  return task.public_id?.trim() || `T-${task.case_id}-${task.order + 1}`
+}
+
+function formatFileSize(size: WorkLogAttachmentPublic['size']) {
+  if (size == null || size === '') return 'file'
+  if (typeof size === 'string') return size
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+export function toCaseDetailTaskLog(
+  log: WorkLogPublic,
+  displayNameByUserId: Map<string, string> = new Map(),
+): CaseDetailTaskLog {
+  return {
+    id: log.id,
+    author: displayNameByUserId.get(log.created_by) ?? log.created_by,
+    time: compactTime(log.created_at),
+    body: log.message ?? log.body ?? '',
+    attachments: (log.attachments ?? []).map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name ?? attachment.filename ?? 'attachment',
+      size: formatFileSize(attachment.size),
+      ...(attachment.url ? { url: attachment.url } : {}),
+    })),
+  }
 }
 
 function customFieldRows(fields: Record<string, unknown>): [string, string][] {
@@ -476,10 +556,7 @@ function customFieldRows(fields: Record<string, unknown>): [string, string][] {
 }
 
 function taskStatus(status: string) {
-  return (
-    TASK_STATUS_MAP[status as keyof typeof TASK_STATUS_MAP] ??
-    TASK_STATUS_MAP.Waiting
-  )
+  return TASK_STATUS_MAP[status] ?? TASK_STATUS_MAP.Waiting
 }
 
 function auditText(event: AuditPublic) {
@@ -488,6 +565,7 @@ function auditText(event: AuditPublic) {
 
 export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
   const { case: caseItem, tasks, observables, comments, activity } = resources
+  const displayNameByUserId = memberDisplayNameById(resources.members)
   const status = STATUS_MAP[caseItem.status] ?? {
     id: 'open' as const,
     name: caseItem.status,
@@ -513,24 +591,32 @@ export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
       caseItem.custom_fields.business_unit == null
         ? 'Unspecified'
         : String(caseItem.custom_fields.business_unit),
-    description: descriptionParts(caseItem.description, caseItem.summary),
+    descriptionMarkdown: caseItem.description,
+    summary: caseItem.summary?.trim() || null,
     customFields: customFieldRows(caseItem.custom_fields),
     linkedAlerts: [],
-    tasks: tasks.map((task) => ({
-      id: task.id,
-      title: task.title,
-      group: task.group || 'General',
-      status: taskStatus(task.status),
-      assignee: task.assignee_id ?? 'Unassigned',
-      flagged: task.flagged,
-      due: task.due_date,
-      start: task.start_date,
-      end: task.end_date,
-      description: task.description,
-      logs: 0,
-      workLogs: [],
-    })),
+    tasks: tasks.map((task) => {
+      const workLogs = (resources.workLogs?.[task.id] ?? []).map((log) =>
+        toCaseDetailTaskLog(log, displayNameByUserId),
+      )
+      return {
+        id: taskPublicId(task),
+        apiId: task.id,
+        title: task.title,
+        group: task.group || 'General',
+        status: taskStatus(task.status),
+        assignee: task.assignee_id ?? 'Unassigned',
+        flagged: task.flagged,
+        due: task.due_date,
+        start: task.start_date,
+        end: task.end_date,
+        description: task.description,
+        logs: workLogs.length,
+        workLogs,
+      }
+    }),
     observables: observables.map((observable) => ({
+      id: observable.id,
       type: observable.observable_type,
       value: observable.data,
       ioc: observable.ioc,
@@ -539,7 +625,7 @@ export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
       added: compactTime(observable.created_at),
     })),
     comments: comments.map((comment) => ({
-      author: comment.created_by,
+      author: displayNameByUserId.get(comment.created_by) ?? comment.created_by,
       time: compactTime(comment.created_at),
       body: comment.message,
     })),

@@ -8,15 +8,18 @@
  */
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
+import { getActiveOrgId } from '#/lib/auth/session'
 import type { CaseStatus, Severity, Tlp } from '#/lib/domain'
+import type { MemberPublic } from './caseUsers'
 import type {
   AuditPublic,
   CasePublic,
   CommentPublic,
   ObservablePublic,
   TaskPublic,
+  WorkLogPublic,
 } from './caseDetails'
-import { toCaseDetail } from './caseDetails'
+import { toCaseDetail, toCaseDetailTaskLog } from './caseDetails'
 import type { CaseDetail } from './caseDetails.types'
 import type { Case } from './cases.types'
 
@@ -98,7 +101,10 @@ const STATUS_MAP: Record<string, { id: CaseStatus; name: string }> = {
 // Minutes → compact relative stamp ("8m" / "3h" / "2d"). Must match the
 // `^(\d+)\s*([mhd])$` shape the list view's "Updated" sort parser expects.
 function relativeStamp(iso: string): string {
-  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000))
+  const min = Math.max(
+    0,
+    Math.round((Date.now() - new Date(iso).getTime()) / 60_000),
+  )
   if (min < 60) return `${min}m`
   if (min < 1440) return `${Math.round(min / 60)}h`
   return `${Math.round(min / 1440)}d`
@@ -159,10 +165,96 @@ async function fetchCases(filters: CaseListFilters): Promise<CasesResult> {
 }
 
 /** Distinct assignee/tag values across the org's cases, for the filter dropdowns. */
-export type CaseFacets = { assignees: string[]; unassigned: boolean; tags: string[] }
+export type CaseFacets = {
+  assignees: string[]
+  unassigned: boolean
+  tags: string[]
+}
 
 async function fetchCaseFacets(): Promise<CaseFacets> {
   return api.get('cases/filters').json<CaseFacets>()
+}
+
+/**
+ * Persist an edited case description (Markdown) via PATCH /cases/{id}. The
+ * caller is responsible for invalidating `caseKeys.detail(id)` /
+ * `fullDetail(id)` so the refetched case reflects the saved value.
+ */
+export async function updateCaseDescription(
+  id: string,
+  descriptionMarkdown: string,
+): Promise<void> {
+  const numeric = id.replace(/^#/, '')
+  await api.patch(`cases/${numeric}`, {
+    json: { description: descriptionMarkdown },
+  })
+}
+
+export async function updateTaskDetailFields({
+  taskId,
+  description,
+  status,
+}: {
+  taskId: string
+  description?: string
+  status?: CaseDetail['tasks'][number]['status']
+}) {
+  const json: Record<string, string> = {}
+  if (description != null) json.description = description
+  if (status != null) {
+    json.status =
+      (
+        {
+          waiting: 'Waiting',
+          inprogress: 'InProgress',
+          completed: 'Completed',
+          cancel: 'Cancelled',
+        } as const
+      )[status] ?? 'Waiting'
+  }
+  await api.patch(`tasks/${taskId}`, { json })
+}
+
+export async function createTaskWorkLog({
+  taskId,
+  bodyMarkdown,
+  files = [],
+}: {
+  taskId: string
+  bodyMarkdown: string
+  files?: File[]
+}) {
+  const log = await api
+    .post(`tasks/${taskId}/work-logs`, {
+      json: { message: bodyMarkdown },
+    })
+    .json<WorkLogPublic>()
+
+  for (const file of files) {
+    const body = new FormData()
+    body.append('file', file)
+    await api.post(`tasks/${taskId}/work-logs/${log.id}/attachments`, { body })
+  }
+
+  return toCaseDetailTaskLog(log)
+}
+
+export async function updateTaskWorkLog({
+  taskId,
+  logId,
+  bodyMarkdown,
+}: {
+  taskId: string
+  logId: string
+  bodyMarkdown: string
+}) {
+  const log = await api
+    .patch(`tasks/${taskId}/work-logs/${logId}`, {
+      json: { message: bodyMarkdown },
+    })
+    .json<WorkLogPublic>()
+
+  return toCaseDetailTaskLog(log)
 }
 
 async function fetchCase(id: string): Promise<Case> {
@@ -173,13 +265,18 @@ async function fetchCase(id: string): Promise<Case> {
 
 export async function fetchCaseDetail(id: string): Promise<CaseDetail> {
   const numeric = id.replace(/^#/, '')
-  const [caseItem, tasks, observables, comments, activity] = await Promise.all([
-    api.get(`cases/${numeric}`).json<CasePublic>(),
-    api.get(`cases/${numeric}/tasks`).json<Page<TaskPublic>>(),
-    api.get(`cases/${numeric}/observables`).json<Page<ObservablePublic>>(),
-    api.get(`cases/${numeric}/comments`).json<Page<CommentPublic>>(),
-    api.get(`cases/${numeric}/activity`).json<Page<AuditPublic>>(),
-  ])
+  const orgId = getActiveOrgId()
+  const [caseItem, tasks, observables, comments, activity, members] =
+    await Promise.all([
+      api.get(`cases/${numeric}`).json<CasePublic>(),
+      api.get(`cases/${numeric}/tasks`).json<Page<TaskPublic>>(),
+      api.get(`cases/${numeric}/observables`).json<Page<ObservablePublic>>(),
+      api.get(`cases/${numeric}/comments`).json<Page<CommentPublic>>(),
+      api.get(`cases/${numeric}/activity`).json<Page<AuditPublic>>(),
+      orgId
+        ? api.get(`organisations/${orgId}/members`).json<MemberPublic[]>()
+        : Promise.resolve([]),
+    ])
 
   return toCaseDetail({
     case: caseItem,
@@ -187,6 +284,7 @@ export async function fetchCaseDetail(id: string): Promise<CaseDetail> {
     observables: observables.items,
     comments: comments.items,
     activity: activity.items,
+    members,
   })
 }
 

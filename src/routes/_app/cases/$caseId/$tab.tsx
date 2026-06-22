@@ -1,5 +1,6 @@
 import type { CaseTab } from '#/components/pages/CaseDetailPage'
 import { caseDetailQueryOptions } from '#/components/Cases/casesQueries'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { CASE_TABS, CaseTabPanel } from '#/components/pages/CaseDetailPage'
 
@@ -19,7 +20,11 @@ export const Route = createFileRoute('/_app/cases/$caseId/$tab')({
 })
 
 function CaseTabRoute() {
-  const { tab } = Route.useParams()
-  const caseDetail = Route.useLoaderData()
-  return <CaseTabPanel tab={tab as CaseTab} caseDetail={caseDetail} />
+  const { tab, caseId } = Route.useParams()
+  // Read from the live query (the loader warmed its cache) rather than the
+  // loader snapshot, so edits — e.g. saving the description — re-render here.
+  const { data: caseDetail } = useSuspenseQuery(caseDetailQueryOptions(caseId))
+  return (
+    <CaseTabPanel tab={tab as CaseTab} caseDetail={caseDetail} caseId={caseId} />
+  )
 }

@@ -1,11 +1,5 @@
 export type ConnectorJobStatus = 'queued' | 'running' | 'success' | 'failure'
 export type ConnectorJobVerdict = 'MALICIOUS' | 'SUSPICIOUS' | 'INFO' | 'CLEAN'
-export type ConnectorJobObservableType =
-  | 'ip'
-  | 'domain'
-  | 'url'
-  | 'hash'
-  | 'mail'
 export type ConnectorJobTab =
   | 'all'
   | 'queued'
@@ -13,9 +7,14 @@ export type ConnectorJobTab =
   | 'success'
   | 'failure'
 
+/** A row in the analyzer-jobs queue, shaped for the table. `id` is the backend
+ * job uuid (used for actions and the detail fetch); `ref` is the short form the
+ * Job column renders. */
 export type ConnectorJob = {
   id: string
-  observableType: ConnectorJobObservableType
+  ref: string
+  observableId: string
+  observableType: string
   observable: string
   plugin: string
   status: ConnectorJobStatus
@@ -25,48 +24,32 @@ export type ConnectorJob = {
   duration?: string
 }
 
-export type ConnectorJobReportChip = {
-  label: string
-  color?: string
-}
-
-export type ConnectorJobReportArtifact = {
-  type: ConnectorJobObservableType
+/** A verdict badge a connector attached to the observable (taxonomy). */
+export type ConnectorJobTag = {
+  connector: string
+  namespace: string
+  predicate: string
   value: string
+  level: ConnectorJobVerdict
 }
 
-export type ConnectorJobReportOperation = {
-  action: string
-  argument?: string
-}
-
-export type ConnectorJobReportEnrichment = {
+/** Full job record behind the report drawer. */
+export type ConnectorJobDetail = {
   id: string
-  verdict: ConnectorJobVerdict
-  analyzer: string
-  meta: string
-  chips: ConnectorJobReportChip[]
-  artifacts?: ConnectorJobReportArtifact[]
-  operations?: ConnectorJobReportOperation[]
-}
-
-export type ConnectorJobReportCase = {
-  id: string
-  title: string
-  status: string
-}
-
-export type ConnectorJobReport = {
-  jobId: string
-  observableType: ConnectorJobObservableType
+  observableType: string
   observable: string
-  verdict: ConnectorJobVerdict
-  properties: {
-    ioc: boolean
-    sighted: boolean
-    firstSeen: string
-    source: string
-  }
-  enrichments: ConnectorJobReportEnrichment[]
-  seenInCases: ConnectorJobReportCase[]
+  plugin: string
+  version: string
+  status: ConnectorJobStatus
+  verdict?: ConnectorJobVerdict
+  cached: boolean
+  error?: string
+  attempts: number
+  tlp: number
+  queued?: string
+  started?: string
+  ended?: string
+  duration?: string
+  tags: ConnectorJobTag[]
+  report: Record<string, unknown> | null
 }

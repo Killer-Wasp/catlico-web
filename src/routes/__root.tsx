@@ -1,5 +1,6 @@
 import '@mantine/core/styles.css'
 import '@mantine/notifications/styles.css'
+import '@mantine/tiptap/styles.css'
 
 import { MantineProvider, mantineHtmlProps } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'

@@ -8,6 +8,7 @@ export type CaseDetailTaskStatus =
 
 export type CaseDetailTask = {
   id: string
+  apiId: string
   title: string
   group: string
   status: CaseDetailTaskStatus
@@ -22,12 +23,22 @@ export type CaseDetailTask = {
 }
 
 export type CaseDetailTaskLog = {
+  id: string
   author: string
   time: string
   body: string
+  attachments: CaseDetailTaskLogAttachment[]
+}
+
+export type CaseDetailTaskLogAttachment = {
+  id: string
+  name: string
+  size: string
+  url?: string
 }
 
 export type CaseDetailObservable = {
+  id: string
   type: string
   value: string
   ioc: boolean
@@ -81,7 +92,10 @@ export type CaseDetail = {
   sla: string
   source: string
   businessUnit: string
-  description: string[]
+  /** Case description as Markdown (CommonMark), edited and rendered via Tiptap. */
+  descriptionMarkdown: string
+  /** Analyst working hypothesis (the case summary), shown below the description. */
+  summary: string | null
   customFields: [string, string][]
   linkedAlerts: CaseDetailAlert[]
   tasks: CaseDetailTask[]

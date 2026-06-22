@@ -138,8 +138,14 @@ describe('case detail data helpers', () => {
           message: '@J. Tanaka audit log pulled.',
           organisation_id: 'org-1',
           created_at: '2026-06-12T10:21:00Z',
-          created_by: 'P. Nguyen',
+          created_by: '3713abbf-4e3c-401c-bd0b-e8a2f5597554',
           updated_at: null,
+        },
+      ],
+      members: [
+        {
+          user_id: '3713abbf-4e3c-401c-bd0b-e8a2f5597554',
+          email: 'p.nguyen@catlico.test',
         },
       ],
       activity: [
@@ -178,14 +184,17 @@ describe('case detail data helpers', () => {
         ['affected users', '3'],
       ],
     })
-    expect(detail.description).toEqual([
-      'First paragraph',
-      'Second paragraph',
-      'Tokens revoked for affected accounts.',
-    ])
+    expect(detail.descriptionMarkdown).toBe(
+      'First paragraph\n\nSecond paragraph',
+    )
+    expect(detail.summary).toBe('Tokens revoked for affected accounts.')
     expect(detail.tasks.map((task) => task.status)).toEqual([
       'inprogress',
       'completed',
+    ])
+    expect(detail.tasks.map((task) => [task.id, task.apiId])).toEqual([
+      ['T-1842-2', '9dc5dfb8-1eca-4374-8421-bf3d246e54e0'],
+      ['T-1842-1', '40e12bc6-75bc-4a82-82c1-363a570d7f15'],
     ])
     expect(detail.tasks[0].flagged).toBe(true)
     expect(detail.observables[0]).toMatchObject({

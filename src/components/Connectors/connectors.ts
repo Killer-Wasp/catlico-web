@@ -1,181 +1,195 @@
-import type { Connector, ConnectorTab } from './connectors.types'
+import { queryOptions } from '@tanstack/react-query'
+import { api } from '#/lib/api/client'
+import type {
+  Connector,
+  ConnectorConfigItem,
+  ConnectorConfigPayload,
+  ConnectorKind,
+  ConnectorManifest,
+  ConnectorTab,
+  TlpLevel,
+} from './connectors.types'
 
-export const initialConnectors: Connector[] = [
-  {
-    id: 'virustotal',
-    name: 'VirusTotal',
-    initials: 'VT',
-    version: 'v3.1',
-    kind: 'analyzer',
-    description:
-      "Reputation lookups for hashes, domains, URLs and IPs against VT's corpus.",
-    observables: ['hash', 'domain', 'url', 'ip'],
-    tlp: 'AMBER',
-    runs24h: 1240,
-    latency: '2.1s',
-    enabled: true,
-    color: 'blue',
-  },
-  {
-    id: 'abuseipdb',
-    name: 'AbuseIPDB',
-    initials: 'AB',
-    version: 'v1.0',
-    kind: 'analyzer',
-    description:
-      'IP reputation and abuse confidence score from community reports.',
-    observables: ['ip'],
-    tlp: 'AMBER',
-    runs24h: 980,
-    latency: '0.8s',
-    enabled: true,
-    color: 'orange',
-  },
-  {
-    id: 'urlscan',
-    name: 'URLscan.io',
-    initials: 'US',
-    version: 'v0.4',
-    kind: 'analyzer',
-    description:
-      'Sandboxed page render, DOM, redirects and screenshot for suspicious URLs.',
-    observables: ['url', 'domain'],
-    tlp: 'GREEN',
-    runs24h: 411,
-    latency: '14s',
-    enabled: true,
-    color: 'green',
-  },
-  {
-    id: 'shodan',
-    name: 'Shodan',
-    initials: 'SH',
-    version: 'v1.2',
-    kind: 'analyzer',
-    description:
-      'Exposure data: open ports, banners and known services on a host.',
-    observables: ['ip', 'domain'],
-    tlp: 'AMBER',
-    runs24h: 188,
-    latency: '1.4s',
-    enabled: true,
-    color: 'violet',
-  },
-  {
-    id: 'misp-search',
-    name: 'MISP Search',
-    initials: 'MI',
-    version: 'v2.1',
-    kind: 'analyzer',
-    description: 'Searches connected MISP instances for sightings of an observable.',
-    observables: ['ip', 'domain', 'hash', 'url', 'mail'],
-    tlp: 'RED',
-    runs24h: 1730,
-    latency: '0.5s',
-    enabled: true,
-    color: 'yellow',
-  },
-  {
-    id: 'emailrep',
-    name: 'EmailRep',
-    initials: 'ER',
-    version: 'v1.0',
-    kind: 'analyzer',
-    description: 'Reputation and risk signals for sender email addresses.',
-    observables: ['mail'],
-    tlp: 'GREEN',
+export type ConnectorPublic = {
+  name: string
+  display_name: string
+  connector_type: string
+  version: string
+  data_types: string[]
+  description: string
+  manifest?: ConnectorManifest
+  available: boolean
+  max_runtime_seconds: number
+  enabled: boolean
+  settings: Record<string, unknown>
+  has_secrets: boolean
+}
+
+const COLORS = ['blue', 'orange', 'green', 'violet', 'yellow', 'red', 'gray']
+const SECRET_NAME_PARTS = ['key', 'token', 'secret', 'password', 'credential']
+
+export const connectorKeys = {
+  all: ['connectors'] as const,
+  catalog: () => [...connectorKeys.all, 'catalog'] as const,
+}
+
+export const initialConnectors: Connector[] = []
+
+function initials(label: string): string {
+  const parts = label.match(/[A-Za-z0-9]+/g) ?? []
+  const text =
+    parts.length >= 2
+      ? parts
+          .slice(0, 2)
+          .map((part) => part.charAt(0))
+          .join('')
+      : label.replace(/[^A-Za-z0-9]/g, '').slice(0, 2)
+  return (text || 'CN').toUpperCase()
+}
+
+function colorFor(id: string): string {
+  const sum = Array.from(id).reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  return COLORS[sum % COLORS.length] ?? 'gray'
+}
+
+function toKind(value: string): ConnectorKind {
+  return value === 'responder' ? 'responder' : 'analyzer'
+}
+
+function toTlp(manifest: ConnectorManifest): TlpLevel {
+  const maxTlp = manifest.config?.max_tlp
+  if (typeof maxTlp !== 'number') return 'AMBER'
+  if (maxTlp <= 1) return 'GREEN'
+  if (maxTlp >= 3) return 'RED'
+  return 'AMBER'
+}
+
+function versionLabel(version: string): string {
+  if (!version) return 'v0.0.0'
+  return version.startsWith('v') ? version : `v${version}`
+}
+
+function toConnector(dto: ConnectorPublic): Connector {
+  const manifest = dto.manifest ?? {}
+  const name = dto.display_name || dto.name
+  return {
+    id: dto.name,
+    name,
+    initials: initials(name),
+    version: versionLabel(dto.version),
+    kind: toKind(dto.connector_type),
+    description: dto.description,
+    observables: dto.data_types,
+    tlp: toTlp(manifest),
     runs24h: 0,
-    latency: '-',
-    enabled: false,
-    color: 'gray',
-  },
-  {
-    id: 'hybrid-analysis',
-    name: 'Hybrid Analysis',
-    initials: 'HA',
-    version: 'v1.0',
-    kind: 'analyzer',
-    description:
-      'Detonates files and hashes in a sandbox and returns behavioural verdicts.',
-    observables: ['hash', 'file'],
-    tlp: 'AMBER',
-    runs24h: 96,
-    latency: '45s',
-    enabled: true,
-    color: 'red',
-  },
-  {
-    id: 'maxmind',
-    name: 'MaxMind GeoIP',
-    initials: 'GE',
-    version: 'v4.0',
-    kind: 'analyzer',
-    description: 'Geolocation and ASN enrichment for IP observables.',
-    observables: ['ip'],
-    tlp: 'RED',
-    runs24h: 2210,
-    latency: '0.1s',
-    enabled: true,
-    color: 'blue',
-  },
-  {
-    id: 'crowdstrike-isolate',
-    name: 'CrowdStrike RTR - Isolate host',
-    initials: 'CS',
-    version: 'v1.3',
-    kind: 'responder',
-    description: 'Network-contains an endpoint via Real Time Response.',
-    observables: ['host'],
-    tlp: 'RED',
-    runs24h: 12,
-    latency: '6s',
-    enabled: true,
-    color: 'red',
-  },
-  {
-    id: 'entra-revoke',
-    name: 'Entra ID - Revoke sessions',
-    initials: 'EN',
-    version: 'v1.1',
-    kind: 'responder',
-    description:
-      'Revokes refresh tokens and active sessions for a user account.',
-    observables: ['account'],
-    tlp: 'RED',
-    runs24h: 31,
-    latency: '3s',
-    enabled: true,
-    color: 'blue',
-  },
-  {
-    id: 'proofpoint-block',
-    name: 'Proofpoint - Block sender',
-    initials: 'PP',
-    version: 'v1.0',
-    kind: 'responder',
-    description: 'Adds sender or domain to the organisational block list.',
-    observables: ['mail', 'domain'],
-    tlp: 'RED',
-    runs24h: 44,
-    latency: '2s',
-    enabled: true,
-    color: 'yellow',
-  },
-  {
-    id: 'misp-export',
-    name: 'MISP - Export event',
-    initials: 'MI',
-    version: 'v2.0',
-    kind: 'responder',
-    description: 'Pushes case observables to MISP as a new or updated event.',
-    observables: ['case'],
-    tlp: 'RED',
-    runs24h: 57,
-    latency: '1s',
-    enabled: true,
-    color: 'violet',
-  },
-]
+    latency: `${dto.max_runtime_seconds}s max`,
+    enabled: dto.enabled,
+    color: colorFor(dto.name),
+    available: dto.available,
+    maxRuntimeSeconds: dto.max_runtime_seconds,
+    settings: dto.settings,
+    hasSecrets: dto.has_secrets,
+    manifest,
+    configItems: manifest.configurationItems ?? [],
+  }
+}
+
+export function isSecretConfigItem(item: Pick<ConnectorConfigItem, 'name' | 'type'>) {
+  const name = item.name.toLowerCase()
+  return SECRET_NAME_PARTS.some((part) => name.includes(part))
+}
+
+function hasConfigValue(value: unknown): boolean {
+  if (value == null) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  if (Array.isArray(value)) return value.length > 0
+  return true
+}
+
+export function getMissingRequiredConfigItems({
+  configItems,
+  settings,
+  hasSecrets,
+}: Pick<Connector, 'configItems' | 'settings' | 'hasSecrets'>): string[] {
+  return configItems
+    .filter((item) => {
+      if (!item.required) return false
+      if (isSecretConfigItem(item) && hasSecrets) return false
+      return !hasConfigValue(settings[item.name] ?? item.defaultValue)
+    })
+    .map((item) => item.name)
+}
+
+function coerceConfigValue(item: ConnectorConfigItem, value: unknown): unknown {
+  if (item.type === 'integer' || item.type === 'number') {
+    if (value === '' || value == null) return undefined
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : value
+  }
+  if (item.type === 'boolean') return Boolean(value)
+  return value
+}
+
+export function buildConnectorConfigPayload(
+  items: ConnectorConfigItem[],
+  values: Record<string, unknown>,
+): ConnectorConfigPayload {
+  const settings: Record<string, unknown> = {}
+  const secrets: Record<string, unknown> = {}
+
+  for (const item of items) {
+    const value = coerceConfigValue(item, values[item.name])
+    if (value === undefined) continue
+    if (isSecretConfigItem(item)) {
+      if (typeof value === 'string' && value.trim() === '') continue
+      secrets[item.name] = value
+    } else {
+      settings[item.name] = value
+    }
+  }
+
+  return { settings, secrets }
+}
+
+export async function fetchConnectors(): Promise<Connector[]> {
+  const connectors = await api.get('connectors').json<ConnectorPublic[]>()
+  return connectors.map(toConnector)
+}
+
+export async function setConnectorEnabled(
+  id: string,
+  enabled: boolean,
+): Promise<Connector> {
+  const action = enabled ? 'enable' : 'disable'
+  const connector = await api
+    .post(`connectors/${id}/${action}`)
+    .json<ConnectorPublic>()
+  return toConnector(connector)
+}
+
+export async function saveConnectorConfig(
+  id: string,
+  payload: ConnectorConfigPayload,
+): Promise<Connector> {
+  const connector = await api
+    .put(`connectors/${id}/config`, { json: payload })
+    .json<ConnectorPublic>()
+  return toConnector(connector)
+}
+
+export async function testConnectorConfig(
+  id: string,
+): Promise<{ ok: boolean; message: string }> {
+  return api
+    .post(`connectors/${id}/config/test`)
+    .json<{ ok: boolean; message: string }>()
+}
+
+export const connectorsQueryOptions = () =>
+  queryOptions({
+    queryKey: connectorKeys.catalog(),
+    queryFn: fetchConnectors,
+  })
 
 export function filterConnectorsByTab(
   connectors: Connector[],

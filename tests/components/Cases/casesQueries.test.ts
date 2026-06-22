@@ -1,7 +1,9 @@
 import {
   caseFacetsQueryOptions,
   casesQueryOptions,
+  createTaskWorkLog,
   fetchCaseDetail,
+  updateTaskWorkLog,
 } from '#/components/Cases/casesQueries'
 import { api } from '#/lib/api/client'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
@@ -9,6 +11,8 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 vi.mock('#/lib/api/client', () => ({
   api: {
     get: vi.fn(),
+    patch: vi.fn(),
+    post: vi.fn(),
   },
 }))
 
@@ -16,7 +20,7 @@ type JsonResponse = {
   json: () => Promise<unknown>
 }
 
-const page = <T,>(items: T[]) => ({
+const page = <T>(items: T[]) => ({
   items,
   total: items.length,
   skip: 0,
@@ -26,6 +30,8 @@ const page = <T,>(items: T[]) => ({
 describe('case detail queries', () => {
   beforeEach(() => {
     vi.mocked(api.get).mockReset()
+    vi.mocked(api.patch).mockReset()
+    vi.mocked(api.post).mockReset()
   })
 
   test('fetches a case detail by fanning out to backend child-resource endpoints', async () => {
@@ -59,7 +65,25 @@ describe('case detail queries', () => {
           created_at: '2026-06-12T09:12:00Z',
           updated_at: null,
         },
-        'cases/1842/tasks': page([]),
+        'cases/1842/tasks': page([
+          {
+            id: 'e5208682-de1d-41b9-9312-b8a83d3618dd',
+            case_id: 1842,
+            organisation_id: 'org-1',
+            title: 'Revoke refresh tokens and reset credentials',
+            group: 'Contain',
+            description: 'Revoke active sessions.',
+            status: 'Waiting',
+            assignee_id: null,
+            order: 0,
+            flagged: false,
+            start_date: null,
+            due_date: null,
+            end_date: null,
+            created_at: '2026-06-12T09:12:00Z',
+            updated_at: null,
+          },
+        ]),
         'cases/1842/observables': page([]),
         'cases/1842/comments': page([]),
         'cases/1842/activity': page([]),
@@ -82,10 +106,73 @@ describe('case detail queries', () => {
       id: '#1842',
       title: 'OAuth consent grant',
       assignee: 'Unassigned',
-      tasks: [],
+      tasks: [
+        {
+          id: 'T-1842-1',
+          apiId: 'e5208682-de1d-41b9-9312-b8a83d3618dd',
+        },
+      ],
       observables: [],
       comments: [],
       timeline: [],
+    })
+  })
+
+  test('creates work logs, uploads attachments, and updates existing work logs', async () => {
+    const calls: Array<{ endpoint: string; options?: unknown }> = []
+    vi.mocked(api.post).mockImplementation((input, options) => {
+      calls.push({ endpoint: String(input), options })
+      return {
+        json: async () => ({
+          id: 'log-7',
+          message: '**Contained**',
+          created_by: 'user-1',
+          created_at: '2026-06-12T10:08:00Z',
+          updated_at: null,
+          attachments: [],
+        }),
+      } as ReturnType<typeof api.post>
+    })
+    vi.mocked(api.patch).mockImplementation((input, options) => {
+      calls.push({ endpoint: String(input), options })
+      return {
+        json: async () => ({
+          id: 'log-7',
+          message: '**Contained and verified**',
+          created_by: 'user-1',
+          created_at: '2026-06-12T10:08:00Z',
+          updated_at: '2026-06-12T10:20:00Z',
+          attachments: [],
+        }),
+      } as ReturnType<typeof api.patch>
+    })
+
+    const file = new File(['evidence'], 'approval.pdf', {
+      type: 'application/pdf',
+    })
+
+    await createTaskWorkLog({
+      taskId: 'task-4',
+      bodyMarkdown: '**Contained**',
+      files: [file],
+    })
+    await updateTaskWorkLog({
+      taskId: 'task-4',
+      logId: 'log-7',
+      bodyMarkdown: '**Contained and verified**',
+    })
+
+    expect(calls[0]).toMatchObject({
+      endpoint: 'tasks/task-4/work-logs',
+      options: { json: { message: '**Contained**' } },
+    })
+    expect(calls[1]?.endpoint).toBe('tasks/task-4/work-logs/log-7/attachments')
+    expect(
+      (calls[1]?.options as { body?: FormData }).body instanceof FormData,
+    ).toBe(true)
+    expect(calls[2]).toMatchObject({
+      endpoint: 'tasks/task-4/work-logs/log-7',
+      options: { json: { message: '**Contained and verified**' } },
     })
   })
 })
@@ -119,7 +206,7 @@ const casePublic = (over: Record<string, unknown> = {}) => ({
 
 // Invoke a queryOptions' queryFn the way react-query would, ignoring the
 // context arg the fetchers don't use.
-const runQueryFn = <T,>(opts: { queryFn?: unknown }) =>
+const runQueryFn = <T>(opts: { queryFn?: unknown }) =>
   (opts.queryFn as (ctx: unknown) => Promise<T>)({})
 
 describe('case list query', () => {
@@ -129,19 +216,18 @@ describe('case list query', () => {
 
   test('serializes every filter as repeated query params and returns the page', async () => {
     let captured: URLSearchParams | undefined
-    vi.mocked(api.get).mockImplementation(
-      (_input, opts?: { searchParams?: URLSearchParams }) => {
-        captured = opts?.searchParams
-        return {
-          json: async () => ({
-            items: [casePublic({ id: 7, title: 'matched' })],
-            total: 42,
-            skip: 10,
-            limit: 10,
-          }),
-        } as ReturnType<typeof api.get>
-      },
-    )
+    vi.mocked(api.get).mockImplementation((_input, opts) => {
+      captured = (opts as { searchParams?: URLSearchParams } | undefined)
+        ?.searchParams
+      return {
+        json: async () => ({
+          items: [casePublic({ id: 7, title: 'matched' })],
+          total: 42,
+          skip: 10,
+          limit: 10,
+        }),
+      } as ReturnType<typeof api.get>
+    })
 
     const result = await runQueryFn<{ cases: unknown[]; total: number }>(
       casesQueryOptions({
@@ -177,14 +263,13 @@ describe('case list query', () => {
 
   test('omits unset filters from the query string', async () => {
     let captured: URLSearchParams | undefined
-    vi.mocked(api.get).mockImplementation(
-      (_input, opts?: { searchParams?: URLSearchParams }) => {
-        captured = opts?.searchParams
-        return {
-          json: async () => ({ items: [], total: 0, skip: 0, limit: 10 }),
-        } as ReturnType<typeof api.get>
-      },
-    )
+    vi.mocked(api.get).mockImplementation((_input, opts) => {
+      captured = (opts as { searchParams?: URLSearchParams } | undefined)
+        ?.searchParams
+      return {
+        json: async () => ({ items: [], total: 0, skip: 0, limit: 10 }),
+      } as ReturnType<typeof api.get>
+    })
 
     await runQueryFn(casesQueryOptions({ sort: 'id', order: 'desc' }))
 

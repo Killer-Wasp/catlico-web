@@ -1,4 +1,4 @@
-import { Bell, Moon, Search, Sun } from 'lucide-react'
+import { Bell, LogOut, Moon, Search, Sun } from 'lucide-react'
 import {
   ActionIcon,
   Avatar,
@@ -7,6 +7,7 @@ import {
   Divider,
   Group,
   Indicator,
+  Menu,
   Popover,
   Stack,
   Text,
@@ -17,6 +18,7 @@ import {
 } from '@mantine/core'
 import classes from './Header.module.css'
 import { useState } from 'react'
+import { logout } from '#/lib/auth/session'
 
 type NotificationItem = {
   title: string
@@ -97,6 +99,13 @@ export function Header() {
         itemIndex === index ? { ...item, unread: false } : item,
       ),
     )
+
+  // Clear the local session, then hard-navigate so all in-memory state (React
+  // Query cache, component state) is dropped and the `_app` guard re-runs.
+  const handleLogout = () => {
+    logout()
+    window.location.assign('/login')
+  }
 
   return (
     <div className={classes.header}>
@@ -204,9 +213,28 @@ export function Header() {
 
         <ThemeToggle />
 
-        <Avatar radius="md" size={34} color="orange" variant="filled">
-          JT
-        </Avatar>
+        <Menu width={200} position="bottom-end" offset={10} shadow="xl">
+          <Menu.Target>
+            <UnstyledButton
+              aria-label="Open account menu"
+              style={{ borderRadius: 'var(--mantine-radius-md)' }}
+            >
+              <Avatar radius="md" size={34} color="orange" variant="filled">
+                JT
+              </Avatar>
+            </UnstyledButton>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Label>Account</Menu.Label>
+            <Menu.Item
+              color="red"
+              leftSection={<LogOut size={16} />}
+              onClick={handleLogout}
+            >
+              Log out
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </div>
     </div>
   )
