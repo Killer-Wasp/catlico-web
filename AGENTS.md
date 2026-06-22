@@ -71,3 +71,12 @@ src/
 - Keep tests in the root `tests/` directory, mirroring the related `src/` path where practical.
 - Do not add new `*.test.*` or `*.spec.*` files under `src/`.
 - Import application code from tests with the configured source aliases (`#/*` or `@/*`) rather than relying on colocated relative imports.
+
+## Agent Skills (TanStack Intent)
+
+- This repo uses [TanStack Intent](https://tanstack.com/ai/latest/docs/getting-started/agent-skills) to ship AI-agent guidance alongside its dependencies. The `intent-skills` block at the top of this file is auto-managed by the CLI — don't hand-edit between the `<!-- intent-skills:start -->` / `:end -->` markers.
+- **TanStack AI** is installed (`@tanstack/ai` + the `@tanstack/ai-anthropic` adapter). It bundles the `ai-core` skill set, which teaches agents the correct TanStack AI patterns (use `chat()` not `streamText()`, `anthropicText()` not a raw provider client, `toServerSentEventsResponse()` not manual SSE, middleware hooks not `onFinish` callbacks).
+- Before writing any TanStack AI code (chat, streaming, tool calling, structured outputs, media generation, adapters), load the matching skill and follow its `SKILL.md`:
+  - `pnpm dlx @tanstack/intent@latest list` — list available skills
+  - `pnpm dlx @tanstack/intent@latest load @tanstack/ai#ai-core` — entry point; routes to sub-skills (`chat-experience`, `tool-calling`, `adapter-configuration`, `structured-outputs`, `middleware`, `media-generation`, `ag-ui-protocol`, `custom-backend-integration`, `debug-logging`)
+- Skills are versioned with the package: bumping `@tanstack/ai` updates the skill content automatically. Re-run `pnpm dlx @tanstack/intent@latest install` only after adding another intent-enabled package or to refresh the mappings.

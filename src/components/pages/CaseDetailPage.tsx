@@ -730,9 +730,7 @@ function TaskDetailPanel({
           label="Status"
           data={TASK_STATUS_OPTIONS}
           value={task.status}
-          onChange={(value) =>
-            updateStatus(value as CaseDetailTask['status'] | null)
-          }
+          onChange={(value) => updateStatus(value)}
           allowDeselect={false}
           w={{ base: '100%', sm: 240 }}
         />

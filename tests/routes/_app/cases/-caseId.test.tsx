@@ -193,8 +193,7 @@ describe('case tasks tab', () => {
     ).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /in progress/i })).toBeNull()
     expect(
-      (screen.getByRole('combobox', { name: 'Status' }) as HTMLInputElement)
-        .value,
+      screen.getByRole<HTMLInputElement>('combobox', { name: 'Status' }).value,
     ).toBe('In progress')
     expect(screen.getByDisplayValue('Contain')).toBeDefined()
     expect(

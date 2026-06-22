@@ -9,7 +9,6 @@ import {
   TASK_STATUS_LABEL,
   advanceTaskStatus,
   avatarFor,
-  initialTasks,
 } from '#/components/Tasks/tasks'
 import {
   DEFAULT_TASK_FILTERS,
@@ -22,8 +21,10 @@ import {
   Avatar,
   Badge,
   Box,
+  Button,
   Checkbox,
   Group,
+  Loader,
   Menu,
   Pagination,
   Paper,
@@ -109,8 +110,12 @@ const byCaseId: SortingFn<Task> = (a, b) =>
   Number(b.original.caseId.replace(/\D/g, ''))
 
 const byDueDate: SortingFn<Task> = (a, b) => {
-  const aTime = a.original.dueAt ? new Date(a.original.dueAt).getTime() : Infinity
-  const bTime = b.original.dueAt ? new Date(b.original.dueAt).getTime() : Infinity
+  const aTime = a.original.dueAt
+    ? new Date(a.original.dueAt).getTime()
+    : Infinity
+  const bTime = b.original.dueAt
+    ? new Date(b.original.dueAt).getTime()
+    : Infinity
   return aTime - bTime
 }
 
@@ -197,8 +202,10 @@ function TaskStatusBadge({
 export function TasksPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data } = useQuery(tasksQueryOptions(DEFAULT_TASK_FILTERS))
-  const tasks = data?.tasks ?? initialTasks
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
+    tasksQueryOptions(DEFAULT_TASK_FILTERS),
+  )
+  const tasks = data?.tasks ?? []
   const [pageSize, setPageSize] = useState(10)
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'caseId', desc: false },
@@ -230,7 +237,8 @@ export function TasksPage() {
     onError: (error) =>
       notifications.show({
         color: 'red',
-        message: error instanceof Error ? error.message : 'Unable to update task',
+        message:
+          error instanceof Error ? error.message : 'Unable to update task',
       }),
   })
 
@@ -249,7 +257,8 @@ export function TasksPage() {
     onError: (error) =>
       notifications.show({
         color: 'red',
-        message: error instanceof Error ? error.message : 'Unable to complete task',
+        message:
+          error instanceof Error ? error.message : 'Unable to complete task',
       }),
   })
 
@@ -376,7 +385,8 @@ export function TasksPage() {
         meta: { ta: 'right' },
         cell: ({ row }) => {
           const task = row.original
-          const canAdvance = task.status === 'waiting' || task.status === 'inprogress'
+          const canAdvance =
+            task.status === 'waiting' || task.status === 'inprogress'
           const canComplete =
             task.status !== 'completed' && task.status !== 'cancelled'
           return (
@@ -445,13 +455,13 @@ export function TasksPage() {
   const assigneeOptions = useMemo(
     () =>
       Array.from(
-        new Set(initialTasks.map((t) => t.assignee ?? 'Unassigned')),
+        new Set(tasks.map((task) => task.assignee ?? 'Unassigned')),
       ).sort(),
-    [],
+    [tasks],
   )
   const kindOptions = useMemo(
-    () => Array.from(new Set(initialTasks.map((t) => t.kind))).sort(),
-    [],
+    () => Array.from(new Set(tasks.map((task) => task.kind))).sort(),
+    [tasks],
   )
 
   const toOpts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }))
@@ -506,13 +516,15 @@ export function TasksPage() {
   const setTokens = (next: Token[]) => {
     for (const f of filterFields) {
       const vals = next.filter((t) => t.field === f.key).map((t) => t.value)
-      table.getColumn(f.columnId)?.setFilterValue(vals.length ? vals : undefined)
+      table
+        .getColumn(f.columnId)
+        ?.setFilterValue(vals.length ? vals : undefined)
     }
   }
 
   const totalFiltered = table.getFilteredRowModel().rows.length
   const { pageIndex } = table.getState().pagination
-  const pageCount = table.getPageCount()
+  const pageCount = Math.max(1, table.getPageCount())
   const rangeStart = totalFiltered === 0 ? 0 : pageIndex * pageSize + 1
   const rangeEnd = Math.min((pageIndex + 1) * pageSize, totalFiltered)
   const rows = table.getRowModel().rows
@@ -613,7 +625,10 @@ export function TasksPage() {
                             ) : sorted === 'desc' ? (
                               <ChevronDown size={12} />
                             ) : (
-                              <ChevronsUpDown size={12} style={{ opacity: 0.4 }} />
+                              <ChevronsUpDown
+                                size={12}
+                                style={{ opacity: 0.4 }}
+                              />
                             )}
                           </Group>
                         ) : (
@@ -626,32 +641,78 @@ export function TasksPage() {
               ))}
             </Table.Thead>
             <Table.Tbody>
-              {rows.map((row) => (
-                <Table.Tr
-                  key={row.id}
-                  tabIndex={0}
-                  onClick={() => openTaskCase(row.original.caseId)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter')
-                      openTaskCase(row.original.caseId)
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {row.getVisibleCells().map((cell) => {
-                    const meta = cell.column.columnDef.meta
-                    return (
-                      <Table.Td
-                        key={cell.id}
-                        ta={meta?.ta}
-                        visibleFrom={meta?.visibleFrom}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </Table.Td>
-                    )
-                  })}
+              {isPending ? (
+                <Table.Tr>
+                  <Table.Td
+                    ta="center"
+                    c="dimmed"
+                    fz={13}
+                    py={40}
+                    colSpan={table.getVisibleLeafColumns().length}
+                  >
+                    <Group justify="center" gap="xs">
+                      <Loader size="xs" />
+                      <Text component="span" fz={13} c="dimmed">
+                        Loading tasks…
+                      </Text>
+                    </Group>
+                  </Table.Td>
                 </Table.Tr>
-              ))}
-              {rows.length === 0 && (
+              ) : isError ? (
+                <Table.Tr>
+                  <Table.Td
+                    ta="center"
+                    c="red.7"
+                    fz={13}
+                    py={40}
+                    colSpan={table.getVisibleLeafColumns().length}
+                  >
+                    <Group justify="center" gap="xs">
+                      <Text component="span" fz={13} c="red.7">
+                        Couldn’t load tasks from the backend.
+                      </Text>
+                      <Button
+                        size="xs"
+                        variant="default"
+                        loading={isFetching}
+                        onClick={() => refetch()}
+                      >
+                        Retry
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ) : (
+                rows.map((row) => (
+                  <Table.Tr
+                    key={row.id}
+                    tabIndex={0}
+                    onClick={() => openTaskCase(row.original.caseId)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter')
+                        openTaskCase(row.original.caseId)
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {row.getVisibleCells().map((cell) => {
+                      const meta = cell.column.columnDef.meta
+                      return (
+                        <Table.Td
+                          key={cell.id}
+                          ta={meta?.ta}
+                          visibleFrom={meta?.visibleFrom}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </Table.Td>
+                      )
+                    })}
+                  </Table.Tr>
+                ))
+              )}
+              {!isPending && !isError && rows.length === 0 && (
                 <Table.Tr>
                   <Table.Td
                     ta="center"

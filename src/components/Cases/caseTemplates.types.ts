@@ -25,6 +25,8 @@ export type CaseTemplateCustomField = {
 
 export type CaseTemplate = {
   id: string
+  apiId?: number
+  slug?: string
   name: string
   builtin: boolean
   updated: string
@@ -37,6 +39,7 @@ export type CaseTemplate = {
   tags: string[]
   tasks: CaseTemplateTask[]
   customFields: CaseTemplateCustomField[]
+  summary?: string | null
 }
 
 export type NewCaseCustomField = CaseTemplateCustomField & {

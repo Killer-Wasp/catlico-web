@@ -102,7 +102,7 @@ function toTask(dto: TaskPublic | TaskQueuePublic): Task {
     dueAt: dto.due_date ?? undefined,
     overdue: overdue || undefined,
     urgent: !overdue && urgent ? true : undefined,
-    status: STATUS_FROM_API[dto.status] ?? 'waiting',
+    status: STATUS_FROM_API[dto.status],
   }
 }
 

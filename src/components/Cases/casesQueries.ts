@@ -67,6 +67,25 @@ export const DEFAULT_CASE_FILTERS: CaseListFilters = {
 /** A page of mapped cases plus the server's total (for pagination). */
 export type CasesResult = { cases: Case[]; total: number }
 
+export type CreateCaseInput = {
+  title: string
+  description?: string
+  severity?: number
+  tlp?: number
+  pap?: number
+  assigneeId?: string | null
+  summary?: string | null
+  caseTemplateId?: number | null
+  tags?: string[]
+  customFields?: Record<string, unknown>
+}
+
+export type CreatedCaseResult = {
+  id: string
+  numericId: number
+  case: Case
+}
+
 /**
  * Hierarchical query-key factory. Always derive keys here — never hand-write
  * an array at a call site. The hierarchy lets you invalidate broadly
@@ -175,6 +194,43 @@ async function fetchCaseFacets(): Promise<CaseFacets> {
   return api.get('cases/filters').json<CaseFacets>()
 }
 
+export async function createCaseFromTemplate(
+  input: CreateCaseInput,
+): Promise<CreatedCaseResult> {
+  const caseItem = await api
+    .post('cases/', {
+      json: {
+        title: input.title.trim(),
+        description: input.description?.trim() ?? '',
+        severity: input.severity,
+        tlp: input.tlp,
+        pap: input.pap,
+        assignee_id: input.assigneeId ?? null,
+        summary: input.summary ?? null,
+        case_template_id: input.caseTemplateId ?? null,
+      },
+    })
+    .json<CasePublic>()
+
+  const caseId = String(caseItem.id)
+  if (input.tags) {
+    await api.put(`cases/${caseId}/tags`, { json: { tags: input.tags } })
+  }
+
+  const customFields = input.customFields ?? {}
+  if (Object.keys(customFields).length > 0) {
+    await api.put(`cases/${caseId}/custom-fields`, {
+      json: { values: customFields },
+    })
+  }
+
+  return {
+    id: `#${caseItem.id}`,
+    numericId: caseItem.id,
+    case: toCase(caseItem),
+  }
+}
+
 /**
  * Persist an edited case description (Markdown) via PATCH /cases/{id}. The
  * caller is responsible for invalidating `caseKeys.detail(id)` /
@@ -202,15 +258,12 @@ export async function updateTaskDetailFields({
   const json: Record<string, string> = {}
   if (description != null) json.description = description
   if (status != null) {
-    json.status =
-      (
-        {
-          waiting: 'Waiting',
-          inprogress: 'InProgress',
-          completed: 'Completed',
-          cancel: 'Cancelled',
-        } as const
-      )[status] ?? 'Waiting'
+    json.status = {
+      waiting: 'Waiting',
+      inprogress: 'InProgress',
+      completed: 'Completed',
+      cancel: 'Cancelled',
+    }[status]
   }
   await api.patch(`tasks/${taskId}`, { json })
 }

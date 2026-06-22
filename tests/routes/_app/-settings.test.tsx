@@ -1,9 +1,51 @@
 // @vitest-environment jsdom
 import { SettingsPage } from '#/components/pages/SettingsPage'
+import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, test } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from 'vitest'
+
+vi.mock('#/lib/api/client', () => ({
+  api: {
+    get: vi.fn(),
+    patch: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
+  },
+}))
+
+type JsonResponse = { json: () => Promise<unknown> }
+
+const orgDto = {
+  id: 'origin-soc',
+  name: 'Backend SOC',
+  description: 'Primary backend tenant',
+  created_at: '2026-06-12T09:12:00Z',
+  updated_at: null,
+}
+
+const roleDto = {
+  id: 'role-analyst',
+  name: 'analyst',
+  permissions: ['read:case', 'write:case', 'read:custom_field'],
+  created_at: '2026-06-12T09:12:00Z',
+}
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -30,13 +72,100 @@ beforeAll(() => {
 })
 
 function Harness() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
   return (
-    <MantineProvider>
-      <Notifications />
-      <SettingsPage />
-    </MantineProvider>
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <Notifications />
+        <SettingsPage />
+      </MantineProvider>
+    </QueryClientProvider>
   )
 }
+
+beforeEach(() => {
+  localStorage.setItem('catlico.orgId', 'origin-soc')
+  vi.mocked(api.get).mockReset()
+  vi.mocked(api.patch).mockReset()
+  vi.mocked(api.post).mockReset()
+  vi.mocked(api.delete).mockReset()
+  vi.mocked(api.get).mockImplementation((input) => {
+    const endpoint = String(input)
+    const payloads: Record<string, unknown> = {
+      'organisations/origin-soc': orgDto,
+      'organisations/': [orgDto],
+      'organisations/origin-soc/members': [
+        {
+          id: 'membership-1',
+          user_id: 'user-1',
+          organisation_id: 'origin-soc',
+          role_id: 'role-analyst',
+          email: 'analyst@example.test',
+          created_at: '2026-06-12T09:12:00Z',
+        },
+      ],
+      'roles/': [roleDto],
+      'custom-fields/': {
+        items: [
+          {
+            id: 4,
+            name: 'backend_case_reference',
+            display_name: 'Backend case reference',
+            description: '',
+            field_type: 'string',
+            options: [],
+            mandatory: true,
+            organisation_id: 'origin-soc',
+            created_at: '2026-06-12T09:12:00Z',
+            updated_at: null,
+          },
+        ],
+        total: 1,
+        skip: 0,
+        limit: 100,
+      },
+      connectors: [
+        {
+          name: 'misp-backend',
+          display_name: 'MISP Backend',
+          connector_type: 'analyzer',
+          version: '1.0.0',
+          data_types: ['domain'],
+          description: 'Backend MISP connector',
+          manifest: {},
+          available: true,
+          max_runtime_seconds: 60,
+          enabled: true,
+          settings: {},
+          has_secrets: false,
+        },
+      ],
+    }
+    return {
+      json: async () => payloads[endpoint] ?? [],
+    } satisfies JsonResponse as ReturnType<typeof api.get>
+  })
+  vi.mocked(api.patch).mockReturnValue({
+    json: async () => ({
+      ...orgDto,
+      name: 'Updated Backend SOC',
+      description: 'Updated description',
+      updated_at: '2026-06-12T10:12:00Z',
+    }),
+  } satisfies JsonResponse as ReturnType<typeof api.patch>)
+  vi.mocked(api.post).mockReturnValue({
+    json: async () => ({
+      id: 'partner-acme',
+      name: 'Managed Partner - Acme',
+      description: 'External partner',
+      created_at: '2026-06-12T10:12:00Z',
+      updated_at: null,
+    }),
+  } satisfies JsonResponse as ReturnType<typeof api.post>)
+  vi.mocked(api.delete).mockReturnValue({} as ReturnType<typeof api.delete>)
+})
 
 afterEach(cleanup)
 
@@ -50,98 +179,107 @@ function fieldValue(label: string) {
 }
 
 describe('SettingsPage', () => {
-  test('renders the organisation profile settings from the design doc', () => {
+  test('loads organisation profile settings from the backend', async () => {
     render(<Harness />)
 
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeDefined()
-    expect(screen.getByRole('navigation', { name: /settings sections/i }))
-      .toBeDefined()
-    expect(screen.getByRole('button', { name: 'Organisation' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'Users & roles' })).toBeDefined()
-    expect(screen.getByRole('heading', { name: 'Organisation profile' }))
-      .toBeDefined()
-    expect(fieldValue('Organisation name')).toBe('Catlico Security Operations')
+    expect(
+      screen.getByRole('navigation', { name: /settings sections/i }),
+    ).toBeDefined()
+    expect(await screen.findByDisplayValue('Backend SOC')).toBeDefined()
     expect(fieldValue('Org short name')).toBe('origin-soc')
-    expect(fieldValue('Timezone')).toBe('Australia/Sydney (AEST)')
-    expect(fieldValue('Default case TLP')).toBe('TLP:AMBER')
+    expect(screen.getByDisplayValue('Primary backend tenant')).toBeDefined()
+    expect(api.get).toHaveBeenCalledWith('organisations/origin-soc')
   })
 
-  test('confirms when organisation profile changes are saved', async () => {
+  test('saves organisation profile changes to the backend', async () => {
     render(<Harness />)
 
+    const name = await screen.findByLabelText('Organisation name')
+    fireEvent.change(name, { target: { value: 'Updated Backend SOC' } })
+    fireEvent.change(screen.getByLabelText('Organisation description'), {
+      target: { value: 'Updated description' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
-    expect(await screen.findByText('Organisation profile saved')).toBeDefined()
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('organisations/origin-soc', {
+        json: {
+          name: 'Updated Backend SOC',
+          description: 'Updated description',
+        },
+      }),
+    )
   })
 
-  test('renders every documented settings section', async () => {
+  test('renders backend-backed members, roles, custom fields, and connectors', async () => {
     render(<Harness />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Organisations' }))
-    expect(screen.getByRole('heading', { name: 'Organisations' })).toBeDefined()
-    expect(screen.getByRole('heading', { name: 'Organisation links' }))
-      .toBeDefined()
-    expect(screen.getAllByText('Generation / OT SOC').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('tab', { name: 'Users & roles' }))
+    expect(await screen.findByText('analyst@example.test')).toBeDefined()
+    expect(screen.getByText('ANALYST')).toBeDefined()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Users & roles' }))
-    expect(screen.getByRole('heading', { name: 'Members' })).toBeDefined()
-    expect(screen.getByText('J. Tanaka')).toBeDefined()
+    fireEvent.click(screen.getByRole('tab', { name: 'Profiles & permissions' }))
+    expect(await screen.findByRole('button', { name: 'analyst' })).toBeDefined()
+    expect(screen.getByText(/3 effective permissions/i)).toBeDefined()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Profiles & permissions' }),
+    fireEvent.click(screen.getByRole('tab', { name: 'Custom fields' }))
+    expect(await screen.findByText('Backend case reference')).toBeDefined()
+    expect(screen.getByText('backend_case_reference')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Connectors' }))
+    expect(await screen.findByText('MISP Backend')).toBeDefined()
+  })
+
+  test('creates, manages, and deletes organisations from the Organisations panel', async () => {
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Organisations' }))
+    expect(await screen.findByText('Backend SOC')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: '+ New organisation' }))
+    fireEvent.change(await screen.findByLabelText('New organisation name'), {
+      target: { value: 'Managed Partner - Acme' },
+    })
+    fireEvent.change(screen.getByLabelText('New organisation short name'), {
+      target: { value: 'partner-acme' },
+    })
+    fireEvent.change(screen.getByLabelText('New organisation description'), {
+      target: { value: 'External partner' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create organisation' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('organisations/', {
+        json: {
+          id: 'partner-acme',
+          name: 'Managed Partner - Acme',
+          description: 'External partner',
+        },
+      }),
     )
-    expect(screen.getByRole('heading', { name: 'Profiles' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'analyst' })).toBeDefined()
-    expect(screen.getByText('Cases')).toBeDefined()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Custom fields' }))
-    expect(screen.getByRole('heading', { name: 'Custom field definitions' }))
-      .toBeDefined()
-    expect(screen.getByText('Affected users')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Manage' }))
+    fireEvent.change(await screen.findByLabelText('Manage organisation name'), {
+      target: { value: 'Updated Backend SOC' },
+    })
+    fireEvent.change(screen.getByLabelText('Manage organisation description'), {
+      target: { value: 'Updated description' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save organisation' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Observable types' }))
-    expect(screen.getByRole('heading', { name: 'Observable types' }))
-      .toBeDefined()
-    expect(screen.getByText('btc-address')).toBeDefined()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Taxonomies & tags' }))
-    expect(screen.getByRole('heading', { name: 'Taxonomies' })).toBeDefined()
-    expect(screen.getByRole('heading', { name: 'Org freetags' })).toBeDefined()
-    expect(screen.getByText('phishing')).toBeDefined()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }))
-    expect(screen.getByRole('heading', { name: 'Notification rules' }))
-      .toBeDefined()
-    expect(screen.getByRole('heading', { name: 'Notifiers' })).toBeDefined()
-    expect(screen.getByRole('heading', { name: 'Message template' }))
-      .toBeDefined()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Preview with sample event' }),
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('organisations/origin-soc', {
+        json: {
+          name: 'Updated Backend SOC',
+          description: 'Updated description',
+        },
+      }),
     )
-    expect(await screen.findByText(/OAuth consent grant/i)).toBeDefined()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Connectors' }))
-    expect(screen.getByRole('heading', { name: 'MISP connectors' })).toBeDefined()
-    expect(screen.getByRole('heading', { name: 'Cortex servers' })).toBeDefined()
-    expect(screen.getByText('MISP - Origin CTI')).toBeDefined()
-
-    fireEvent.click(screen.getByRole('button', { name: 'SLA policies' }))
-    expect(screen.getByRole('heading', { name: 'SLA policies' })).toBeDefined()
-    expect(screen.getByText('CRITICAL')).toBeDefined()
-    expect(fieldValue('Critical time to acknowledge')).toBe('15m')
-
-    fireEvent.click(screen.getByRole('button', { name: 'API keys' }))
-    expect(screen.getByRole('heading', { name: 'API keys' })).toBeDefined()
-    expect(screen.getByText('splunk-forwarder')).toBeDefined()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Integrations' }))
-    expect(screen.getByRole('heading', { name: 'Connected integrations' }))
-      .toBeDefined()
-    expect(screen.getByText('Defender XDR')).toBeDefined()
-    expect(screen.getByText('AUTH ERROR')).toBeDefined()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Audit log' }))
-    expect(screen.getByRole('heading', { name: 'Audit log' })).toBeDefined()
-    expect(screen.getByText('observable.create')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete organisation' }))
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('organisations/origin-soc'),
+    )
   })
 })

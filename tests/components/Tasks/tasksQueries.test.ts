@@ -1,5 +1,5 @@
+import type { TaskQueuePublic } from '#/components/Tasks/tasksQueries'
 import {
-  type TaskQueuePublic,
   fetchTasks,
   tasksQueryOptions,
   updateTaskStatus,

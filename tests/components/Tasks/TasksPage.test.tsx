@@ -4,15 +4,33 @@ import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import type * as TanStackReactRouter from '@tanstack/react-router'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from 'vitest'
 
 const navigate = vi.fn()
 
-vi.mock('@tanstack/react-router', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
-  useNavigate: () => navigate,
-}))
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof TanStackReactRouter>()
+  return {
+    ...actual,
+    useNavigate: () => navigate,
+  }
+})
 
 vi.mock('#/lib/api/client', () => ({
   api: {
@@ -114,7 +132,9 @@ describe('TasksPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: /task actions/i }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Advance status' }))
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: 'Advance status' }),
+    )
 
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith(
@@ -122,5 +142,22 @@ describe('TasksPage', () => {
         { json: { status: 'InProgress' } },
       ),
     )
+  })
+
+  test('shows a backend error instead of falling back to fixture tasks', async () => {
+    vi.mocked(api.get).mockReturnValue({
+      json: async () => {
+        throw new Error('backend unavailable')
+      },
+    } satisfies JsonResponse as ReturnType<typeof api.get>)
+
+    render(<Harness />)
+
+    expect(
+      await screen.findByText('Couldn’t load tasks from the backend.'),
+    ).toBeDefined()
+    expect(
+      screen.queryByText('Pull EDR timeline for initial access'),
+    ).toBeNull()
   })
 })

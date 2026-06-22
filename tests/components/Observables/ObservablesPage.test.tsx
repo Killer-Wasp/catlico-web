@@ -217,7 +217,9 @@ beforeAll(() => {
 })
 
 function Harness() {
-  const queryClient = new QueryClient()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return (
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
@@ -241,9 +243,10 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('ObservablesPage', () => {
-  test('renders an observable table with search-bar filters, bulk actions and pagination', () => {
+  test('renders an observable table with search-bar filters, bulk actions and pagination', async () => {
     render(<Harness />)
 
+    expect(await screen.findByText('login-originenergy.support')).toBeDefined()
     expect(screen.getByRole('heading', { name: 'Observables' })).toBeDefined()
     expect(
       screen.getByRole('button', { name: 'Run analyzers on selected' }),
@@ -263,15 +266,15 @@ describe('ObservablesPage', () => {
         'Filter observables — pick a field, then a value',
       ),
     ).toBeDefined()
-    expect(screen.getByText('login-originenergy.support')).toBeDefined()
     expect(screen.getAllByText('TLP:AMBER').length).toBeGreaterThan(0)
-    expect(screen.getByText('VT 12/93')).toBeDefined()
+    expect(screen.getByText('Note VT 12/93')).toBeDefined()
     expect(screen.getByText('1-6 of 8')).toBeDefined()
   })
 
-  test('enables bulk actions when an observable is selected', () => {
+  test('enables bulk actions when an observable is selected', async () => {
     render(<Harness />)
 
+    expect(await screen.findByText('login-originenergy.support')).toBeDefined()
     fireEvent.click(
       screen.getByRole('checkbox', {
         name: 'Select observable login-originenergy.support',
@@ -286,9 +289,10 @@ describe('ObservablesPage', () => {
     ).toHaveProperty('disabled', false)
   })
 
-  test('filters observables by token search field', () => {
+  test('filters observables by token search field', async () => {
     render(<Harness />)
 
+    expect(await screen.findByText('login-originenergy.support')).toBeDefined()
     fireEvent.click(
       screen.getByPlaceholderText(
         'Filter observables — pick a field, then a value',
@@ -306,6 +310,7 @@ describe('ObservablesPage', () => {
   test('opens an observable detail modal and renders its fetched enrichment', async () => {
     render(<Harness />)
 
+    expect(await screen.findByText('203.0.113.47')).toBeDefined()
     fireEvent.click(screen.getByText('203.0.113.47'))
 
     const modal = screen.getByRole('dialog', { name: /observable detail/i })
@@ -321,15 +326,15 @@ describe('ObservablesPage', () => {
     expect(screen.getByText('AbuseIPDB:abuse-score=97%')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Toggle IOC' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'Mark sighted' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'Export to MISP' })).toHaveProperty(
-      'disabled',
-      true,
-    )
+    expect(
+      screen.getByRole('button', { name: 'Export to MISP' }),
+    ).toHaveProperty('disabled', true)
   })
 
   test('updates observable flags from detail actions', async () => {
     render(<Harness />)
 
+    expect(await screen.findByText('app_id 7f3c…91ab')).toBeDefined()
     fireEvent.click(screen.getByText('app_id 7f3c…91ab'))
 
     const modal = screen.getByRole('dialog', { name: /observable detail/i })
@@ -350,21 +355,50 @@ describe('ObservablesPage', () => {
   test('reruns enrichment when Run analyzers is clicked', async () => {
     render(<Harness />)
 
+    expect(await screen.findByText('203.0.113.47')).toBeDefined()
     fireEvent.click(screen.getByText('203.0.113.47'))
     const modal = screen.getByRole('dialog', { name: /observable detail/i })
     await within(modal).findByText('AbuseIPDB')
 
-    const enrichmentCallsBefore = vi.mocked(api.get).mock.calls.filter(([input]) =>
-      String(input).includes('/enrichments'),
-    ).length
-
-    fireEvent.click(within(modal).getByRole('button', { name: 'Run analyzers' }))
-
-    await waitFor(() => {
-      const enrichmentCallsAfter = vi.mocked(api.get).mock.calls.filter(([input]) =>
+    const enrichmentCallsBefore = vi
+      .mocked(api.get)
+      .mock.calls.filter(([input]) =>
         String(input).includes('/enrichments'),
       ).length
+
+    fireEvent.click(
+      within(modal).getByRole('button', { name: 'Run analyzers' }),
+    )
+
+    await waitFor(() => {
+      const enrichmentCallsAfter = vi
+        .mocked(api.get)
+        .mock.calls.filter(([input]) =>
+          String(input).includes('/enrichments'),
+        ).length
       expect(enrichmentCallsAfter).toBeGreaterThan(enrichmentCallsBefore)
     })
+  })
+
+  test('shows a backend error instead of falling back to fixture observables', async () => {
+    vi.mocked(api.get).mockImplementation((input) => {
+      if (String(input).includes('/enrichments')) {
+        return {
+          json: async () => enrichmentOverview,
+        } satisfies JsonResponse as ReturnType<typeof api.get>
+      }
+      return {
+        json: async () => {
+          throw new Error('backend unavailable')
+        },
+      } satisfies JsonResponse as ReturnType<typeof api.get>
+    })
+
+    render(<Harness />)
+
+    expect(
+      await screen.findByText('Couldn’t load observables from the backend.'),
+    ).toBeDefined()
+    expect(screen.queryByText('login-originenergy.support')).toBeNull()
   })
 })

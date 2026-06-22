@@ -31,6 +31,8 @@
     "@mantine/spotlight": "^9.3.1",
     "@mantine/tiptap": "^9.3.1",
     "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/ai": "^0.32.0",
+    "@tanstack/ai-anthropic": "^0.15.5",
     "@tanstack/match-sorter-utils": "latest",
     "@tanstack/react-devtools": "latest",
     "@tanstack/react-query": "latest",

@@ -57,6 +57,10 @@ type AlertPublic = {
   status: string
 }
 
+type CasePublic = {
+  id: number
+}
+
 const clamp = (n: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, Math.round(n)))
 
@@ -101,6 +105,40 @@ async function fetchAlert(id: string): Promise<Alert> {
   const numeric = id.replace(/^AL-/, '')
   const alert = await api.get(`alerts/${numeric}`).json<AlertPublic>()
   return toAlert(alert)
+}
+
+export async function promoteAlertToCase({
+  alertId,
+  caseTemplateId,
+}: {
+  alertId: string
+  caseTemplateId?: number | null
+}): Promise<number> {
+  const numeric = alertId.replace(/^AL-/, '')
+  const created = await api
+    .post(`alerts/${numeric}/promote`, {
+      json: { case_template_id: caseTemplateId ?? null },
+    })
+    .json<CasePublic>()
+  return created.id
+}
+
+export async function mergeAlertsToCase({
+  alertIds,
+  caseTemplateId,
+}: {
+  alertIds: string[]
+  caseTemplateId?: number | null
+}): Promise<number> {
+  const created = await api
+    .post('alerts/merge', {
+      json: {
+        alert_ids: alertIds.map((id) => Number(id.replace(/^AL-/, ''))),
+        case_template_id: caseTemplateId ?? null,
+      },
+    })
+    .json<CasePublic>()
+  return created.id
 }
 
 // --- query options ---------------------------------------------------------

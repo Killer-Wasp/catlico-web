@@ -1,12 +1,37 @@
 // @vitest-environment jsdom
 import { CaseTemplatesPage } from '#/components/pages/CaseTemplatesPage'
+import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from 'vitest'
 
 const routerState = vi.hoisted(() => ({
   pathname: '/case-templates',
+}))
+
+vi.mock('#/lib/api/client', () => ({
+  api: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -23,9 +48,7 @@ vi.mock('@tanstack/react-router', () => ({
     params?: Record<string, string>
     children?: React.ReactNode
   }) => {
-    const href = params
-      ? to.replace('$templateId', params.templateId)
-      : to
+    const href = params ? to.replace('$templateId', params.templateId) : to
     return (
       <a href={href} {...props}>
         {children}
@@ -33,6 +56,35 @@ vi.mock('@tanstack/react-router', () => ({
     )
   },
 }))
+
+type JsonResponse = {
+  json: () => Promise<unknown>
+}
+
+const templateDto = {
+  id: 7,
+  name: 'phishing-playbook',
+  display_name: 'Phishing / credential harvesting',
+  title_prefix: '[Phishing] ',
+  description: 'Standard phishing playbook.',
+  severity: 3,
+  tlp: 2,
+  pap: 2,
+  summary: null,
+  organisation_id: 'org-1',
+  tasks: [
+    {
+      id: 'task-template-1',
+      title: 'Triage',
+      group: 'Triage',
+      description: 'Confirm scope.',
+      order: 0,
+    },
+  ],
+  tags: ['phishing', 'T1566'],
+  created_at: '2026-06-12T09:21:00Z',
+  updated_at: '2026-06-12T10:21:00Z',
+}
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -51,13 +103,44 @@ beforeAll(() => {
 })
 
 function Harness() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
   return (
-    <MantineProvider>
-      <Notifications />
-      <CaseTemplatesPage />
-    </MantineProvider>
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <Notifications />
+        <CaseTemplatesPage />
+      </MantineProvider>
+    </QueryClientProvider>
   )
 }
+
+beforeEach(() => {
+  vi.mocked(api.get).mockReset()
+  vi.mocked(api.post).mockReset()
+  vi.mocked(api.put).mockReset()
+  vi.mocked(api.delete).mockReset()
+  vi.mocked(api.get).mockReturnValue({
+    json: async () => ({
+      items: [templateDto],
+      total: 1,
+      skip: 0,
+      limit: 100,
+    }),
+  } satisfies JsonResponse as ReturnType<typeof api.get>)
+  vi.mocked(api.post).mockReturnValue({
+    json: async () => ({
+      ...templateDto,
+      id: 8,
+      name: 'phishing-playbook-copy',
+    }),
+  } satisfies JsonResponse as ReturnType<typeof api.post>)
+  vi.mocked(api.put).mockReturnValue({
+    json: async () => templateDto.tags,
+  } satisfies JsonResponse as ReturnType<typeof api.put>)
+  vi.mocked(api.delete).mockReturnValue({} as ReturnType<typeof api.delete>)
+})
 
 afterEach(cleanup)
 
@@ -66,23 +149,50 @@ describe('CaseTemplatesPage', () => {
     routerState.pathname = '/case-templates'
   })
 
-  test('links template cards to the template item editor route', () => {
+  test('loads backend templates and links cards to the item editor route', async () => {
     render(<Harness />)
 
     expect(
-      screen
-        .getByRole('link', { name: 'Generic investigation' })
-        .getAttribute('href'),
-    ).toBe('/case-templates/generic')
+      await screen.findByText('Phishing / credential harvesting'),
+    ).toBeDefined()
+    expect(api.get).toHaveBeenCalledWith('case-templates/', {
+      searchParams: { limit: '100', skip: '0' },
+    })
     expect(
       screen
-        .getAllByRole('link', { name: 'Edit' })
-        .some((link) => link.getAttribute('href') === '/case-templates/generic'),
-    ).toBe(true)
+        .getByRole('link', { name: 'Phishing / credential harvesting' })
+        .getAttribute('href'),
+    ).toBe('/case-templates/7')
+    expect(screen.getByText('1 tasks')).toBeDefined()
+  })
+
+  test('duplicates and deletes templates through the backend', async () => {
+    render(<Harness />)
+
+    expect(
+      await screen.findByText('Phishing / credential harvesting'),
+    ).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        'case-templates/',
+        expect.objectContaining({
+          json: expect.objectContaining({
+            display_name: 'Phishing / credential harvesting (copy)',
+          }),
+        }),
+      ),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('case-templates/7'),
+    )
   })
 
   test('renders the child editor outlet on template item routes', () => {
-    routerState.pathname = '/case-templates/generic'
+    routerState.pathname = '/case-templates/7'
 
     render(<Harness />)
 

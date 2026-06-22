@@ -1,9 +1,21 @@
 import type { Alert } from '#/components/Alerts/alerts.types'
 import { SEV, TLP } from '#/lib/domain'
 import { fmtAge, srcColor } from '#/components/Alerts/alerts'
-import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
-import { useSuspenseQuery } from '@tanstack/react-query'
-import { caseTemplatesList } from '#/components/Cases/caseTemplates'
+import {
+  alertKeys,
+  alertsQueryOptions,
+  mergeAlertsToCase,
+  promoteAlertToCase,
+} from '#/components/Alerts/alertsQueries'
+import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
+import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
+import { caseKeys } from '#/components/Cases/casesQueries'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
 // Reuse the Cases page var scope so both tables share the SOC palette
 // (severity / TLP / MITRE colours, soft borders) defined on `.page`.
 import classes from '#/components/Cases/CasesPage.module.css'
@@ -32,6 +44,7 @@ import {
   VisuallyHidden,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { useNavigate } from '@tanstack/react-router'
 import type {
   ColumnDef,
   FilterFn,
@@ -57,7 +70,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const SEV_OPTIONS = [
   { value: '4', label: 'Critical' },
@@ -135,9 +148,13 @@ const byAlertId: SortingFn<Alert> = (a, b) =>
 const byAge: SortingFn<Alert> = (a, b) => a.original.ageMin - b.original.ageMin
 
 export function AlertsPage() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   // Reads the loader-warmed cache (see the route's `ensureQueryData`). Local
   // edits still live in `useState`, seeded from the fetched data.
   const { data } = useSuspenseQuery(alertsQueryOptions())
+  const { data: caseTemplatesResult } = useQuery(caseTemplatesQueryOptions())
+  const caseTemplates = caseTemplatesResult?.templates ?? []
   const [alerts, setAlerts] = useState<Alert[]>(data)
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
@@ -153,6 +170,62 @@ export function AlertsPage() {
   ])
 
   const activeAlert = alerts.find((alert) => alert.id === activeAlertId) ?? null
+
+  const invalidatePromotedResources = () => {
+    void queryClient.invalidateQueries({ queryKey: alertKeys.all })
+    void queryClient.invalidateQueries({ queryKey: caseKeys.all })
+  }
+
+  const bulkPromoteMutation = useMutation({
+    mutationFn: mergeAlertsToCase,
+    onSuccess: (caseId, variables) => {
+      invalidatePromotedResources()
+      const promoted = new Set(variables.alertIds)
+      setAlerts((prev) => prev.filter((alert) => !promoted.has(alert.id)))
+      notifications.show({
+        color: 'teal',
+        message: `Created case #${caseId} from ${variables.alertIds.length} alert${
+          variables.alertIds.length > 1 ? 's' : ''
+        }`,
+      })
+      exitSelectMode()
+      void navigate({
+        to: '/cases/$caseId/$tab',
+        params: { caseId: String(caseId), tab: 'details' },
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to create case',
+      }),
+  })
+
+  const promoteMutation = useMutation({
+    mutationFn: promoteAlertToCase,
+    onSuccess: (caseId, variables) => {
+      invalidatePromotedResources()
+      setAlerts((prev) =>
+        prev.filter((alert) => alert.id !== variables.alertId),
+      )
+      setActiveAlertId(null)
+      notifications.show({
+        color: 'orange',
+        message: `${variables.alertId} promoted to case #${caseId}`,
+      })
+      void navigate({
+        to: '/cases/$caseId/$tab',
+        params: { caseId: String(caseId), tab: 'details' },
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to promote alert',
+      }),
+  })
 
   const openAlert = (id: string) => setActiveAlertId(id)
 
@@ -201,7 +274,9 @@ export function AlertsPage() {
         accessorFn: (row) => row.sev,
         filterFn: includesOne,
         sortingFn: byAlertId,
-        cell: ({ row }) => <Severity id={row.original.id} sev={row.original.sev} />,
+        cell: ({ row }) => (
+          <Severity id={row.original.id} sev={row.original.sev} />
+        ),
       },
       {
         id: 'title',
@@ -424,7 +499,9 @@ export function AlertsPage() {
   const setTokens = (next: Token[]) => {
     for (const f of filterFields) {
       const vals = next.filter((t) => t.field === f.key).map((t) => t.value)
-      table.getColumn(f.columnId)?.setFilterValue(vals.length ? vals : undefined)
+      table
+        .getColumn(f.columnId)
+        ?.setFilterValue(vals.length ? vals : undefined)
     }
   }
 
@@ -440,11 +517,18 @@ export function AlertsPage() {
   const selectedCount = selectedRows.length
 
   const createCase = () => {
-    notifications.show({
-      color: 'teal',
-      message: `Case created from ${selectedCount} alert${selectedCount > 1 ? 's' : ''}`,
+    if (selectedCount < 1) {
+      notifications.show({
+        color: 'red',
+        message: 'Select alerts first (checkboxes on the left)',
+      })
+      return
+    }
+
+    bulkPromoteMutation.mutate({
+      alertIds: selectedRows.map((row) => row.original.id),
+      caseTemplateId: caseTemplates.length > 0 ? caseTemplates[0].apiId : null,
     })
-    exitSelectMode()
   }
 
   const addAlertComment = (id: string, note: string) => {
@@ -483,11 +567,22 @@ export function AlertsPage() {
     <Box className={classes.page}>
       <AlertDetailDrawer
         alert={activeAlert}
+        caseTemplates={caseTemplates}
         comments={activeAlert ? (alertComments[activeAlert.id] ?? []) : []}
         onClose={() => setActiveAlertId(null)}
         onAddComment={addAlertComment}
         onIgnore={ignoreAlert}
         onRunAnalysis={runAnalysis}
+        onPromote={(alertId, nextTemplateId) => {
+          const selectedTemplate = caseTemplates.find(
+            (template) => template.id === nextTemplateId,
+          )
+          promoteMutation.mutate({
+            alertId,
+            caseTemplateId: selectedTemplate?.apiId ?? null,
+          })
+        }}
+        promotionPending={promoteMutation.isPending}
       />
       <Paper radius="md" p={0} withBorder>
         <Group
@@ -521,8 +616,11 @@ export function AlertsPage() {
                   color="green"
                   onClick={createCase}
                   disabled={selectedCount < 1}
+                  loading={bulkPromoteMutation.isPending}
                 >
-                  {selectedCount ? `Create case (${selectedCount})` : 'Create case'}
+                  {selectedCount
+                    ? `Create case (${selectedCount})`
+                    : 'Create case'}
                 </Button>
                 <Button
                   size="xs"
@@ -551,7 +649,9 @@ export function AlertsPage() {
               variant="default"
               size="xs"
               leftSection={!selectMode ? <ListChecks size={14} /> : undefined}
-              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              onClick={() =>
+                selectMode ? exitSelectMode() : setSelectMode(true)
+              }
               aria-pressed={selectMode}
             >
               {selectMode ? 'Cancel' : 'Select'}
@@ -616,7 +716,10 @@ export function AlertsPage() {
                             ) : sorted === 'desc' ? (
                               <ChevronDown size={12} />
                             ) : (
-                              <ChevronsUpDown size={12} style={{ opacity: 0.4 }} />
+                              <ChevronsUpDown
+                                size={12}
+                                style={{ opacity: 0.4 }}
+                              />
                             )}
                           </Group>
                         ) : (
@@ -747,25 +850,37 @@ export function AlertsPage() {
 
 function AlertDetailDrawer({
   alert,
+  caseTemplates,
   comments,
   onClose,
   onAddComment,
   onIgnore,
   onRunAnalysis,
+  onPromote,
+  promotionPending,
 }: {
   alert: Alert | null
+  caseTemplates: CaseTemplate[]
   comments: string[]
   onClose: () => void
   onAddComment: (id: string, note: string) => void
   onIgnore: (id: string) => void
   onRunAnalysis: (id: string) => void
+  onPromote: (id: string, templateId: string) => void
+  promotionPending: boolean
 }) {
   const [note, setNote] = useState('')
-  const [templateId, setTemplateId] = useState('generic')
+  const [templateId, setTemplateId] = useState('')
+
+  useEffect(() => {
+    if (!templateId && caseTemplates.length > 0) {
+      setTemplateId(caseTemplates[0].id)
+    }
+  }, [caseTemplates, templateId])
 
   const selectedTemplate =
-    caseTemplatesList.find((template) => template.id === templateId) ??
-    caseTemplatesList[0]
+    caseTemplates.find((template) => template.id === templateId) ??
+    (caseTemplates.length > 0 ? caseTemplates[0] : undefined)
 
   const close = () => {
     setNote('')
@@ -874,7 +989,12 @@ function AlertDetailDrawer({
                 wrap="nowrap"
                 style={{ borderBottom: '1px solid var(--line-soft)' }}
               >
-                <Badge variant="outline" color="gray" radius="sm" ff="monospace">
+                <Badge
+                  variant="outline"
+                  color="gray"
+                  radius="sm"
+                  ff="monospace"
+                >
                   {observable.type}
                 </Badge>
                 <Text fz={13} ff="monospace" truncate>
@@ -957,23 +1077,29 @@ function AlertDetailDrawer({
 
         <DrawerSection title="Promote with template">
           <Select
-            data={caseTemplatesList.map((template) => ({
+            data={caseTemplates.map((template) => ({
               value: template.id,
               label: template.name,
             }))}
-            value={templateId}
-            onChange={(value) => setTemplateId(value ?? 'generic')}
+            value={templateId || null}
+            onChange={(value) => setTemplateId(value ?? '')}
+            disabled={caseTemplates.length === 0}
+            placeholder="No templates found"
             allowDeselect={false}
           />
           <Text mt={6} ff="monospace" fz={10} c="dimmed">
             pre-loads tasks, custom fields, TLP/PAP & tags
           </Text>
-          <Group gap={6} mt={8} wrap="wrap">
-            <Tag label={`SEV ${SEV[selectedTemplate.sev].toUpperCase()}`} />
-            <Tag label={`TLP ${TLP[selectedTemplate.tlp].toUpperCase()}`} />
-            <Tag label={`${selectedTemplate.tasks.length} tasks`} />
-            <Tag label={`${selectedTemplate.customFields.length} custom fields`} />
-          </Group>
+          {selectedTemplate && (
+            <Group gap={6} mt={8} wrap="wrap">
+              <Tag label={`SEV ${SEV[selectedTemplate.sev].toUpperCase()}`} />
+              <Tag label={`TLP ${TLP[selectedTemplate.tlp].toUpperCase()}`} />
+              <Tag label={`${selectedTemplate.tasks.length} tasks`} />
+              <Tag
+                label={`${selectedTemplate.customFields.length} custom fields`}
+              />
+            </Group>
+          )}
         </DrawerSection>
 
         <Group
@@ -1011,12 +1137,8 @@ function AlertDetailDrawer({
           <Button
             fullWidth
             color="orange"
-            onClick={() =>
-              notifications.show({
-                color: 'orange',
-                message: `${alert.id} promoted using ${selectedTemplate.name}`,
-              })
-            }
+            loading={promotionPending}
+            onClick={() => onPromote(alert.id, templateId)}
           >
             Promote to case
           </Button>

@@ -5,10 +5,7 @@ import type {
   ObservableFlag,
   ObservableType,
 } from '#/components/Observables/observables.types'
-import {
-  initialObservables,
-  observableTypeLabels,
-} from '#/components/Observables/observables'
+import { observableTypeLabels } from '#/components/Observables/observables'
 import {
   observableEnrichmentsQueryOptions,
   observablesQueryOptions,
@@ -182,9 +179,10 @@ function toggleFlag(flags: ObservableFlag[], flag: ObservableFlag) {
 }
 
 export function ObservablesPage() {
-  const { data: fetchedObservables = initialObservables } = useQuery(
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
     observablesQueryOptions(),
   )
+  const fetchedObservables = data ?? []
   const [flagOverrides, setFlagOverrides] = useState<
     Partial<Record<string, ObservableFlag[]>>
   >({})
@@ -458,7 +456,7 @@ export function ObservablesPage() {
   const selectedCount = table.getSelectedRowModel().rows.length
   const totalFiltered = table.getFilteredRowModel().rows.length
   const { pageIndex } = table.getState().pagination
-  const pageCount = table.getPageCount()
+  const pageCount = Math.max(1, table.getPageCount())
   const rangeStart = totalFiltered === 0 ? 0 : pageIndex * pageSize + 1
   const rangeEnd = Math.min((pageIndex + 1) * pageSize, totalFiltered)
   const rows = table.getRowModel().rows
@@ -612,45 +610,90 @@ export function ObservablesPage() {
               ))}
             </Table.Thead>
             <Table.Tbody>
-              {rows.map((row) => {
-                const isSelected = row.getIsSelected()
-                return (
-                  <Table.Tr
-                    key={row.id}
-                    bg={isSelected ? 'orange.0' : undefined}
-                    tabIndex={0}
-                    onClick={() => setActiveObservable(row.original)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter')
-                        setActiveObservable(row.original)
-                    }}
-                    style={{ cursor: 'pointer' }}
+              {isPending ? (
+                <Table.Tr>
+                  <Table.Td
+                    ta="center"
+                    c="dimmed"
+                    fz={13}
+                    py={40}
+                    px={18}
+                    colSpan={table.getVisibleLeafColumns().length}
                   >
-                    {row.getVisibleCells().map((cell) => {
-                      const meta = cell.column.columnDef.meta
-                      return (
-                        <Table.Td
-                          key={cell.id}
-                          ta={meta?.ta}
-                          visibleFrom={meta?.visibleFrom}
-                          onClick={
-                            cell.column.id === 'select' ||
-                            cell.column.id === 'actions'
-                              ? (event) => event.stopPropagation()
-                              : undefined
-                          }
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </Table.Td>
-                      )
-                    })}
-                  </Table.Tr>
-                )
-              })}
-              {rows.length === 0 && (
+                    <Group justify="center" gap="xs">
+                      <Loader size="xs" />
+                      <Text component="span" fz={13} c="dimmed">
+                        Loading observables…
+                      </Text>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ) : isError ? (
+                <Table.Tr>
+                  <Table.Td
+                    ta="center"
+                    c="red.7"
+                    fz={13}
+                    py={40}
+                    px={18}
+                    colSpan={table.getVisibleLeafColumns().length}
+                  >
+                    <Stack align="center" gap="xs">
+                      <Text component="span" fz={13} c="red.7">
+                        Couldn’t load observables from the backend.
+                      </Text>
+                      <Button
+                        size="xs"
+                        variant="default"
+                        loading={isFetching}
+                        onClick={() => refetch()}
+                      >
+                        Retry
+                      </Button>
+                    </Stack>
+                  </Table.Td>
+                </Table.Tr>
+              ) : (
+                rows.map((row) => {
+                  const isSelected = row.getIsSelected()
+                  return (
+                    <Table.Tr
+                      key={row.id}
+                      bg={isSelected ? 'orange.0' : undefined}
+                      tabIndex={0}
+                      onClick={() => setActiveObservable(row.original)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter')
+                          setActiveObservable(row.original)
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {row.getVisibleCells().map((cell) => {
+                        const meta = cell.column.columnDef.meta
+                        return (
+                          <Table.Td
+                            key={cell.id}
+                            ta={meta?.ta}
+                            visibleFrom={meta?.visibleFrom}
+                            onClick={
+                              cell.column.id === 'select' ||
+                              cell.column.id === 'actions'
+                                ? (event) => event.stopPropagation()
+                                : undefined
+                            }
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </Table.Td>
+                        )
+                      })}
+                    </Table.Tr>
+                  )
+                })
+              )}
+              {!isPending && !isError && rows.length === 0 && (
                 <Table.Tr>
                   <Table.Td
                     ta="center"
@@ -722,7 +765,9 @@ export function ObservablesPage() {
       <ObservableDetailDrawer
         observable={activeObservable}
         onToggleIoc={(observable) =>
-          updateObservableFlags(observable.id, (flags) => toggleFlag(flags, 'ioc'))
+          updateObservableFlags(observable.id, (flags) =>
+            toggleFlag(flags, 'ioc'),
+          )
         }
         onMarkSighted={(observable) =>
           updateObservableFlags(observable.id, (flags) =>

@@ -1,14 +1,15 @@
 import { AV } from '#/components/Cases/cases'
-import {
-  buildCustomFieldsForTemplate,
-  caseTemplatesList,
-  formatTemplateDue,
-  getCaseTemplate,
-} from '#/components/Cases/caseTemplates'
+import { formatTemplateDue } from '#/components/Cases/caseTemplates'
+import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
 import type {
   CaseTemplateTask,
   CustomFieldType,
+  NewCaseCustomField,
 } from '#/components/Cases/caseTemplates.types'
+import {
+  caseKeys,
+  createCaseFromTemplate,
+} from '#/components/Cases/casesQueries'
 import type { Pap } from '#/lib/domain'
 import classes from '#/components/Cases/CasesPage.module.css'
 import {
@@ -29,9 +30,10 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, Hourglass, TriangleAlert } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 type TrafficLight = 0 | 1 | 2 | 3
 type SeverityChoice = 1 | 2 | 3 | 4
@@ -235,7 +237,11 @@ function TaskTemplateRow({ task }: { task: CaseTemplateTask }) {
           )}
         </Group>
         <Text {...monoMetaProps} truncate>
-          {[task.group, task.assignee, task.description ? 'has description' : '']
+          {[
+            task.group,
+            task.assignee,
+            task.description ? 'has description' : '',
+          ]
             .filter(Boolean)
             .join(' · ')}
         </Text>
@@ -272,10 +278,15 @@ function TaskTemplateRow({ task }: { task: CaseTemplateTask }) {
 
 export function CreateCasePage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { data: templatesResult, isPending: templatesPending } = useQuery(
+    caseTemplatesQueryOptions(),
+  )
+  const templates = templatesResult?.templates ?? []
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [templateId, setTemplateId] = useState('generic')
+  const [templateId, setTemplateId] = useState('')
   const [assignee, setAssignee] = useState('Unassigned')
   const [businessUnit, setBusinessUnit] = useState('Corporate IT')
   const [severity, setSeverity] = useState<SeverityChoice>(2)
@@ -287,11 +298,56 @@ export function CreateCasePage() {
   >({})
   const [submitted, setSubmitted] = useState(false)
 
-  const template = getCaseTemplate(templateId)
-  const customFields = useMemo(
-    () => buildCustomFieldsForTemplate(templateId),
-    [templateId],
+  const template = useMemo(
+    () => templates.find((item) => item.id === templateId),
+    [templateId, templates],
   )
+  const customFields = useMemo<NewCaseCustomField[]>(
+    () =>
+      (template?.customFields ?? []).map((field) => ({
+        ...field,
+        mandatory: false,
+      })),
+    [template],
+  )
+
+  useEffect(() => {
+    if (templateId || templates.length === 0) return
+
+    const first = templates[0]
+    setTemplateId(first.id)
+    setSeverity(first.sev)
+    setTlp(first.tlp)
+    setPap(first.pap)
+    if (first.assignee) setAssignee(first.assignee)
+    setTags(first.tags)
+    setCustomValues(
+      Object.fromEntries(
+        first.customFields.map((field) => [field.key, field.defaultValue]),
+      ),
+    )
+  }, [templateId, templates])
+
+  const createMutation = useMutation({
+    mutationFn: createCaseFromTemplate,
+    onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: caseKeys.all })
+      notifications.show({
+        color: 'teal',
+        message: `Case created from ${template?.name ?? 'selected template'}`,
+      })
+      void navigate({
+        to: '/cases/$caseId/$tab',
+        params: { caseId: String(created.numericId), tab: 'details' },
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to create case',
+      }),
+  })
 
   const titleError = submitted && title.trim().length === 0
   const missingCustomFields = submitted
@@ -306,7 +362,7 @@ export function CreateCasePage() {
     : new Set<string>()
 
   const applyTemplate = (nextTemplateId: string) => {
-    const next = getCaseTemplate(nextTemplateId)
+    const next = templates.find((item) => item.id === nextTemplateId)
     setTemplateId(nextTemplateId)
     if (!next) return
 
@@ -317,14 +373,26 @@ export function CreateCasePage() {
     setTags(next.tags)
     setCustomValues(
       Object.fromEntries(
-        buildCustomFieldsForTemplate(next.id).map((field) => [
-          field.key,
-          field.defaultValue,
-        ]),
+        next.customFields.map((field) => [field.key, field.defaultValue]),
       ),
     )
     setSubmitted(false)
   }
+
+  const customFieldPayload = () =>
+    Object.fromEntries(
+      customFields
+        .map((field) => {
+          const raw = customValues[field.key] ?? field.defaultValue
+          if (!raw.trim()) return [field.key, null]
+          if (field.type === 'integer')
+            return [field.key, Number.parseInt(raw, 10)]
+          if (field.type === 'float') return [field.key, Number.parseFloat(raw)]
+          if (field.type === 'boolean') return [field.key, raw === 'yes']
+          return [field.key, raw]
+        })
+        .filter(([, value]) => value !== null),
+    )
 
   const submit = () => {
     setSubmitted(true)
@@ -347,11 +415,25 @@ export function CreateCasePage() {
       return
     }
 
-    notifications.show({
-      color: 'teal',
-      message: `Case created from ${template?.name ?? 'selected template'}`,
+    const templateApiId =
+      template?.apiId ?? (template?.id ? Number(template.id) : null)
+
+    createMutation.mutate({
+      title,
+      description,
+      severity,
+      tlp,
+      pap,
+      caseTemplateId:
+        typeof templateApiId === 'number' && Number.isFinite(templateApiId)
+          ? templateApiId
+          : null,
+      tags,
+      customFields: {
+        business_unit: businessUnit,
+        ...customFieldPayload(),
+      },
     })
-    navigate({ to: '/cases' })
   }
 
   return (
@@ -399,12 +481,20 @@ export function CreateCasePage() {
               <Box>
                 <Select
                   label={<FieldLabel>Case template</FieldLabel>}
-                  data={caseTemplatesList.map((caseTemplate) => ({
+                  data={templates.map((caseTemplate) => ({
                     value: caseTemplate.id,
                     label: caseTemplate.name,
                   }))}
-                  value={templateId}
-                  onChange={(next) => applyTemplate(next ?? 'generic')}
+                  value={templateId || null}
+                  onChange={(next) => {
+                    if (next) applyTemplate(next)
+                  }}
+                  disabled={templatesPending || templates.length === 0}
+                  placeholder={
+                    templatesPending
+                      ? 'Loading templates…'
+                      : 'No templates found'
+                  }
                   allowDeselect={false}
                 />
                 <Text {...monoMetaProps} mt={5}>
@@ -413,9 +503,7 @@ export function CreateCasePage() {
                     component="button"
                     type="button"
                     fz="inherit"
-                    onClick={() =>
-                      notifications.show({ message: 'Opening templates…' })
-                    }
+                    onClick={() => void navigate({ to: '/case-templates' })}
                   >
                     manage templates
                   </Anchor>
@@ -545,7 +633,9 @@ export function CreateCasePage() {
               <Button component={Link} to="/cases" variant="default">
                 Cancel
               </Button>
-              <Button onClick={submit}>Create case</Button>
+              <Button loading={createMutation.isPending} onClick={submit}>
+                Create case
+              </Button>
             </Group>
           </Stack>
         </Paper>

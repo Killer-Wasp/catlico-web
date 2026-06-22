@@ -19,7 +19,7 @@ import { Badge, Box, Flex, Image, NavLink, Text } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from '@tanstack/react-router'
 import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
-import { caseTemplatesList } from '#/components/Cases/caseTemplates'
+import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
 import { casesQueryOptions } from '#/components/Cases/casesQueries'
 import { connectorsQueryOptions } from '#/components/Connectors/connectors'
 import {
@@ -56,7 +56,6 @@ type NavbarCounts = {
 
 const fixtureCounts = {
   tasks: filterTasksByStatus(initialTasks, 'open').length,
-  caseTemplates: caseTemplatesList.length,
 }
 
 function sectionsForCounts(counts: NavbarCounts): NavSection[] {
@@ -192,6 +191,7 @@ export function Navbar() {
   const { data: taskQueue } = useQuery(tasksQueryOptions())
   const { data: connectors } = useQuery(connectorsQueryOptions())
   const { data: connectorJobs } = useQuery(analyzerJobsQueryOptions())
+  const { data: caseTemplates } = useQuery(caseTemplatesQueryOptions())
   const connectorJobCounts = connectorJobs
     ? countConnectorJobsByTab(connectorJobs)
     : undefined
@@ -205,6 +205,7 @@ export function Navbar() {
     connectorJobs: connectorJobCounts
       ? connectorJobCounts.queued + connectorJobCounts.running
       : undefined,
+    caseTemplates: caseTemplates?.total ?? 0,
   })
 
   return (

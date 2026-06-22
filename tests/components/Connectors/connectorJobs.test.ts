@@ -2,13 +2,13 @@ import type {
   ConnectorJob,
   ConnectorJobStatus,
 } from '#/components/Connectors/connectorJobs.types'
+import type { EnrichmentJobRow } from '#/components/Connectors/connectorJobs'
 import {
   analyzerJobKeys,
   analyzerJobsQueryOptions,
   cancelAnalyzerJob,
   clearFinishedAnalyzerJobs,
   countConnectorJobsByTab,
-  type EnrichmentJobRow,
   fetchAnalyzerJobs,
   filterConnectorJobsByTab,
   retryFailedAnalyzerJobs,
@@ -126,9 +126,9 @@ describe('analyzer job queries', () => {
   })
 
   test('cancel posts to the job cancel endpoint', async () => {
-    vi.mocked(api.post).mockReturnValue(
-      { json: async () => ({}) } as ReturnType<typeof api.post>,
-    )
+    vi.mocked(api.post).mockReturnValue({
+      json: async () => ({}),
+    } as ReturnType<typeof api.post>)
     await cancelAnalyzerJob('job-9')
     expect(api.post).toHaveBeenCalledWith('enrichment-jobs/job-9/cancel')
   })

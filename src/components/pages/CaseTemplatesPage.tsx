@@ -3,12 +3,18 @@ import type {
   CaseTemplateFilter,
 } from '#/components/Cases/caseTemplates.types'
 import {
-  caseTemplatesList,
   filterCaseTemplates,
   getCaseTemplateStats,
   severityTemplateLabel,
   trafficTemplateLabel,
 } from '#/components/Cases/caseTemplates'
+import {
+  caseTemplateKeys,
+  caseTemplatesQueryOptions,
+  deleteCaseTemplate,
+  duplicateCaseTemplate,
+  importCaseTemplate,
+} from '#/components/Cases/caseTemplatesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Tag } from '#/components/Tag/Tag'
 import {
@@ -16,6 +22,7 @@ import {
   Box,
   Button,
   Group,
+  Loader,
   Paper,
   SimpleGrid,
   Stack,
@@ -24,8 +31,9 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 const filterTabs: { value: CaseTemplateFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -119,15 +127,14 @@ function TemplateCard({
         {visibleTags.map((tag) => (
           <Tag key={tag} label={tag} />
         ))}
-        {overflowTagCount > 0 && <TemplateChip>+{overflowTagCount}</TemplateChip>}
+        {overflowTagCount > 0 && (
+          <TemplateChip>+{overflowTagCount}</TemplateChip>
+        )}
       </Group>
 
       <Group gap={16} mt={16} ff="monospace" fz={12} c="var(--faint)">
         <Text component="span" inherit>
-          <Text component="span" c="var(--text)" inherit>
-            {stats.tasks}
-          </Text>{' '}
-          tasks
+          {stats.tasks} tasks
         </Text>
         {stats.flagged > 0 && (
           <Text component="span" inherit>
@@ -181,69 +188,110 @@ function TemplateCard({
 
 export function CaseTemplatesPage() {
   const [filter, setFilter] = useState<CaseTemplateFilter>('all')
-  const [templates, setTemplates] = useState<CaseTemplate[]>(caseTemplatesList)
   const { pathname } = useLocation()
+  const queryClient = useQueryClient()
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
+    caseTemplatesQueryOptions(),
+  )
+  const templates = data?.templates ?? []
 
   const visibleTemplates = useMemo(
     () => filterCaseTemplates(templates, filter),
     [templates, filter],
   )
 
-  if (pathname.startsWith('/case-templates/') && pathname !== '/case-templates/') {
+  if (
+    pathname.startsWith('/case-templates/') &&
+    pathname !== '/case-templates/'
+  ) {
     return <Outlet />
   }
 
-  const duplicateTemplate = (template: CaseTemplate) => {
-    const copy: CaseTemplate = {
-      ...template,
-      id: `${template.id}-copy-${Date.now().toString(36).slice(-4)}`,
-      name: `${template.name} (copy)`,
-      builtin: false,
-      updated: 'just now',
-      tasks: template.tasks.map((task) => ({ ...task })),
-      tags: [...template.tags],
-      customFields: template.customFields.map((field) => ({ ...field })),
-    }
+  const refreshTemplates = () =>
+    queryClient.invalidateQueries({ queryKey: caseTemplateKeys.all })
 
-    setTemplates((current) => [...current, copy])
-    notifications.show({
-      color: 'teal',
-      message: `Duplicated as ${copy.name}`,
-    })
-  }
-
-  const deleteTemplate = (template: CaseTemplate) => {
-    if (template.builtin) {
+  const duplicateMutation = useMutation({
+    mutationFn: duplicateCaseTemplate,
+    onSuccess: (copy) => {
+      refreshTemplates()
+      notifications.show({
+        color: 'teal',
+        message: `Duplicated as ${copy.name}`,
+      })
+    },
+    onError: (error) =>
       notifications.show({
         color: 'red',
-        message: "Built-in templates can't be deleted — duplicate and edit instead",
-      })
-      return
-    }
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to duplicate template',
+      }),
+  })
 
-    setTemplates((current) =>
-      current.filter((currentTemplate) => currentTemplate.id !== template.id),
-    )
-    notifications.show({ message: 'Template deleted' })
-  }
+  const deleteMutation = useMutation({
+    mutationFn: (template: CaseTemplate) => deleteCaseTemplate(template.id),
+    onSuccess: () => {
+      refreshTemplates()
+      notifications.show({ message: 'Template deleted' })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to delete template',
+      }),
+  })
+
+  const importMutation = useMutation({
+    mutationFn: importCaseTemplate,
+    onSuccess: (template) => {
+      refreshTemplates()
+      notifications.show({
+        color: 'green',
+        message: `Imported ${template.name}`,
+      })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to import template',
+      }),
+  })
 
   const importTemplate = () => {
-    notifications.show({ message: 'Import JSON coming soon' })
+    importInputRef.current?.click()
   }
 
-  const newTemplate = () => {
-    notifications.show({
-      message: 'Use an imported or duplicated template as the starting point',
-    })
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return
+    try {
+      importMutation.mutate(JSON.parse(await file.text()))
+    } catch {
+      notifications.show({ color: 'red', message: 'Template JSON is invalid' })
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = ''
+    }
   }
 
   const newTemplateLink = {
-      to: '/case-templates/$templateId',
-      params: { templateId: 'new' },
+    to: '/case-templates/$templateId',
+    params: { templateId: 'new' },
   } as const
 
   return (
     <Box className={classes.page}>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(event) => {
+          void handleImportFile(event.currentTarget.files?.[0])
+        }}
+      />
       <Group align="baseline" gap={16} mb={24} wrap="wrap">
         <Title order={1}>Case templates</Title>
         <Text component="span" ff="monospace" fz={12} c="var(--faint)">
@@ -251,14 +299,17 @@ export function CaseTemplatesPage() {
           promotion
         </Text>
         <Group gap="sm" ml="auto">
-          <Button variant="default" onClick={importTemplate}>
+          <Button
+            variant="default"
+            loading={importMutation.isPending}
+            onClick={importTemplate}
+          >
             Import JSON
           </Button>
           <Button
             component={Link}
             to={newTemplateLink.to}
             params={newTemplateLink.params}
-            onClick={newTemplate}
           >
             + New template
           </Button>
@@ -272,7 +323,9 @@ export function CaseTemplatesPage() {
           </Text>
           <Tabs
             value={filter}
-            onChange={(value) => setFilter((value ?? 'all') as CaseTemplateFilter)}
+            onChange={(value) =>
+              setFilter((value ?? 'all') as CaseTemplateFilter)
+            }
             variant="pills"
           >
             <Tabs.List>
@@ -289,16 +342,44 @@ export function CaseTemplatesPage() {
         </Group>
       </Paper>
 
-      <SimpleGrid cols={{ base: 1, md: 2, xl: 4 }} spacing={20}>
-        {visibleTemplates.map((template) => (
-          <TemplateCard
-            key={template.id}
-            template={template}
-            onDuplicate={duplicateTemplate}
-            onDelete={deleteTemplate}
-          />
-        ))}
-      </SimpleGrid>
+      {isPending ? (
+        <Paper radius="md" p="xl" shadow="xs">
+          <Group justify="center" gap="xs">
+            <Loader size="sm" />
+            <Text c="dimmed">Loading case templates…</Text>
+          </Group>
+        </Paper>
+      ) : isError ? (
+        <Paper radius="md" p="xl" shadow="xs">
+          <Stack align="center" gap="sm">
+            <Text c="red.7">
+              Couldn’t load case templates from the backend.
+            </Text>
+            <Button
+              variant="default"
+              loading={isFetching}
+              onClick={() => refetch()}
+            >
+              Retry
+            </Button>
+          </Stack>
+        </Paper>
+      ) : visibleTemplates.length ? (
+        <SimpleGrid cols={{ base: 1, md: 2, xl: 4 }} spacing={20}>
+          {visibleTemplates.map((template) => (
+            <TemplateCard
+              key={template.id}
+              template={template}
+              onDuplicate={(item) => duplicateMutation.mutate(item)}
+              onDelete={(item) => deleteMutation.mutate(item)}
+            />
+          ))}
+        </SimpleGrid>
+      ) : (
+        <Paper radius="md" p="xl" shadow="xs" ta="center">
+          <Text c="dimmed">No case templates found.</Text>
+        </Paper>
+      )}
     </Box>
   )
 }

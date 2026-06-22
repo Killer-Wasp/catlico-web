@@ -6,11 +6,17 @@ import type {
   CustomFieldType,
 } from '#/components/Cases/caseTemplates.types'
 import {
-  caseTemplatesList,
-  getCaseTemplate,
   severityTemplateLabel,
   trafficTemplateLabel,
 } from '#/components/Cases/caseTemplates'
+import {
+  caseTemplateKeys,
+  caseTemplateQueryOptions,
+  createCaseTemplate,
+  deleteCaseTemplate,
+  exportCaseTemplate,
+  updateCaseTemplate,
+} from '#/components/Cases/caseTemplatesQueries'
 import type { Pap, Severity, Tlp } from '#/lib/domain'
 import {
   ActionIcon,
@@ -18,9 +24,9 @@ import {
   Box,
   Button,
   Group,
+  Loader,
   Paper,
   Select,
-  SegmentedControl,
   SimpleGrid,
   Stack,
   Text,
@@ -29,9 +35,10 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp, Flag, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 type DraftTask = CaseTemplateTask & {
   dueAmount: string
@@ -55,6 +62,44 @@ const trafficOptions = [
   { value: '2', label: 'AMBER' },
   { value: '3', label: 'RED' },
 ]
+
+function TemplateSegmentedControl<T extends number>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string
+  options: { value: string; label: string }[]
+  value: T
+  onChange: (value: T) => void
+}) {
+  return (
+    <Box>
+      <Text fw={600} size="sm" mb={6}>
+        {label}
+      </Text>
+      <Group gap={6} role="radiogroup" aria-label={label}>
+        {options.map((option) => {
+          const active = option.value === String(value)
+          return (
+            <Button
+              key={option.value}
+              type="button"
+              size="xs"
+              variant={active ? 'filled' : 'default'}
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(Number(option.value) as T)}
+            >
+              {option.label}
+            </Button>
+          )
+        })}
+      </Group>
+    </Box>
+  )
+}
 
 const assigneeOptions = [
   { value: '', label: 'Unassigned' },
@@ -110,6 +155,7 @@ function toDraft(template: CaseTemplate): DraftTemplate {
 function newDraft(): DraftTemplate {
   return {
     id: '',
+    slug: '',
     name: '',
     builtin: false,
     updated: 'just now',
@@ -137,7 +183,13 @@ function Panel({
   children: React.ReactNode
 }) {
   return (
-    <Paper withBorder radius="md" shadow="sm" bg="body" style={{ overflow: 'hidden' }}>
+    <Paper
+      withBorder
+      radius="md"
+      shadow="sm"
+      bg="body"
+      style={{ overflow: 'hidden' }}
+    >
       <Group
         justify="space-between"
         px="lg"
@@ -270,9 +322,7 @@ function TaskEditor({
               <Select
                 data={['hours', 'days']}
                 value={task.dueUnit}
-                onChange={(value) =>
-                  onUpdate({ dueUnit: value ?? 'hours' })
-                }
+                onChange={(value) => onUpdate({ dueUnit: value ?? 'hours' })}
                 aria-label={`Task ${index + 1} due unit`}
                 w={96}
               />
@@ -322,7 +372,9 @@ function CustomFieldEditor({
         value={field.defaultValue}
         placeholder="Default value"
         aria-label={`Custom field ${index + 1} default value`}
-        onChange={(event) => onUpdate({ defaultValue: event.currentTarget.value })}
+        onChange={(event) =>
+          onUpdate({ defaultValue: event.currentTarget.value })
+        }
       />
       <ActionIcon
         variant="default"
@@ -348,10 +400,14 @@ function textToTags(value: string) {
 }
 
 function toSavedTemplate(draft: DraftTemplate): CaseTemplate {
+  const displayName = draft.name.trim()
+  const slug = toSlug(draft.slug || draft.id || displayName)
+
   return {
     ...draft,
-    id: toSlug(draft.id) || `tpl-${Date.now().toString(36)}`,
-    name: draft.name.trim(),
+    id: draft.id || slug || `tpl-${Date.now().toString(36)}`,
+    slug,
+    name: displayName,
     description: draft.description.trim(),
     prefix: draft.prefix,
     assignee: draft.assignee,
@@ -380,24 +436,68 @@ function toSavedTemplate(draft: DraftTemplate): CaseTemplate {
   }
 }
 
-export function CaseTemplateEditorPage({
-  templateId,
-}: {
-  templateId: string
-}) {
-  const sourceTemplate = useMemo(() => getCaseTemplate(templateId), [templateId])
-  const [draft, setDraft] = useState<DraftTemplate>(() =>
-    sourceTemplate ? toDraft(sourceTemplate) : newDraft(),
-  )
+export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
+  const isNew = templateId === 'new'
+  const {
+    data: sourceTemplate,
+    isPending,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery(caseTemplateQueryOptions(templateId))
+  const [draft, setDraft] = useState<DraftTemplate>(() => newDraft())
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  const isNew = !sourceTemplate
+  useEffect(() => {
+    if (isNew) {
+      setDraft(newDraft())
+      return
+    }
+
+    if (sourceTemplate) setDraft(toDraft(sourceTemplate))
+  }, [isNew, sourceTemplate, templateId])
+
   const title = isNew ? 'New template' : 'Edit template'
   const stamp = isNew
     ? 'create a reusable case skeleton'
     : draft.builtin
       ? 'built-in template · changes save as an org override'
-      : 'custom template'
+      : 'backend template'
+
+  const invalidateTemplates = () =>
+    queryClient.invalidateQueries({ queryKey: caseTemplateKeys.all })
+
+  const saveMutation = useMutation({
+    mutationFn: (template: CaseTemplate) =>
+      isNew ? createCaseTemplate(template) : updateCaseTemplate(template),
+    onSuccess: () => {
+      invalidateTemplates()
+      notifications.show({ color: 'green', message: 'Template saved' })
+      void navigate({ to: '/case-templates' })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to save template',
+      }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteCaseTemplate(draft.id),
+    onSuccess: () => {
+      invalidateTemplates()
+      notifications.show({ message: 'Template deleted' })
+      void navigate({ to: '/case-templates' })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to delete template',
+      }),
+  })
 
   const saveTemplate = () => {
     if (!draft.name.trim()) {
@@ -406,23 +506,47 @@ export function CaseTemplateEditorPage({
     }
 
     const saved = toSavedTemplate(draft)
-    const existingIndex = caseTemplatesList.findIndex(
-      (template) => template.id === sourceTemplate?.id,
-    )
-    if (existingIndex >= 0) {
-      caseTemplatesList[existingIndex] = saved
-    } else {
-      caseTemplatesList.push(saved)
-    }
-
-    notifications.show({ color: 'green', message: 'Template saved' })
-    void navigate({ to: '/case-templates' })
+    saveMutation.mutate(saved)
   }
 
-  const exportJson = () => {
-    const payload = toSavedTemplate(draft)
+  const exportJson = async () => {
+    const payload = isNew
+      ? toSavedTemplate(draft)
+      : await exportCaseTemplate(draft.id)
     void navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
     notifications.show({ message: 'Template JSON copied' })
+  }
+
+  if (!isNew && isPending) {
+    return (
+      <Box className={classes.page} maw={1080} mx="auto">
+        <Paper radius="md" p="xl" shadow="xs">
+          <Group justify="center" gap="xs">
+            <Loader size="sm" />
+            <Text c="dimmed">Loading case template…</Text>
+          </Group>
+        </Paper>
+      </Box>
+    )
+  }
+
+  if (!isNew && isError) {
+    return (
+      <Box className={classes.page} maw={1080} mx="auto">
+        <Paper radius="md" p="xl" shadow="xs">
+          <Stack align="center" gap="sm">
+            <Text c="red.7">Couldn’t load this case template.</Text>
+            <Button
+              variant="default"
+              loading={isFetching}
+              onClick={() => refetch()}
+            >
+              Retry
+            </Button>
+          </Stack>
+        </Paper>
+      </Box>
+    )
   }
 
   return (
@@ -455,10 +579,14 @@ export function CaseTemplateEditorPage({
           <Button component={Link} to="/case-templates" variant="default">
             Cancel
           </Button>
-          <Button variant="default" onClick={exportJson}>
+          <Button variant="default" onClick={() => void exportJson()}>
             Export JSON
           </Button>
-          <Button color="orange" onClick={saveTemplate}>
+          <Button
+            color="orange"
+            loading={saveMutation.isPending}
+            onClick={saveTemplate}
+          >
             Save template
           </Button>
         </Group>
@@ -470,6 +598,7 @@ export function CaseTemplateEditorPage({
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <TextInput
                 label="Display name"
+                aria-label="Display name"
                 required
                 value={draft.name}
                 onChange={(event) => {
@@ -477,19 +606,21 @@ export function CaseTemplateEditorPage({
                   setDraft((current) => ({
                     ...current,
                     name,
-                    id: current.id || toSlug(name),
+                    slug: current.slug || toSlug(name),
                   }))
                 }}
               />
               <TextInput
                 label="Slug / id"
-                value={draft.id}
+                aria-label="Slug / id"
+                value={draft.slug ?? draft.id}
                 onChange={(event) =>
                   setDraft((current) => ({
                     ...current,
-                    id: toSlug(event.currentTarget.value),
+                    slug: toSlug(event.currentTarget.value),
                   }))
                 }
+                disabled={!isNew}
                 description="used in alert imports and API calls"
               />
             </SimpleGrid>
@@ -533,16 +664,14 @@ export function CaseTemplateEditorPage({
           <Stack p="lg">
             <SimpleGrid cols={{ base: 1, md: 3 }}>
               <Box>
-                <Text fw={600} size="sm" mb={6}>
-                  Severity
-                </Text>
-                <SegmentedControl
-                  data={severityOptions}
-                  value={String(draft.sev)}
+                <TemplateSegmentedControl
+                  label="Severity"
+                  options={severityOptions}
+                  value={draft.sev}
                   onChange={(value) =>
                     setDraft((current) => ({
                       ...current,
-                      sev: Number(value) as Severity,
+                      sev: value,
                     }))
                   }
                 />
@@ -551,16 +680,14 @@ export function CaseTemplateEditorPage({
                 </Text>
               </Box>
               <Box>
-                <Text fw={600} size="sm" mb={6}>
-                  TLP
-                </Text>
-                <SegmentedControl
-                  data={trafficOptions}
-                  value={String(draft.tlp)}
+                <TemplateSegmentedControl
+                  label="TLP"
+                  options={trafficOptions}
+                  value={draft.tlp}
                   onChange={(value) =>
                     setDraft((current) => ({
                       ...current,
-                      tlp: Number(value) as Tlp,
+                      tlp: value,
                     }))
                   }
                 />
@@ -569,16 +696,14 @@ export function CaseTemplateEditorPage({
                 </Text>
               </Box>
               <Box>
-                <Text fw={600} size="sm" mb={6}>
-                  PAP
-                </Text>
-                <SegmentedControl
-                  data={trafficOptions}
-                  value={String(draft.pap)}
+                <TemplateSegmentedControl
+                  label="PAP"
+                  options={trafficOptions}
+                  value={draft.pap}
                   onChange={(value) =>
                     setDraft((current) => ({
                       ...current,
-                      pap: Number(value) as Pap,
+                      pap: value,
                     }))
                   }
                 />
@@ -646,7 +771,9 @@ export function CaseTemplateEditorPage({
                   onRemove={() =>
                     setDraft((current) => ({
                       ...current,
-                      tasks: current.tasks.filter((_, taskIndex) => taskIndex !== index),
+                      tasks: current.tasks.filter(
+                        (_, taskIndex) => taskIndex !== index,
+                      ),
                     }))
                   }
                   onMove={(direction) =>
@@ -702,8 +829,9 @@ export function CaseTemplateEditorPage({
                   onUpdate={(patch) =>
                     setDraft((current) => ({
                       ...current,
-                      customFields: current.customFields.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, ...patch } : item,
+                      customFields: current.customFields.map(
+                        (item, itemIndex) =>
+                          itemIndex === index ? { ...item, ...patch } : item,
                       ),
                     }))
                   }
@@ -729,14 +857,24 @@ export function CaseTemplateEditorPage({
         </Panel>
 
         <Group justify="space-between" mt="sm">
-          <Button variant="default" color="red" disabled={draft.builtin || isNew}>
+          <Button
+            variant="default"
+            color="red"
+            disabled={draft.builtin || isNew}
+            loading={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate()}
+          >
             Delete template
           </Button>
           <Group gap="sm">
             <Button component={Link} to="/case-templates" variant="default">
               Cancel
             </Button>
-            <Button color="orange" onClick={saveTemplate}>
+            <Button
+              color="orange"
+              loading={saveMutation.isPending}
+              onClick={saveTemplate}
+            >
               Save template
             </Button>
           </Group>
