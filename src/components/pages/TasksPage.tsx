@@ -224,8 +224,13 @@ export function TasksPage() {
 
   const statusMutation = useMutation({
     mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) => {
-      if (!task.apiId) throw new Error('Task is not linked to the API yet')
-      return updateTaskStatus({ apiId: task.apiId, status })
+      if (task.apiId == null || task.caseApiId == null)
+        throw new Error('Task is not linked to the API yet')
+      return updateTaskStatus({
+        caseId: task.caseApiId,
+        taskId: task.apiId,
+        status,
+      })
     },
     onSuccess: (task) => {
       invalidateTasks()
@@ -244,11 +249,13 @@ export function TasksPage() {
 
   const completeMutation = useMutation({
     mutationFn: async (task: Task) => {
-      if (!task.apiId) throw new Error('Task is not linked to the API yet')
+      if (task.apiId == null || task.caseApiId == null)
+        throw new Error('Task is not linked to the API yet')
+      const ids = { caseId: task.caseApiId, taskId: task.apiId }
       if (task.status === 'waiting') {
-        await updateTaskStatus({ apiId: task.apiId, status: 'inprogress' })
+        await updateTaskStatus({ ...ids, status: 'inprogress' })
       }
-      return updateTaskStatus({ apiId: task.apiId, status: 'completed' })
+      return updateTaskStatus({ ...ids, status: 'completed' })
     },
     onSuccess: () => {
       invalidateTasks()

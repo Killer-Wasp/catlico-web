@@ -4,7 +4,10 @@ export type TaskStatusFilter = TaskStatus | 'open' | 'all'
 
 export type Task = {
   id: string
-  apiId?: string
+  /** Numeric task id within its case (composite key part). */
+  apiId?: number
+  /** Numeric case id the task belongs to (composite key part). */
+  caseApiId?: number
   title: string
   description: string
   kind: string

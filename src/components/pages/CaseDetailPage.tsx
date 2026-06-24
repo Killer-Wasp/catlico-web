@@ -806,6 +806,7 @@ function TaskDetailPanel({
     setSavingDescription(true)
     try {
       await updateTaskDetailFields({
+        caseId: task.caseId,
         taskId: task.apiId,
         description: markdown,
       })
@@ -821,7 +822,7 @@ function TaskDetailPanel({
   async function updateStatus(status: CaseDetailTask['status'] | null) {
     if (!status || status === task.status) return
     onTaskChange({ status })
-    await updateTaskDetailFields({ taskId: task.apiId, status })
+    await updateTaskDetailFields({ caseId: task.caseId, taskId: task.apiId, status })
     queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
     actionNotice(`Task status set to ${TASK_STATUS[status].label}`)
   }
@@ -1114,6 +1115,7 @@ function TaskWorkLogsSection({
     setSavingNew(true)
     try {
       const log = await createTaskWorkLog({
+        caseId: task.caseId,
         taskId: task.apiId,
         bodyMarkdown: markdown,
         files,
@@ -1182,8 +1184,9 @@ function TaskWorkLogCard({
     setSaving(true)
     try {
       const updated = await updateTaskWorkLog({
+        caseId: task.caseId,
         taskId: task.apiId,
-        logId: log.id,
+        logId: log.apiId,
         bodyMarkdown: markdown,
       })
       onTaskChange({
@@ -1984,7 +1987,7 @@ function AttachmentsPanel({
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (linkId: string) => deleteCaseAttachment(caseId, linkId),
+    mutationFn: (linkId: number) => deleteCaseAttachment(caseId, linkId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
     },

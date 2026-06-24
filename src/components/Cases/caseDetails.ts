@@ -42,7 +42,7 @@ export type CasePublic = {
 }
 
 export type TaskPublic = {
-  id: string
+  id: number
   public_id?: string
   case_id: number
   organisation_id: string
@@ -111,7 +111,10 @@ export type WorkLogAttachmentPublic = {
 }
 
 export type WorkLogPublic = {
-  id: string
+  id: number
+  public_id?: string
+  case_id: number
+  task_id: number
   message?: string
   body?: string
   created_by: string
@@ -201,7 +204,8 @@ export const caseDetails: CaseDetail[] = [
     tasks: [
       {
         id: 'T-1842-1',
-        apiId: 'T-1842-1',
+        apiId: 1,
+        caseId: 1842,
         title: 'Triage consent grant alert and confirm scope',
         group: 'Identify',
         status: 'completed',
@@ -216,6 +220,9 @@ export const caseDetails: CaseDetail[] = [
         workLogs: [
           {
             id: 'wl-1843-1',
+            apiId: 1,
+            caseId: 1842,
+            taskId: 1,
             author: 'J. Tanaka',
             time: '12 June, 09:32 am',
             body: 'Confirmed alert as true positive. Three privileged users granted consent to the same unverified app.',
@@ -223,6 +230,9 @@ export const caseDetails: CaseDetail[] = [
           },
           {
             id: 'wl-1843-2',
+            apiId: 2,
+            caseId: 1842,
+            taskId: 1,
             author: 'J. Tanaka',
             time: '12 June, 09:38 am',
             body: 'Scoped initial blast radius to identity and mailbox access. Opened containment tasks.',
@@ -232,7 +242,8 @@ export const caseDetails: CaseDetail[] = [
       },
       {
         id: 'T-1842-2',
-        apiId: 'T-1842-2',
+        apiId: 2,
+        caseId: 1842,
         title: 'Pull unified audit log for the 3 accounts (±24h)',
         group: 'Identify',
         status: 'completed',
@@ -247,6 +258,9 @@ export const caseDetails: CaseDetail[] = [
         workLogs: [
           {
             id: 'wl-1843-3',
+            apiId: 1,
+            caseId: 1842,
+            taskId: 2,
             author: 'P. Nguyen',
             time: '12 June, 10:21 am',
             body: 'UAL exported to evidence share. Consent grants preceded by click on hxxps://cdn-au-billing[.]net/invoice.php from Outlook on iOS for 2 of 3 users.',
@@ -256,7 +270,8 @@ export const caseDetails: CaseDetail[] = [
       },
       {
         id: 'T-1842-3',
-        apiId: 'T-1842-3',
+        apiId: 3,
+        caseId: 1842,
         title: 'Revoke refresh tokens + reset credentials',
         group: 'Contain',
         status: 'completed',
@@ -271,6 +286,9 @@ export const caseDetails: CaseDetail[] = [
         workLogs: [
           {
             id: 'wl-1843-4',
+            apiId: 1,
+            caseId: 1842,
+            taskId: 3,
             author: 'J. Tanaka',
             time: '12 June, 09:54 am',
             body: 'Tokens revoked for all 3 accounts via Entra ID responder. Password reset enforced. Re-auth confirmed for m.keller and t.harland.',
@@ -280,7 +298,8 @@ export const caseDetails: CaseDetail[] = [
       },
       {
         id: 'T-1842-4',
-        apiId: 'T-1842-4',
+        apiId: 4,
+        caseId: 1842,
         title: 'Disable malicious app registration tenant-wide',
         group: 'Contain',
         status: 'inprogress',
@@ -295,6 +314,9 @@ export const caseDetails: CaseDetail[] = [
         workLogs: [
           {
             id: 'wl-1843-5',
+            apiId: 1,
+            caseId: 1842,
+            taskId: 4,
             author: 'J. Tanaka',
             time: '12 June, 10:08 am',
             body: "App registration disabled in our tenant. Awaiting Identity team confirmation that it can be added to the tenant-wide blocklist (need approval as it's a 3-tenant policy change).",
@@ -310,7 +332,8 @@ export const caseDetails: CaseDetail[] = [
       },
       {
         id: 'T-1842-5',
-        apiId: 'T-1842-5',
+        apiId: 5,
+        caseId: 1842,
         title: 'Remove mailbox rules and check forwarding',
         group: 'Eradicate',
         status: 'inprogress',
@@ -325,6 +348,9 @@ export const caseDetails: CaseDetail[] = [
         workLogs: [
           {
             id: 'wl-1843-6',
+            apiId: 1,
+            caseId: 1842,
+            taskId: 5,
             author: 'A. Whitford',
             time: '12 June, 10:32 am',
             body: 'svc-finops: removed "RSS Feeds2" rule that was moving billing@* to RSS Feeds and marking read. Captured rule definition as evidence.',
@@ -334,7 +360,8 @@ export const caseDetails: CaseDetail[] = [
       },
       {
         id: 'T-1842-6',
-        apiId: 'T-1842-6',
+        apiId: 6,
+        caseId: 1842,
         title: 'Hunt for same app id across all tenants',
         group: 'Hunt',
         status: 'waiting',
@@ -350,7 +377,8 @@ export const caseDetails: CaseDetail[] = [
       },
       {
         id: 'T-1842-7',
-        apiId: 'T-1842-7',
+        apiId: 7,
+        caseId: 1842,
         title: 'User comms + phishing-resistant MFA enrolment',
         group: 'Recover',
         status: 'waiting',
@@ -429,7 +457,7 @@ export const caseDetails: CaseDetail[] = [
     attachments: [
       {
         id: 'att-1',
-        linkId: 'link-1',
+        linkId: 1,
         kind: 'JSON',
         name: 'rule-RSS-Feeds2.json',
         size: '2.1 KB',
@@ -441,7 +469,7 @@ export const caseDetails: CaseDetail[] = [
       },
       {
         id: 'att-2',
-        linkId: 'link-2',
+        linkId: 2,
         kind: 'EML',
         name: 'AL-9119-export.eml',
         size: '148 KB',
@@ -453,7 +481,7 @@ export const caseDetails: CaseDetail[] = [
       },
       {
         id: 'att-3',
-        linkId: 'link-3',
+        linkId: 3,
         kind: 'PNG',
         name: 'consent-grant-screenshot.png',
         size: '412 KB',
@@ -588,7 +616,10 @@ export function toCaseDetailTaskLog(
   displayNameByUserId: Map<string, string> = new Map(),
 ): CaseDetailTaskLog {
   return {
-    id: log.id,
+    id: log.public_id ?? `TL-${log.case_id}-${log.task_id}-${log.id}`,
+    apiId: log.id,
+    caseId: log.case_id,
+    taskId: log.task_id,
     author: displayNameByUserId.get(log.created_by) ?? log.created_by,
     time: compactTime(log.created_at),
     body: log.message ?? log.body ?? '',
@@ -693,6 +724,7 @@ export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
       return {
         id: taskPublicId(task),
         apiId: task.id,
+        caseId: task.case_id,
         title: task.title,
         group: task.group || 'General',
         status: taskStatus(task.status),

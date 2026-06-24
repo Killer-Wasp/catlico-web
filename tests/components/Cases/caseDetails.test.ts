@@ -79,7 +79,7 @@ describe('case detail data helpers', () => {
       },
       tasks: [
         {
-          id: '9dc5dfb8-1eca-4374-8421-bf3d246e54e0',
+          id: 2,
           case_id: 1842,
           organisation_id: 'org-1',
           title: 'Disable malicious app registration tenant-wide',
@@ -96,7 +96,7 @@ describe('case detail data helpers', () => {
           updated_at: null,
         },
         {
-          id: '40e12bc6-75bc-4a82-82c1-363a570d7f15',
+          id: 1,
           case_id: 1842,
           organisation_id: 'org-1',
           title: 'Revoke refresh tokens',
@@ -194,8 +194,8 @@ describe('case detail data helpers', () => {
       'completed',
     ])
     expect(detail.tasks.map((task) => [task.id, task.apiId])).toEqual([
-      ['T-1842-2', '9dc5dfb8-1eca-4374-8421-bf3d246e54e0'],
-      ['T-1842-1', '40e12bc6-75bc-4a82-82c1-363a570d7f15'],
+      ['T-1842-2', 2],
+      ['T-1842-1', 1],
     ])
     expect(detail.tasks[0].flagged).toBe(true)
     expect(detail.observables[0]).toMatchObject({

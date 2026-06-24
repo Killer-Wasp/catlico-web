@@ -19,7 +19,7 @@ type JsonResponse = {
 }
 
 const taskDto: TaskQueuePublic = {
-  id: '6f32934a-0119-40c6-8680-26ded03dd669',
+  id: 4,
   public_id: 'T-1842-4',
   case_id: 1842,
   organisation_id: 'org-a',
@@ -48,7 +48,7 @@ describe('tasks API queries', () => {
 
   test('fetches the org task queue and maps backend context for the table', async () => {
     vi.mocked(api.get).mockImplementation((input, options) => {
-      expect(String(input)).toBe('tasks/')
+      expect(String(input)).toBe('task-queue')
       expect(options).toEqual({ searchParams: { limit: '200', skip: '0' } })
       return {
         json: async () => ({
@@ -65,7 +65,8 @@ describe('tasks API queries', () => {
     expect(result.total).toBe(1)
     expect(result.tasks[0]).toMatchObject({
       id: 'T-1842-4',
-      apiId: '6f32934a-0119-40c6-8680-26ded03dd669',
+      apiId: 4,
+      caseApiId: 1842,
       title: 'Revoke refresh tokens',
       description: 'OAuth consent grant',
       kind: 'Contain',
@@ -80,7 +81,7 @@ describe('tasks API queries', () => {
 
   test('patches task status using backend enum values and maps the response', async () => {
     vi.mocked(api.patch).mockImplementation((input, options) => {
-      expect(String(input)).toBe('tasks/6f32934a-0119-40c6-8680-26ded03dd669')
+      expect(String(input)).toBe('cases/1842/tasks/4')
       expect(options).toEqual({ json: { status: 'Completed' } })
       return {
         json: async () => ({
@@ -105,7 +106,8 @@ describe('tasks API queries', () => {
     })
 
     const task = await updateTaskStatus({
-      apiId: '6f32934a-0119-40c6-8680-26ded03dd669',
+      caseId: 1842,
+      taskId: 4,
       status: 'completed',
     })
 

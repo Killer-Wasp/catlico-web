@@ -69,7 +69,7 @@ describe('case detail queries', () => {
         },
         'cases/1842/tasks': page([
           {
-            id: 'e5208682-de1d-41b9-9312-b8a83d3618dd',
+            id: 1,
             case_id: 1842,
             organisation_id: 'org-1',
             title: 'Revoke refresh tokens and reset credentials',
@@ -90,6 +90,7 @@ describe('case detail queries', () => {
         'cases/1842/comments': page([]),
         'cases/1842/activity': page([]),
         'cases/1842/attachments': page([]),
+        'cases/1842/tasks/1/logs': page([]),
         'organisations/origin-soc/members': [
           {
             id: 'membership-1',
@@ -116,6 +117,7 @@ describe('case detail queries', () => {
       'cases/1842/activity',
       'cases/1842/attachments',
       'organisations/origin-soc/members',
+      'cases/1842/tasks/1/logs',
     ])
     expect(detail).toMatchObject({
       id: '#1842',
@@ -124,7 +126,8 @@ describe('case detail queries', () => {
       tasks: [
         {
           id: 'T-1842-1',
-          apiId: 'e5208682-de1d-41b9-9312-b8a83d3618dd',
+          apiId: 1,
+          caseId: 1842,
         },
       ],
       observables: [],
@@ -139,7 +142,10 @@ describe('case detail queries', () => {
       calls.push({ endpoint: String(input), options })
       return {
         json: async () => ({
-          id: 'log-7',
+          id: 7,
+          public_id: 'TL-1842-4-7',
+          case_id: 1842,
+          task_id: 4,
           message: '**Contained**',
           created_by: 'user-1',
           created_at: '2026-06-12T10:08:00Z',
@@ -152,7 +158,10 @@ describe('case detail queries', () => {
       calls.push({ endpoint: String(input), options })
       return {
         json: async () => ({
-          id: 'log-7',
+          id: 7,
+          public_id: 'TL-1842-4-7',
+          case_id: 1842,
+          task_id: 4,
           message: '**Contained and verified**',
           created_by: 'user-1',
           created_at: '2026-06-12T10:08:00Z',
@@ -167,26 +176,28 @@ describe('case detail queries', () => {
     })
 
     await createTaskWorkLog({
-      taskId: 'task-4',
+      caseId: 1842,
+      taskId: 4,
       bodyMarkdown: '**Contained**',
       files: [file],
     })
     await updateTaskWorkLog({
-      taskId: 'task-4',
-      logId: 'log-7',
+      caseId: 1842,
+      taskId: 4,
+      logId: 7,
       bodyMarkdown: '**Contained and verified**',
     })
 
     expect(calls[0]).toMatchObject({
-      endpoint: 'tasks/task-4/work-logs',
+      endpoint: 'cases/1842/tasks/4/logs',
       options: { json: { message: '**Contained**' } },
     })
-    expect(calls[1]?.endpoint).toBe('tasks/task-4/work-logs/log-7/attachments')
+    expect(calls[1]?.endpoint).toBe('cases/1842/tasks/4/logs/7/attachments')
     expect(
       (calls[1]?.options as { body?: FormData }).body instanceof FormData,
     ).toBe(true)
     expect(calls[2]).toMatchObject({
-      endpoint: 'tasks/task-4/work-logs/log-7',
+      endpoint: 'cases/1842/tasks/4/logs/7',
       options: { json: { message: '**Contained and verified**' } },
     })
   })

@@ -7,8 +7,12 @@ export type CaseDetailTaskStatus =
   | 'cancel'
 
 export type CaseDetailTask = {
+  /** Display/React-key id (e.g. T-1234-1). */
   id: string
-  apiId: string
+  /** Numeric task id within its case (composite key part). */
+  apiId: number
+  /** Numeric case id the task belongs to (composite key part). */
+  caseId: number
   title: string
   group: string
   status: CaseDetailTaskStatus
@@ -23,7 +27,14 @@ export type CaseDetailTask = {
 }
 
 export type CaseDetailTaskLog = {
+  /** Display/React-key id (e.g. TL-1234-1-1). */
   id: string
+  /** Numeric worklog id within its task (composite key part). */
+  apiId: number
+  /** Numeric case id (composite key part). */
+  caseId: number
+  /** Numeric task id (composite key part). */
+  taskId: number
   author: string
   time: string
   body: string
@@ -63,7 +74,8 @@ export type CaseDetailComment = {
 
 export type CaseDetailAttachment = {
   id: string
-  linkId: string
+  /** Numeric per-case attachment id (composite key part). */
+  linkId: number
   kind: string
   name: string
   size: string

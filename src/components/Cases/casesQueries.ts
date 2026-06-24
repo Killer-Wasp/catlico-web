@@ -25,10 +25,14 @@ import type { Case } from './cases.types'
 
 /** Mirrors the backend AttachmentPublic model. */
 export type AttachmentPublic = {
-  id: string
+  /** Numeric per-case attachment id (composite key part). */
+  id: number
+  public_id: string
+  case_id: number
   attachment_id: string
   owner_type: string
-  owner_id: string
+  owner_task_id: number | null
+  owner_log_id: number | null
   name: string
   size: number
   content_type: string
@@ -285,11 +289,13 @@ export async function createCaseTask(
 }
 
 export async function updateTaskDetailFields({
+  caseId,
   taskId,
   description,
   status,
 }: {
-  taskId: string
+  caseId: number
+  taskId: number
   description?: string
   status?: CaseDetail['tasks'][number]['status']
 }) {
@@ -303,20 +309,23 @@ export async function updateTaskDetailFields({
       cancel: 'Cancelled',
     }[status]
   }
-  await api.patch(`tasks/${taskId}`, { json })
+  await api.patch(`cases/${caseId}/tasks/${taskId}`, { json })
 }
 
 export async function createTaskWorkLog({
+  caseId,
   taskId,
   bodyMarkdown,
   files = [],
 }: {
-  taskId: string
+  caseId: number
+  taskId: number
   bodyMarkdown: string
   files?: File[]
 }) {
+  const base = `cases/${caseId}/tasks/${taskId}/logs`
   const log = await api
-    .post(`tasks/${taskId}/logs`, {
+    .post(base, {
       json: { message: bodyMarkdown },
     })
     .json<WorkLogPublic>()
@@ -324,24 +333,25 @@ export async function createTaskWorkLog({
   for (const file of files) {
     const body = new FormData()
     body.append('file', file)
-    await api.post(`logs/${log.id}/attachments`, { body })
+    await api.post(`${base}/${log.id}/attachments`, { body })
   }
 
   return toCaseDetailTaskLog(log)
 }
 
 export async function updateTaskWorkLog({
-  taskId: _taskId,
+  caseId,
+  taskId,
   logId,
   bodyMarkdown,
 }: {
-  taskId: string
-  logId: string
+  caseId: number
+  taskId: number
+  logId: number
   bodyMarkdown: string
 }) {
-  // ponytail: _taskId kept for caller API compat, not sent in URL
   const log = await api
-    .patch(`logs/${logId}`, {
+    .patch(`cases/${caseId}/tasks/${taskId}/logs/${logId}`, {
       json: { message: bodyMarkdown },
     })
     .json<WorkLogPublic>()
@@ -349,8 +359,16 @@ export async function updateTaskWorkLog({
   return toCaseDetailTaskLog(log)
 }
 
-export async function deleteTaskWorkLog(logId: string): Promise<void> {
-  await api.delete(`logs/${logId}`)
+export async function deleteTaskWorkLog({
+  caseId,
+  taskId,
+  logId,
+}: {
+  caseId: number
+  taskId: number
+  logId: number
+}): Promise<void> {
+  await api.delete(`cases/${caseId}/tasks/${taskId}/logs/${logId}`)
 }
 
 export async function createCaseComment(
@@ -439,7 +457,9 @@ export async function fetchCaseDetail(id: string): Promise<CaseDetail> {
 
   const logPages = await Promise.all(
     tasks.items.map((t) =>
-      api.get(`tasks/${t.id}/logs`).json<Page<WorkLogPublic>>(),
+      api
+        .get(`cases/${numeric}/tasks/${t.id}/logs`)
+        .json<Page<WorkLogPublic>>(),
     ),
   )
 
@@ -524,7 +544,7 @@ export async function uploadCaseAttachment(
 
 export function caseAttachmentDownloadUrl(
   caseId: string,
-  linkId: string,
+  linkId: number,
 ): string {
   const numeric = caseId.replace(/^#/, '')
   return `${API_BASE}/cases/${numeric}/attachments/${linkId}/file`
@@ -532,7 +552,7 @@ export function caseAttachmentDownloadUrl(
 
 export async function deleteCaseAttachment(
   caseId: string,
-  linkId: string,
+  linkId: number,
 ): Promise<void> {
   const numeric = caseId.replace(/^#/, '')
   await api.delete(`cases/${numeric}/attachments/${linkId}`)
@@ -540,7 +560,7 @@ export async function deleteCaseAttachment(
 
 export async function downloadCaseAttachment(
   caseId: string,
-  linkId: string,
+  linkId: number,
   filename: string,
 ): Promise<void> {
   const numeric = caseId.replace(/^#/, '')

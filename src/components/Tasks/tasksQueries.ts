@@ -11,7 +11,7 @@ export type BackendTaskStatus =
   | 'Cancelled'
 
 export type TaskPublic = {
-  id: string
+  id: number
   public_id: string
   case_id: number
   organisation_id: string
@@ -91,6 +91,7 @@ function toTask(dto: TaskPublic | TaskQueuePublic): Task {
   return {
     id: dto.public_id,
     apiId: dto.id,
+    caseApiId: dto.case_id,
     title: dto.title,
     description: dto.description || queueContext?.case_title || '',
     kind: dto.group || 'General',
@@ -114,7 +115,7 @@ export async function fetchTasks(
     skip: String(filters.skip ?? DEFAULT_TASK_FILTERS.skip),
   }
   const page = await api
-    .get('tasks/', { searchParams: params })
+    .get('task-queue', { searchParams: params })
     .json<Page<TaskQueuePublic>>()
 
   return { tasks: page.items.map(toTask), total: page.total }
@@ -129,14 +130,18 @@ export const tasksQueryOptions = (
   })
 
 export async function updateTaskStatus({
-  apiId,
+  caseId,
+  taskId,
   status,
 }: {
-  apiId: string
+  caseId: number
+  taskId: number
   status: TaskStatus
 }): Promise<Task> {
   const dto = await api
-    .patch(`tasks/${apiId}`, { json: { status: STATUS_TO_API[status] } })
+    .patch(`cases/${caseId}/tasks/${taskId}`, {
+      json: { status: STATUS_TO_API[status] },
+    })
     .json<TaskPublic>()
 
   return toTask(dto)

@@ -44,7 +44,7 @@ type JsonResponse = {
 }
 
 const taskDto = {
-  id: '6f32934a-0119-40c6-8680-26ded03dd669',
+  id: 4,
   public_id: 'T-1842-4',
   case_id: 1842,
   organisation_id: 'org-a',
@@ -127,7 +127,7 @@ describe('TasksPage', () => {
 
     expect(await screen.findByText('Revoke refresh tokens')).toBeDefined()
     expect(screen.getByPlaceholderText(/Filter tasks/i)).toBeDefined()
-    expect(api.get).toHaveBeenCalledWith('tasks/', {
+    expect(api.get).toHaveBeenCalledWith('task-queue', {
       searchParams: { limit: '200', skip: '0' },
     })
 
@@ -138,7 +138,7 @@ describe('TasksPage', () => {
 
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith(
-        'tasks/6f32934a-0119-40c6-8680-26ded03dd669',
+        'cases/1842/tasks/4',
         { json: { status: 'InProgress' } },
       ),
     )
