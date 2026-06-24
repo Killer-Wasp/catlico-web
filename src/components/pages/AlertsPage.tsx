@@ -30,7 +30,6 @@ import {
   Button,
   Checkbox,
   ColorSwatch,
-  Divider,
   Drawer,
   Group,
   Menu,

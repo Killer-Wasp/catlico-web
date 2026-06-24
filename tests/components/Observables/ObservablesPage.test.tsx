@@ -388,7 +388,7 @@ describe('ObservablesPage', () => {
         } satisfies JsonResponse as ReturnType<typeof api.get>
       }
       return {
-        json: async () => {
+        json: async (): Promise<unknown> => {
           throw new Error('backend unavailable')
         },
       } satisfies JsonResponse as ReturnType<typeof api.get>

@@ -89,7 +89,10 @@ function clockTime(iso: string): string {
 }
 
 /** Wall-clock duration between lease and completion, e.g. `0.8s`. */
-function duration(started: string | null, ended: string | null): string | undefined {
+function duration(
+  started: string | null,
+  ended: string | null,
+): string | undefined {
   if (!started || !ended) return undefined
   const ms = new Date(ended).getTime() - new Date(started).getTime()
   if (!Number.isFinite(ms) || ms < 0) return undefined
@@ -179,7 +182,9 @@ export const analyzerJobsQueryOptions = () =>
 export async function fetchAnalyzerJobDetail(
   id: string,
 ): Promise<ConnectorJobDetail> {
-  const dto = await api.get(`enrichment-jobs/${id}`).json<EnrichmentJobDetailDto>()
+  const dto = await api
+    .get(`enrichment-jobs/${id}`)
+    .json<EnrichmentJobDetailDto>()
   return toDetail(dto)
 }
 

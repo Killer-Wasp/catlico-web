@@ -94,7 +94,9 @@ function toConnector(dto: ConnectorPublic): Connector {
   }
 }
 
-export function isSecretConfigItem(item: Pick<ConnectorConfigItem, 'name' | 'type'>) {
+export function isSecretConfigItem(
+  item: Pick<ConnectorConfigItem, 'name' | 'type'>,
+) {
   const name = item.name.toLowerCase()
   return SECRET_NAME_PARTS.some((part) => name.includes(part))
 }

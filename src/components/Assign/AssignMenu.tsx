@@ -1,6 +1,7 @@
 import { AV } from '#/components/Cases/cases'
 import { Button, Menu, Text } from '@mantine/core'
 import { useState } from 'react'
+import classes from './AssignMenu.module.css'
 
 // Analyst roster for assignment, minus the "Unassigned" placeholder.
 const ASSIGNEES = Object.keys(AV).filter((name) => name !== 'Unassigned')
@@ -48,9 +49,7 @@ export function AssignMenu({ count, onAssign }: AssignMenuProps) {
             </Menu.Item>
           ))
         ) : (
-          <Text c="dimmed" size="sm" ta="center" py="xs">
-            Nothing found
-          </Text>
+          <Text className={classes.empty}>Nothing found</Text>
         )}
       </Menu.Dropdown>
     </Menu>

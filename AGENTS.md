@@ -1,7 +1,9 @@
 <!-- intent-skills:start -->
+
 ## Skill Loading
 
 Before substantial work:
+
 - Skill check: run `pnpm dlx @tanstack/intent@latest list`, or use skills already listed in context.
 - Skill guidance: if one local skill clearly matches the task, run `pnpm dlx @tanstack/intent@latest load <package>#<skill>` and follow the returned `SKILL.md`.
 - Monorepos: when working across packages, run the skill check from the workspace root and prefer the local skill for the package being changed.
@@ -9,6 +11,14 @@ Before substantial work:
 <!-- intent-skills:end -->
 
 # catlico-web
+
+## Collaboration Principles
+
+- Ask, don't assume. If something is unclear, ask before writing a single line. Never make silent assumptions about intent, architecture, or requirements. When running unattended, pick the most reasonable interpretation, proceed, and record the assumption rather than blocking.
+- Implement the simplest solution for simple problems, and better solutions for harder problems. Do not over-engineer or add flexibility that is not needed yet.
+- Do not touch unrelated code. Surface bad code or design smells you discover so they can be addressed as separate issues.
+- Flag uncertainty explicitly. If unsure, ask before proceeding. When useful, conduct a small, localized, low-risk experiment, then bring the hypothesis and results back for discussion. Confidence without certainty causes more damage than admitting a gap.
+- Suggest better approaches when they would improve the work, especially when they have a longer-lasting impact than a tactical change.
 
 ## Frontend Structure
 
@@ -63,7 +73,7 @@ src/
 
 - This project uses **Mantine v9** for UI. Apply v9 conventions (not older versions).
 - For Mantine APIs, components, theming, and hooks, consult the LLM-optimized docs: https://mantine.dev/llms.txt (index) or https://mantine.dev/llms-full.txt (full content)
-- Prefer Mantine component style props (`c`, `bg`, `ff`, `fz`, `fw`, `lts`, `mt`, `w`, etc.) and inline `style` over CSS modules. Use Mantine theme colour tokens (e.g. `red.6`, `c="dimmed"`) rather than raw `var(--...)` CSS vars. Only introduce a `.module.css` file if the styling genuinely can't be expressed with Mantine props/inline style.
+- Put styles in a co-located `.module.css` file rather than Mantine component style props (`c`, `bg`, `ff`, `fz`, `fw`, `lts`, `mt`, `w`, etc.) or inline `style`. Reference Mantine theme tokens via their CSS variables (e.g. `color: var(--mantine-color-red-6)`, `var(--mantine-color-dimmed)`) so styling still flows from the theme.
 - Prefer Mantine components (`Text`, `Flex`, `Box`, `Group`, `Stack`, etc.) over raw HTML elements like `div` plus CSS.
 
 ## Tests
@@ -80,3 +90,17 @@ src/
   - `pnpm dlx @tanstack/intent@latest list` — list available skills
   - `pnpm dlx @tanstack/intent@latest load @tanstack/ai#ai-core` — entry point; routes to sub-skills (`chat-experience`, `tool-calling`, `adapter-configuration`, `structured-outputs`, `middleware`, `media-generation`, `ag-ui-protocol`, `custom-backend-integration`, `debug-logging`)
 - Skills are versioned with the package: bumping `@tanstack/ai` updates the skill content automatically. Re-run `pnpm dlx @tanstack/intent@latest install` only after adding another intent-enabled package or to refresh the mappings.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues via the `gh` CLI; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles map 1:1 to their label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

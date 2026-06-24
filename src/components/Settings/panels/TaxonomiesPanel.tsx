@@ -1,24 +1,70 @@
-import { Badge, Box, Button, Group, Stack, Switch, Text } from '@mantine/core'
-import { freetags, taxonomies } from '#/components/Settings/settingsData'
-import { notify, Panel } from '#/components/Settings/settingsUi'
+import {
+  Badge,
+  Box,
+  Button,
+  Group,
+  Stack,
+  Switch,
+  Text,
+} from '@mantine/core'
+import { notifications } from '@mantine/notifications'
+import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import {
+  tagsQueryOptions,
+} from '#/components/Settings/settingsQueries'
+import type { TagPublic } from '#/components/Settings/settingsQueries'
+import { LoadingPanel, Panel } from '#/components/Settings/settingsUi'
+
+interface NamespaceGroup {
+  namespace: string
+  tags: TagPublic[]
+}
 
 export function TaxonomiesPanel() {
+  const { data: allTags = [], isPending } = useQuery(tagsQueryOptions())
+
+  const namespaces = useMemo(() => {
+    const map = new Map<string, TagPublic[]>()
+    for (const tag of allTags) {
+      if (!tag.namespace) continue
+      const list = map.get(tag.namespace) ?? []
+      list.push(tag)
+      map.set(tag.namespace, list)
+    }
+    return [...map.entries()]
+      .map(([namespace, tags]) => ({ namespace, tags }))
+      .sort((a, b) => a.namespace.localeCompare(b.namespace))
+  }, [allTags])
+
+  const freetags = useMemo(
+    () => allTags.filter((t) => !t.namespace),
+    [allTags],
+  )
+
+  if (isPending) return <LoadingPanel label="Loading tags..." />
+
   return (
     <Stack gap="md">
       <Panel
         title="Taxonomies"
-        count={`${taxonomies.filter(([, , , enabled]) => enabled).length} enabled`}
+        count={`${namespaces.length} namespaces`}
         action={
           <Button
             variant="default"
-            onClick={() => notify('MISP taxonomy import opened')}
+            onClick={() =>
+              notifications.show({
+                color: 'orange',
+                message: 'MISP taxonomy import not yet implemented.',
+              })
+            }
           >
             Import MISP taxonomy
           </Button>
         }
       >
         <Stack gap={0} p={18} pt={6} pb={6}>
-          {taxonomies.map(([namespace, version, predicates, enabled]) => (
+          {namespaces.map(({ namespace, tags }: NamespaceGroup) => (
             <Group
               key={namespace}
               py={12}
@@ -29,29 +75,39 @@ export function TaxonomiesPanel() {
                   {namespace}
                 </Text>
                 <Text fz={12} c="var(--muted)">
-                  v{version} - {predicates}
+                  {tags.length} predicates
                 </Text>
               </Box>
               <Switch
-                defaultChecked={enabled}
+                defaultChecked={true}
                 aria-label={`${namespace} enabled`}
               />
             </Group>
           ))}
+          {namespaces.length === 0 && (
+            <Text c="dimmed" fz={13} py={12}>
+              No taxonomy namespaces found.
+            </Text>
+          )}
         </Stack>
       </Panel>
 
       <Panel title="Org freetags" count={freetags.length}>
         <Group gap={6} p={18}>
-          {freetags.map((tag) => (
-            <Badge key={tag} variant="default" color="gray" ff="monospace">
-              {tag}
+          {freetags.map((tag: TagPublic) => (
+            <Badge key={tag.id} variant="default" color="gray" ff="monospace">
+              {tag.tag}
             </Badge>
           ))}
           <Button
             size="xs"
             variant="default"
-            onClick={() => notify('Add freetag workflow opened')}
+            onClick={() =>
+              notifications.show({
+                color: 'orange',
+                message: 'Freetags are managed per-entity. Add them on cases, alerts, or observables.',
+              })
+            }
           >
             + add
           </Button>

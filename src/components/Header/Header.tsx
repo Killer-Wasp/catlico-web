@@ -1,4 +1,4 @@
-import { Bell, LogOut, Moon, Search, Sun } from 'lucide-react'
+import { logout } from '#/lib/auth/session'
 import {
   ActionIcon,
   Avatar,
@@ -16,9 +16,9 @@ import {
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core'
-import classes from './Header.module.css'
+import { Bell, LogOut, Moon, Search, Sun } from 'lucide-react'
 import { useState } from 'react'
-import { logout } from '#/lib/auth/session'
+import classes from './Header.module.css'
 
 type NotificationItem = {
   title: string

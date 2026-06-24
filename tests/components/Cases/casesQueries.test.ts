@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import {
   caseFacetsQueryOptions,
   casesQueryOptions,
@@ -29,6 +30,7 @@ const page = <T>(items: T[]) => ({
 
 describe('case detail queries', () => {
   beforeEach(() => {
+    localStorage.setItem('catlico.orgId', 'origin-soc')
     vi.mocked(api.get).mockReset()
     vi.mocked(api.patch).mockReset()
     vi.mocked(api.post).mockReset()
@@ -87,6 +89,17 @@ describe('case detail queries', () => {
         'cases/1842/observables': page([]),
         'cases/1842/comments': page([]),
         'cases/1842/activity': page([]),
+        'cases/1842/attachments': page([]),
+        'organisations/origin-soc/members': [
+          {
+            id: 'membership-1',
+            user_id: 'user-1',
+            organisation_id: 'origin-soc',
+            role_id: 'role-analyst',
+            email: 'analyst@example.test',
+            created_at: '2026-06-12T09:12:00Z',
+          },
+        ],
       }
       return {
         json: async () => payloads[endpoint],
@@ -101,6 +114,8 @@ describe('case detail queries', () => {
       'cases/1842/observables',
       'cases/1842/comments',
       'cases/1842/activity',
+      'cases/1842/attachments',
+      'organisations/origin-soc/members',
     ])
     expect(detail).toMatchObject({
       id: '#1842',

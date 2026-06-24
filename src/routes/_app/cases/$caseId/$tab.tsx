@@ -25,6 +25,10 @@ function CaseTabRoute() {
   // loader snapshot, so edits — e.g. saving the description — re-render here.
   const { data: caseDetail } = useSuspenseQuery(caseDetailQueryOptions(caseId))
   return (
-    <CaseTabPanel tab={tab as CaseTab} caseDetail={caseDetail} caseId={caseId} />
+    <CaseTabPanel
+      tab={tab as CaseTab}
+      caseDetail={caseDetail}
+      caseId={caseId}
+    />
   )
 }

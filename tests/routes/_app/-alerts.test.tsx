@@ -5,7 +5,13 @@ import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
 import { Suspense } from 'react'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 
@@ -89,6 +95,8 @@ describe('AlertsPage', () => {
     fireEvent.click(await screen.findByText('AL-9123'))
 
     expect(screen.queryByRole('dialog', { name: /alert detail/i })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Create case (1)' })).toBeDefined()
+    expect(
+      screen.getByRole('button', { name: 'Create case (1)' }),
+    ).toBeDefined()
   })
 })

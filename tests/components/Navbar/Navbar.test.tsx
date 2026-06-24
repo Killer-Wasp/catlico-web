@@ -54,53 +54,47 @@ function renderNavbar() {
   })
 
   queryClient.setQueryData(alertsQueryOptions().queryKey, [] satisfies Alert[])
-  queryClient.setQueryData(
-    casesQueryOptions().queryKey,
-    { cases: [], total: 0 } satisfies CasesResult,
-  )
-  queryClient.setQueryData(
-    observablesQueryOptions().queryKey,
-    [
-      {
-        id: 'observable-1',
-        type: 'ip',
-        value: '203.0.113.47',
-        flags: ['ioc'],
-        tlp: 2,
-        source: 'feed',
-        added: '10:00',
-      },
-      {
-        id: 'observable-2',
-        type: 'domain',
-        value: 'login.example',
-        flags: [],
-        tlp: 1,
-        source: '#1842',
-        added: '10:05',
-      },
-    ] satisfies Observable[],
-  )
+  queryClient.setQueryData(casesQueryOptions().queryKey, {
+    cases: [],
+    total: 0,
+  } satisfies CasesResult)
+  queryClient.setQueryData(observablesQueryOptions().queryKey, [
+    {
+      id: 'observable-1',
+      type: 'ip',
+      value: '203.0.113.47',
+      flags: ['ioc'],
+      tlp: 2,
+      source: 'feed',
+      added: '10:00',
+    },
+    {
+      id: 'observable-2',
+      type: 'domain',
+      value: 'login.example',
+      flags: [],
+      tlp: 1,
+      source: '#1842',
+      added: '10:05',
+    },
+  ] satisfies Observable[])
   queryClient.setQueryData(connectorsQueryOptions().queryKey, [])
   queryClient.setQueryData(analyzerJobsQueryOptions().queryKey, [])
-  queryClient.setQueryData(
-    tasksQueryOptions().queryKey,
-    {
-      total: 1,
-      tasks: [
-        {
-          id: 'T-1842-1',
-          title: 'Revoke refresh tokens',
-          description: 'OAuth consent grant',
-          kind: 'Contain',
-          caseId: '#1842',
-          caseSeverity: 'high',
-          due: 'No due date',
-          status: 'waiting',
-        },
-      ],
-    } satisfies TasksResult,
-  )
+  queryClient.setQueryData(tasksQueryOptions().queryKey, {
+    total: 1,
+    tasks: [
+      {
+        id: 'T-1842-1',
+        title: 'Revoke refresh tokens',
+        description: 'OAuth consent grant',
+        kind: 'Contain',
+        caseId: '#1842',
+        caseSeverity: 'high',
+        due: 'No due date',
+        status: 'waiting',
+      },
+    ],
+  } satisfies TasksResult)
 
   render(
     <QueryClientProvider client={queryClient}>
@@ -120,11 +114,15 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /Tasks\s+1/i })).toBeDefined()
     expect(screen.getByRole('link', { name: /Observables\s+2/i })).toBeDefined()
     expect(screen.getByRole('link', { name: /Connectors\s+0/i })).toBeDefined()
-    expect(screen.getByRole('link', { name: /Analyzer jobs\s+0/i })).toBeDefined()
+    expect(
+      screen.getByRole('link', { name: /Analyzer jobs\s+0/i }),
+    ).toBeDefined()
 
     expect(screen.queryByRole('link', { name: /Alerts\s+10/i })).toBeNull()
     expect(screen.queryByRole('link', { name: /Tasks\s+17/i })).toBeNull()
     expect(screen.queryByRole('link', { name: /Connectors\s+12/i })).toBeNull()
-    expect(screen.queryByRole('link', { name: /Analyzer jobs\s+3/i })).toBeNull()
+    expect(
+      screen.queryByRole('link', { name: /Analyzer jobs\s+3/i }),
+    ).toBeNull()
   })
 })

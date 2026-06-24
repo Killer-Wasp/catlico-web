@@ -11,7 +11,9 @@ import { describe, expect, test } from 'vitest'
 
 describe('case template data helpers', () => {
   test('keeps the generic investigation template aligned with the prototype', () => {
-    const generic = caseTemplatesList.find((template) => template.id === 'generic')
+    const generic = caseTemplatesList.find(
+      (template) => template.id === 'generic',
+    )
 
     expect(generic?.name).toBe('Generic investigation')
     expect(generic?.sev).toBe(2)

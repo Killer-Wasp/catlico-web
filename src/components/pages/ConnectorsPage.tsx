@@ -278,7 +278,9 @@ function ConfigField({
         label={item.name}
         aria-label={item.name}
         description={description}
-        value={typeof value === 'number' || typeof value === 'string' ? value : ''}
+        value={
+          typeof value === 'number' || typeof value === 'string' ? value : ''
+        }
         required={item.required}
         onChange={onChange}
       />
@@ -360,7 +362,11 @@ function ConnectorConfigDrawer({
         >
           <Stack gap="md">
             <Group gap={8} wrap="wrap">
-              <Badge variant="light" color={kindColor[connector.kind]} radius="sm">
+              <Badge
+                variant="light"
+                color={kindColor[connector.kind]}
+                radius="sm"
+              >
                 {connector.kind}
               </Badge>
               <Badge variant="light" color="gray" radius="sm">
@@ -384,7 +390,9 @@ function ConnectorConfigDrawer({
                     key={item.name}
                     item={item}
                     value={values[item.name]}
-                    storedSecret={connector.hasSecrets && isSecretConfigItem(item)}
+                    storedSecret={
+                      connector.hasSecrets && isSecretConfigItem(item)
+                    }
                     onChange={(value) =>
                       setValues((current) => ({
                         ...current,
@@ -430,7 +438,9 @@ export function ConnectorsPage() {
   const stamp = useStamp()
 
   const invalidateCatalog = () =>
-    queryClient.invalidateQueries({ queryKey: connectorsQueryOptions().queryKey })
+    queryClient.invalidateQueries({
+      queryKey: connectorsQueryOptions().queryKey,
+    })
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>

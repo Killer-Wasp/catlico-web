@@ -215,10 +215,7 @@ export const initialTasks: Task[] = [
   },
 ]
 
-export function filterTasksByStatus(
-  tasks: Task[],
-  filter: TaskStatusFilter,
-) {
+export function filterTasksByStatus(tasks: Task[], filter: TaskStatusFilter) {
   if (filter === 'all') return tasks
   if (filter === 'open') {
     return tasks.filter(
@@ -261,7 +258,10 @@ export function avatarFor(name: string): [string, string] {
     .toUpperCase()
 
   const colors = ['orange', 'teal', 'brown', 'indigo', 'grape']
-  const index = Array.from(name).reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  const index = Array.from(name).reduce(
+    (sum, char) => sum + char.charCodeAt(0),
+    0,
+  )
 
   return [initials || '?', colors[index % colors.length]]
 }

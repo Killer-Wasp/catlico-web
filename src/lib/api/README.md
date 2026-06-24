@@ -31,7 +31,7 @@ src/routes/.../-<Feature>Page.tsx      ← read with useSuspenseQuery
    })
    ```
 
-4. **Read in the component** with the *same* `queryOptions` — cache hit, no refetch:
+4. **Read in the component** with the _same_ `queryOptions` — cache hit, no refetch:
 
    ```ts
    const { data } = useSuspenseQuery(thingsQueryOptions())
@@ -44,7 +44,7 @@ src/routes/.../-<Feature>Page.tsx      ← read with useSuspenseQuery
 After a write, invalidate by key prefix — broad or narrow:
 
 ```ts
-queryClient.invalidateQueries({ queryKey: thingKeys.all })        // everything
+queryClient.invalidateQueries({ queryKey: thingKeys.all }) // everything
 queryClient.invalidateQueries({ queryKey: thingKeys.detail(id) }) // one row
 ```
 

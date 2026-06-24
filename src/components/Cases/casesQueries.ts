@@ -7,7 +7,7 @@
  *   3. `queryOptions` units (`casesQueryOptions`, `caseQueryOptions`)
  */
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
-import { api } from '#/lib/api/client'
+import { api, API_BASE } from '#/lib/api/client'
 import { getActiveOrgId } from '#/lib/auth/session'
 import type { CaseStatus, Severity, Tlp } from '#/lib/domain'
 import type { MemberPublic } from './caseUsers'
@@ -19,9 +19,24 @@ import type {
   TaskPublic,
   WorkLogPublic,
 } from './caseDetails'
-import { toCaseDetail, toCaseDetailTaskLog } from './caseDetails'
-import type { CaseDetail } from './caseDetails.types'
+import { compactTime, toCaseDetail, toCaseDetailTaskLog } from './caseDetails'
+import type { CaseDetail, CaseDetailComment } from './caseDetails.types'
 import type { Case } from './cases.types'
+
+/** Mirrors the backend AttachmentPublic model. */
+export type AttachmentPublic = {
+  id: string
+  attachment_id: string
+  owner_type: string
+  owner_id: string
+  name: string
+  size: number
+  content_type: string
+  sha256: string
+  organisation_id: string
+  created_at: string
+  created_by: string
+}
 
 /** Column the list is sorted by, server-side. */
 export type CaseSort = 'id' | 'created' | 'updated'
@@ -99,6 +114,9 @@ export const caseKeys = {
   details: () => [...caseKeys.all, 'detail'] as const,
   detail: (id: string) => [...caseKeys.details(), id] as const,
   fullDetail: (id: string) => [...caseKeys.detail(id), 'full'] as const,
+  attachments: (id: string) => [...caseKeys.detail(id), 'attachments'] as const,
+  comments: (id: string, sortOrder?: string) =>
+    [...caseKeys.detail(id), 'comments', sortOrder ?? 'desc'] as const,
 }
 
 // --- API DTOs --------------------------------------------------------------
@@ -246,6 +264,26 @@ export async function updateCaseDescription(
   })
 }
 
+export async function updateCaseAssignee(
+  id: string,
+  assigneeId: string | null,
+): Promise<void> {
+  const numeric = id.replace(/^#/, '')
+  await api.patch(`cases/${numeric}`, {
+    json: { assignee_id: assigneeId },
+  })
+}
+
+export async function createCaseTask(
+  caseId: string,
+  title: string,
+): Promise<TaskPublic> {
+  const numeric = caseId.replace(/^#/, '')
+  return api
+    .post(`cases/${numeric}/tasks`, { json: { title: title.trim() } })
+    .json<TaskPublic>()
+}
+
 export async function updateTaskDetailFields({
   taskId,
   description,
@@ -278,7 +316,7 @@ export async function createTaskWorkLog({
   files?: File[]
 }) {
   const log = await api
-    .post(`tasks/${taskId}/work-logs`, {
+    .post(`tasks/${taskId}/logs`, {
       json: { message: bodyMarkdown },
     })
     .json<WorkLogPublic>()
@@ -286,14 +324,14 @@ export async function createTaskWorkLog({
   for (const file of files) {
     const body = new FormData()
     body.append('file', file)
-    await api.post(`tasks/${taskId}/work-logs/${log.id}/attachments`, { body })
+    await api.post(`logs/${log.id}/attachments`, { body })
   }
 
   return toCaseDetailTaskLog(log)
 }
 
 export async function updateTaskWorkLog({
-  taskId,
+  taskId: _taskId,
   logId,
   bodyMarkdown,
 }: {
@@ -301,13 +339,73 @@ export async function updateTaskWorkLog({
   logId: string
   bodyMarkdown: string
 }) {
+  // ponytail: _taskId kept for caller API compat, not sent in URL
   const log = await api
-    .patch(`tasks/${taskId}/work-logs/${logId}`, {
+    .patch(`logs/${logId}`, {
       json: { message: bodyMarkdown },
     })
     .json<WorkLogPublic>()
 
   return toCaseDetailTaskLog(log)
+}
+
+export async function deleteTaskWorkLog(logId: string): Promise<void> {
+  await api.delete(`logs/${logId}`)
+}
+
+export async function createCaseComment(
+  caseId: string,
+  message: string,
+): Promise<void> {
+  const numeric = caseId.replace(/^#/, '')
+  await api.post(`cases/${numeric}/comments`, { json: { message } })
+}
+
+export async function updateCaseComment(
+  commentId: string,
+  message: string,
+): Promise<void> {
+  await api.patch(`comments/${commentId}`, { json: { message } })
+}
+
+export async function deleteCaseComment(commentId: string): Promise<void> {
+  await api.delete(`comments/${commentId}`)
+}
+
+export async function fetchCaseComments(
+  caseId: string,
+  sortOrder: string = 'desc',
+): Promise<CaseDetailComment[]> {
+  const numeric = caseId.replace(/^#/, '')
+  const page = await api
+    .get(`cases/${numeric}/comments`, {
+      searchParams: { sort_order: sortOrder },
+    })
+    .json<Page<CommentPublic>>()
+  return page.items.map((c) => ({
+    id: c.id,
+    author: c.author_name,
+    time: compactTime(c.created_at),
+    body: c.message,
+  }))
+}
+
+export async function createCaseObservable(
+  caseId: string,
+  body: {
+    observable_type: string
+    data: string
+    message?: string
+    tlp?: number
+    ioc?: boolean
+    sighted?: boolean
+    ignore_similarity?: boolean
+  },
+): Promise<ObservablePublic> {
+  const numeric = caseId.replace(/^#/, '')
+  return api
+    .post(`cases/${numeric}/observables`, { json: body })
+    .json<ObservablePublic>()
 }
 
 async function fetchCase(id: string): Promise<Case> {
@@ -319,17 +417,36 @@ async function fetchCase(id: string): Promise<Case> {
 export async function fetchCaseDetail(id: string): Promise<CaseDetail> {
   const numeric = id.replace(/^#/, '')
   const orgId = getActiveOrgId()
-  const [caseItem, tasks, observables, comments, activity, members] =
-    await Promise.all([
-      api.get(`cases/${numeric}`).json<CasePublic>(),
-      api.get(`cases/${numeric}/tasks`).json<Page<TaskPublic>>(),
-      api.get(`cases/${numeric}/observables`).json<Page<ObservablePublic>>(),
-      api.get(`cases/${numeric}/comments`).json<Page<CommentPublic>>(),
-      api.get(`cases/${numeric}/activity`).json<Page<AuditPublic>>(),
-      orgId
-        ? api.get(`organisations/${orgId}/members`).json<MemberPublic[]>()
-        : Promise.resolve([]),
-    ])
+  const [
+    caseItem,
+    tasks,
+    observables,
+    comments,
+    activity,
+    attachmentsPage,
+    members,
+  ] = await Promise.all([
+    api.get(`cases/${numeric}`).json<CasePublic>(),
+    api.get(`cases/${numeric}/tasks`).json<Page<TaskPublic>>(),
+    api.get(`cases/${numeric}/observables`).json<Page<ObservablePublic>>(),
+    api.get(`cases/${numeric}/comments`).json<Page<CommentPublic>>(),
+    api.get(`cases/${numeric}/activity`).json<Page<AuditPublic>>(),
+    api.get(`cases/${numeric}/attachments`).json<Page<AttachmentPublic>>(),
+    orgId
+      ? api.get(`organisations/${orgId}/members`).json<MemberPublic[]>()
+      : Promise.resolve([]),
+  ])
+
+  const logPages = await Promise.all(
+    tasks.items.map((t) =>
+      api.get(`tasks/${t.id}/logs`).json<Page<WorkLogPublic>>(),
+    ),
+  )
+
+  const workLogs: Record<string, WorkLogPublic[]> = {}
+  for (let i = 0; i < tasks.items.length; i++) {
+    workLogs[tasks.items[i].id] = logPages[i].items
+  }
 
   return toCaseDetail({
     case: caseItem,
@@ -337,7 +454,9 @@ export async function fetchCaseDetail(id: string): Promise<CaseDetail> {
     observables: observables.items,
     comments: comments.items,
     activity: activity.items,
+    attachments: attachmentsPage.items,
     members,
+    workLogs,
   })
 }
 
@@ -370,4 +489,76 @@ export const caseDetailQueryOptions = (id: string) =>
   queryOptions({
     queryKey: caseKeys.fullDetail(id),
     queryFn: () => fetchCaseDetail(id),
+  })
+
+export const caseCommentsQueryOptions = (caseId: string, sortOrder = 'desc') =>
+  queryOptions({
+    queryKey: caseKeys.comments(caseId, sortOrder),
+    queryFn: () => fetchCaseComments(caseId, sortOrder),
+  })
+
+// --- Case attachments -------------------------------------------------------
+
+async function fetchCaseAttachments(
+  caseId: string,
+): Promise<AttachmentPublic[]> {
+  const numeric = caseId.replace(/^#/, '')
+  const page = await api
+    .get(`cases/${numeric}/attachments`)
+    .json<Page<AttachmentPublic>>()
+  return page.items
+}
+
+export async function uploadCaseAttachment(
+  caseId: string,
+  file: File,
+): Promise<AttachmentPublic> {
+  const numeric = caseId.replace(/^#/, '')
+  const body = new FormData()
+  body.append('file', file)
+  if (file.name) body.append('name', file.name)
+  return api
+    .post(`cases/${numeric}/attachments`, { body })
+    .json<AttachmentPublic>()
+}
+
+export function caseAttachmentDownloadUrl(
+  caseId: string,
+  linkId: string,
+): string {
+  const numeric = caseId.replace(/^#/, '')
+  return `${API_BASE}/cases/${numeric}/attachments/${linkId}/file`
+}
+
+export async function deleteCaseAttachment(
+  caseId: string,
+  linkId: string,
+): Promise<void> {
+  const numeric = caseId.replace(/^#/, '')
+  await api.delete(`cases/${numeric}/attachments/${linkId}`)
+}
+
+export async function downloadCaseAttachment(
+  caseId: string,
+  linkId: string,
+  filename: string,
+): Promise<void> {
+  const numeric = caseId.replace(/^#/, '')
+  const blob = await api
+    .get(`cases/${numeric}/attachments/${linkId}/file`)
+    .blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  URL.revokeObjectURL(objectUrl)
+  a.remove()
+}
+
+export const caseAttachmentsQueryOptions = (caseId: string) =>
+  queryOptions({
+    queryKey: caseKeys.attachments(caseId),
+    queryFn: () => fetchCaseAttachments(caseId),
   })

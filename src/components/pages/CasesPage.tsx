@@ -40,7 +40,11 @@ import type {
   SortingFn,
   SortingState,
 } from '@tanstack/react-table'
-import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import {
   ChevronDown,
   ChevronUp,
@@ -165,7 +169,9 @@ export function CasesPage() {
 
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'id', desc: true }])
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'id', desc: true },
+  ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const pageSize = pagination.pageSize
@@ -640,7 +646,9 @@ export function CasesPage() {
             variant="default"
             size="xs"
             leftSection={!selectMode ? <ListChecks size={14} /> : undefined}
-            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            onClick={() =>
+              selectMode ? exitSelectMode() : setSelectMode(true)
+            }
             aria-pressed={selectMode}
           >
             {selectMode

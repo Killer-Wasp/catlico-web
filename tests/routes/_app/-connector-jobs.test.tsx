@@ -102,7 +102,9 @@ describe('ConnectorJobsPage', () => {
   beforeAll(() => {
     vi.mocked(api.get).mockImplementation((input) => {
       const url = String(input)
-      const body = url.startsWith('enrichment-jobs/') ? detail : { items: [row], total: 1, skip: 0, limit: 200 }
+      const body = url.startsWith('enrichment-jobs/')
+        ? detail
+        : { items: [row], total: 1, skip: 0, limit: 200 }
       return { json: async () => body } as ReturnType<typeof api.get>
     })
   })

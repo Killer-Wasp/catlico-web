@@ -160,7 +160,7 @@ export const caseTemplatesList: CaseTemplate[] = [
       task(
         'Revoke sessions + reset credentials',
         'Containment',
-        "Force sign-out, revoke refresh tokens, reset credentials, and re-enrol MFA.",
+        'Force sign-out, revoke refresh tokens, reset credentials, and re-enrol MFA.',
         2,
         'J. Tanaka',
         true,
@@ -406,7 +406,9 @@ export function filterCaseTemplates(
   templates: CaseTemplate[],
   filter: CaseTemplateFilter,
 ) {
-  if (filter === 'builtin') return templates.filter((template) => template.builtin)
-  if (filter === 'custom') return templates.filter((template) => !template.builtin)
+  if (filter === 'builtin')
+    return templates.filter((template) => template.builtin)
+  if (filter === 'custom')
+    return templates.filter((template) => !template.builtin)
   return templates
 }

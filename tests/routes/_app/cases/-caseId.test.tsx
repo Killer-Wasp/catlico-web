@@ -116,9 +116,25 @@ beforeEach(() => {
   vi.mocked(api.get).mockReset()
   vi.mocked(api.patch).mockReset()
   vi.mocked(api.post).mockReset()
-  vi.mocked(api.get).mockReturnValue({
-    json: async () => enrichmentOverview,
-  } satisfies JsonResponse as ReturnType<typeof api.get>)
+  vi.mocked(api.get).mockImplementation((input) => {
+    const endpoint = String(input)
+    if (endpoint === 'observable-types/') {
+      return {
+        json: async () => [
+          { name: 'domain', is_attachment: false },
+          { name: 'url', is_attachment: false },
+          { name: 'ip', is_attachment: false },
+          { name: 'mail', is_attachment: false },
+          { name: 'hash', is_attachment: false },
+          { name: 'file', is_attachment: true },
+          { name: 'other', is_attachment: false },
+        ],
+      } satisfies JsonResponse as ReturnType<typeof api.get>
+    }
+    return {
+      json: async () => enrichmentOverview,
+    } satisfies JsonResponse as ReturnType<typeof api.get>
+  })
   vi.mocked(api.patch).mockReturnValue({
     json: async () => ({}),
   } satisfies JsonResponse as ReturnType<typeof api.patch>)

@@ -12,10 +12,5 @@
   "routerOnly": false,
   "version": 1,
   "framework": "react",
-  "chosenAddOns": [
-    "eslint",
-    "table",
-    "store",
-    "tanstack-query"
-  ]
+  "chosenAddOns": ["eslint", "table", "store", "tanstack-query"]
 }

@@ -163,14 +163,18 @@ describe('ConnectorsPage', () => {
       await screen.findByRole('switch', { name: 'AbuseIPDB enabled' }),
     )
 
-    await screen.findByText('Configure AbuseIPDB before enabling it. Missing: key')
+    await screen.findByText(
+      'Configure AbuseIPDB before enabling it. Missing: key',
+    )
     expect(api.post).not.toHaveBeenCalledWith('connectors/abuseipdb/enable')
   })
 
   test('tests stored connector credentials through the backend', async () => {
     render(<Harness />)
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Configure' }))[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: 'Configure' }))[0],
+    )
 
     const drawer = await screen.findByRole('dialog', {
       name: /configure abuseipdb/i,
@@ -187,12 +191,16 @@ describe('ConnectorsPage', () => {
   test('configures settings and replacement secrets through the backend', async () => {
     render(<Harness />)
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Configure' }))[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: 'Configure' }))[0],
+    )
 
     const drawer = await screen.findByRole('dialog', {
       name: /configure abuseipdb/i,
     })
-    expect(within(drawer).getAllByText('Secret stored').length).toBeGreaterThan(0)
+    expect(within(drawer).getAllByText('Secret stored').length).toBeGreaterThan(
+      0,
+    )
 
     fireEvent.change(within(drawer).getByLabelText('key'), {
       target: { value: 'new-secret' },

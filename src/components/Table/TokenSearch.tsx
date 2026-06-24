@@ -1,5 +1,6 @@
 import { Combobox, Pill, PillsInput, useCombobox } from '@mantine/core'
 import { useMemo, useState } from 'react'
+import classes from './TokenSearch.module.css'
 
 // AWS EC2-style token search. The user picks a field, then a value, and each
 // choice is committed as a `field:value` pill. Multiple pills build a compound
@@ -77,7 +78,8 @@ export function TokenSearch({
       )
       return (activeField.options ?? [])
         .filter(
-          (o) => !used.has(o.value) && (!s || o.label.toLowerCase().includes(s)),
+          (o) =>
+            !used.has(o.value) && (!s || o.label.toLowerCase().includes(s)),
         )
         .map((o) => ({ value: `val:${o.value}`, label: o.label }))
     }
@@ -149,7 +151,7 @@ export function TokenSearch({
         withRemoveButton
         onRemove={() => removeToken(i)}
       >
-        {(field?.label ?? t.field)}:{t.label}
+        {field?.label ?? t.field}:{t.label}
       </Pill>
     )
   })
@@ -164,7 +166,7 @@ export function TokenSearch({
       <Combobox.DropdownTarget>
         <PillsInput
           size="xs"
-          flex={1}
+          className={classes.input}
           onClick={() => combobox.openDropdown()}
         >
           <Pill.Group>
@@ -172,7 +174,7 @@ export function TokenSearch({
             {activeField && (
               <Pill
                 withRemoveButton
-                c="dimmed"
+                className={classes.activePill}
                 onRemove={() => {
                   setActiveField(null)
                   setSearch('')

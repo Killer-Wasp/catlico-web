@@ -92,7 +92,8 @@ export async function login(email: string, password: string): Promise<void> {
     .json<TokenResponse>()
 
   localStorage.setItem(ACCESS_KEY, token.access_token)
-  if (token.refresh_token) localStorage.setItem(REFRESH_KEY, token.refresh_token)
+  if (token.refresh_token)
+    localStorage.setItem(REFRESH_KEY, token.refresh_token)
 
   let orgId = orgsFromToken(token.access_token)[0]
   if (!orgId) {

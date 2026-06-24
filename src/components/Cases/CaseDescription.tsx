@@ -3,7 +3,12 @@ import { notifications } from '@mantine/notifications'
 import { RichTextEditor } from '@mantine/tiptap'
 import { Emoji, gitHubEmojis } from '@tiptap/extension-emoji'
 import { Mention } from '@tiptap/extension-mention'
-import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
+import {
+  Table,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from '@tiptap/extension-table'
 import { TaskItem } from '@tiptap/extension-task-item'
 import { TaskList } from '@tiptap/extension-task-list'
 import { Markdown } from '@tiptap/markdown'
@@ -175,9 +180,7 @@ export function CaseDescription({ markdown, onSave }: CaseDescriptionProps) {
                 <RichTextEditor.BulletList />
                 <RichTextEditor.OrderedList />
                 <RichTextEditor.Control
-                  onClick={() =>
-                    editor?.chain().focus().toggleTaskList().run()
-                  }
+                  onClick={() => editor?.chain().focus().toggleTaskList().run()}
                   active={editor?.isActive('taskList')}
                   aria-label="Task list"
                   title="Task list"

@@ -17,7 +17,6 @@ import {
   exportCaseTemplate,
   updateCaseTemplate,
 } from '#/components/Cases/caseTemplatesQueries'
-import type { Pap, Severity, Tlp } from '#/lib/domain'
 import {
   ActionIcon,
   Badge,

@@ -1,0 +1,41 @@
+.root {
+  display: flex;
+  gap: 10px;
+}
+
+.bar {
+  width: 4px;
+  align-self: stretch;
+  border-radius: 0 3px 3px 0;
+  background-color: var(--sev-color);
+}
+
+.id {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 11.5px;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+}
+
+.label {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  color: var(--sev-color);
+}
+
+/* Severity name → heat colour, consumed by `.bar` and `.label` via --sev-color. */
+.critical {
+  --sev-color: var(--mantine-color-red-6);
+}
+.high {
+  --sev-color: var(--mantine-color-orange-6);
+}
+.medium {
+  --sev-color: var(--mantine-color-yellow-6);
+}
+.low {
+  --sev-color: var(--mantine-color-blue-6);
+}

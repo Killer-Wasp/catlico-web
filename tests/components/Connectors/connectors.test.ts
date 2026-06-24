@@ -116,10 +116,13 @@ describe('connectors API helpers', () => {
   })
 
   test('splits secret-looking config fields from ordinary settings', () => {
-    const payload = buildConnectorConfigPayload(connectorDto.manifest.configurationItems, {
-      key: 'new-secret',
-      days: 7,
-    })
+    const payload = buildConnectorConfigPayload(
+      connectorDto.manifest.configurationItems,
+      {
+        key: 'new-secret',
+        days: 7,
+      },
+    )
 
     expect(payload).toEqual({
       settings: { days: 7 },
@@ -134,10 +137,13 @@ describe('connectors API helpers', () => {
   })
 
   test('omits blank secret fields so saved secrets are preserved', () => {
-    const payload = buildConnectorConfigPayload(connectorDto.manifest.configurationItems, {
-      key: '',
-      days: 30,
-    })
+    const payload = buildConnectorConfigPayload(
+      connectorDto.manifest.configurationItems,
+      {
+        key: '',
+        days: 30,
+      },
+    )
 
     expect(payload).toEqual({
       settings: { days: 30 },
@@ -189,9 +195,6 @@ describe('connectors API helpers', () => {
   })
 
   test('uses a stable connector catalog query key', () => {
-    expect(connectorsQueryOptions().queryKey).toEqual([
-      'connectors',
-      'catalog',
-    ])
+    expect(connectorsQueryOptions().queryKey).toEqual(['connectors', 'catalog'])
   })
 })

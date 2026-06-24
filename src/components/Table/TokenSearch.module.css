@@ -1,0 +1,7 @@
+.input {
+  flex: 1;
+}
+
+.activePill {
+  color: var(--mantine-color-dimmed);
+}

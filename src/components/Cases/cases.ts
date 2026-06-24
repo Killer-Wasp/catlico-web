@@ -36,4 +36,3 @@ function deriveAvatar(name: string): [string, string] {
 
 export const avatarFor = (name: string): [string, string] =>
   AV[name] ?? deriveAvatar(name)
-

@@ -16,12 +16,12 @@ describe('knowledge base data helpers', () => {
   })
 
   test('finds a selected page or falls back to the first page', () => {
-    expect(getKnowledgeBasePage(initialKnowledgeBasePages, 'kb-bec').title).toBe(
-      'BEC investigation guide',
-    )
-    expect(getKnowledgeBasePage(initialKnowledgeBasePages, 'missing').title).toBe(
-      'Phishing response runbook',
-    )
+    expect(
+      getKnowledgeBasePage(initialKnowledgeBasePages, 'kb-bec').title,
+    ).toBe('BEC investigation guide')
+    expect(
+      getKnowledgeBasePage(initialKnowledgeBasePages, 'missing').title,
+    ).toBe('Phishing response runbook')
   })
 
   test('creates a draft page with normalised id and starter content', () => {

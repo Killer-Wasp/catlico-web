@@ -1,2 +1,6 @@
 allowBuilds:
-  unrs-resolver: true
+  '@parcel/watcher': set this to true or false
+onlyBuiltDependencies:
+  - esbuild
+  - lightningcss
+  - unrs-resolver

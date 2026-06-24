@@ -1,13 +1,22 @@
-import { Badge, Box, Button, Group, Stack, Text } from '@mantine/core'
+import {
+  Badge,
+  Box,
+  Button,
+  Group,
+  Stack,
+  Text,
+} from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import {
   connectorsQueryOptions,
   testConnectorConfig,
 } from '#/components/Connectors/connectors'
+import type { Connector } from '#/components/Connectors/connectors.types'
+import { ConnectorConfigDrawer } from '#/components/Connectors/ConnectorConfigDrawer'
 import {
   LoadingPanel,
-  notify,
   Panel,
   StatusBadge,
 } from '#/components/Settings/settingsUi'
@@ -16,6 +25,7 @@ export function ConnectorsPanel() {
   const { data: connectors = [], isPending } = useQuery(
     connectorsQueryOptions(),
   )
+  const [configConnector, setConfigConnector] = useState<Connector | null>(null)
   const testMutation = useMutation({
     mutationFn: testConnectorConfig,
     onSuccess: (result) =>
@@ -46,13 +56,30 @@ export function ConnectorsPanel() {
 
   return (
     <Stack gap="md">
+      <ConnectorConfigDrawer
+        connector={configConnector}
+        saving={false}
+        testing={testMutation.isPending}
+        onClose={() => setConfigConnector(null)}
+        onSaved={() =>
+          notifications.show({
+            color: 'green',
+            message: `${configConnector?.name ?? 'Connector'} configuration saved`,
+          })
+        }
+      />
       <Panel
         title="MISP connectors"
         count={displayedMisp.length}
         action={
           <Button
             variant="default"
-            onClick={() => notify('Add MISP server workflow opened')}
+            onClick={() =>
+              notifications.show({
+                color: 'orange',
+                message: 'MISP connector instances can be added from the Connectors page.',
+              })
+            }
           >
             + Add MISP server
           </Button>
@@ -92,9 +119,7 @@ export function ConnectorsPanel() {
               <Button
                 size="xs"
                 variant="default"
-                onClick={() =>
-                  notify(`Configure ${connector.name} workflow opened`)
-                }
+                onClick={() => setConfigConnector(connector)}
               >
                 Configure
               </Button>
@@ -109,7 +134,12 @@ export function ConnectorsPanel() {
         action={
           <Button
             variant="default"
-            onClick={() => notify('Add Cortex server workflow opened')}
+            onClick={() =>
+              notifications.show({
+                color: 'orange',
+                message: 'Cortex connector instances can be added from the Connectors page.',
+              })
+            }
           >
             + Add Cortex server
           </Button>
@@ -138,16 +168,19 @@ export function ConnectorsPanel() {
               <Button
                 size="xs"
                 variant="default"
-                onClick={() => notify(`${connector.name} catalog refreshed`)}
+                onClick={() =>
+                  notifications.show({
+                    color: 'blue',
+                    message: 'Connector catalog refreshed.',
+                  })
+                }
               >
                 Refresh catalog
               </Button>
               <Button
                 size="xs"
                 variant="default"
-                onClick={() =>
-                  notify(`Configure ${connector.name} workflow opened`)
-                }
+                onClick={() => setConfigConnector(connector)}
               >
                 Configure
               </Button>

@@ -194,11 +194,10 @@ export function ObservablesPage() {
   const [sorting, setSorting] = useState<SortingState>([])
   const observables = useMemo(
     () =>
-      fetchedObservables.map((observable) =>
-        flagOverrides[observable.id]
-          ? { ...observable, flags: flagOverrides[observable.id] }
-          : observable,
-      ),
+      fetchedObservables.map((observable) => {
+        const override = flagOverrides[observable.id]
+        return override ? { ...observable, flags: override } : observable
+      }),
     [fetchedObservables, flagOverrides],
   )
 
@@ -886,8 +885,11 @@ function EnrichmentCard({
         </Text>
       ) : tags.length ? (
         <Group gap={6}>
-          {tags.map((tag, i) => (
-            <DetailChip key={i} color={VERDICT_COLOR[tag.level]}>
+          {tags.map((tag) => (
+            <DetailChip
+              key={`${tag.namespace}:${tag.predicate}=${tag.value}`}
+              color={VERDICT_COLOR[tag.level]}
+            >
               {tag.namespace}:{tag.predicate}={tag.value}
             </DetailChip>
           ))}
@@ -985,8 +987,8 @@ export function ObservableDetailDrawer({
   onClose,
 }: {
   observable: Observable | null
-  onToggleIoc: (observable: Observable) => void
-  onMarkSighted: (observable: Observable) => void
+  onToggleIoc?: (observable: Observable) => void
+  onMarkSighted?: (observable: Observable) => void
   onClose: () => void
 }) {
   if (!observable) return null
@@ -1023,8 +1025,8 @@ function ObservableDetailContent({
   onClose,
 }: {
   observable: Observable
-  onToggleIoc: (observable: Observable) => void
-  onMarkSighted: (observable: Observable) => void
+  onToggleIoc?: (observable: Observable) => void
+  onMarkSighted?: (observable: Observable) => void
   onClose: () => void
 }) {
   const { data } = useQuery(observableEnrichmentsQueryOptions(observable.id))
@@ -1083,16 +1085,20 @@ function ObservableDetailContent({
         grow
         style={{ borderTop: '1px solid var(--line-soft)' }}
       >
-        <Button variant="default" onClick={() => onToggleIoc(observable)}>
-          Toggle IOC
-        </Button>
-        <Button
-          variant="default"
-          disabled={sighted}
-          onClick={() => onMarkSighted(observable)}
-        >
-          Mark sighted
-        </Button>
+        {onToggleIoc ? (
+          <Button variant="default" onClick={() => onToggleIoc(observable)}>
+            Toggle IOC
+          </Button>
+        ) : null}
+        {onMarkSighted ? (
+          <Button
+            variant="default"
+            disabled={sighted}
+            onClick={() => onMarkSighted(observable)}
+          >
+            Mark sighted
+          </Button>
+        ) : null}
         <Button disabled>Export to MISP</Button>
       </Group>
     </Stack>

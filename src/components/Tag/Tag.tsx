@@ -1,4 +1,5 @@
 import { Box } from '@mantine/core'
+import classes from './Tag.module.css'
 
 type TagProps = {
   /** Tag label, e.g. "T1059" or "phishing". */
@@ -15,19 +16,7 @@ const isMitreTag = (tag: string) => /^T\d/.test(tag)
 export function Tag({ label }: TagProps) {
   const mitre = isMitreTag(label)
   return (
-    <Box
-      ff="monospace"
-      fz={10}
-      style={(theme) => ({
-        padding: '1px 7px',
-        borderRadius: 4,
-        color: mitre ? 'var(--mitre)' : 'var(--muted)',
-        border: mitre
-          ? '1px solid color-mix(in srgb, var(--mitre) 35%, transparent)'
-          : `1px solid light-dark(${theme.colors.gray[3]}, ${theme.colors.dark[4]})`,
-        background: `light-dark(${theme.colors.gray[0]}, ${theme.colors.dark[6]})`,
-      })}
-    >
+    <Box className={`${classes.tag}${mitre ? ` ${classes.mitre}` : ''}`}>
       {label}
     </Box>
   )

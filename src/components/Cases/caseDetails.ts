@@ -2,6 +2,7 @@ import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
 import { TLP } from '#/lib/domain'
 import type { MemberPublic } from './caseUsers'
 import { memberDisplayNameById } from './caseUsers'
+import type { AttachmentPublic } from './casesQueries'
 import type {
   CaseDetail,
   CaseDetailTaskLog,
@@ -84,6 +85,7 @@ export type CommentPublic = {
   created_at: string
   created_by: string
   updated_at: string | null
+  author_name: string
 }
 
 export type AuditPublic = {
@@ -124,8 +126,35 @@ export type CaseDetailResources = {
   observables: ObservablePublic[]
   comments: CommentPublic[]
   activity: AuditPublic[]
+  attachments?: AttachmentPublic[]
   members?: MemberPublic[]
   workLogs?: Record<string, WorkLogPublic[]>
+}
+
+function formatBlobSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function toCaseDetailAttachment(
+  a: AttachmentPublic,
+): CaseDetail['attachments'][number] {
+  const ext = a.name.includes('.')
+    ? a.name.split('.').pop()!.toUpperCase()
+    : (a.content_type.split('/')[1]?.toUpperCase() ?? 'FILE')
+  return {
+    id: a.attachment_id,
+    linkId: a.id,
+    kind: ext,
+    name: a.name,
+    size: formatBlobSize(a.size),
+    sizeBytes: a.size,
+    sha256: a.sha256,
+    contentType: a.content_type,
+    author: a.created_by,
+    time: compactTime(a.created_at),
+  }
 }
 
 export const caseDetails: CaseDetail[] = [
@@ -385,11 +414,13 @@ export const caseDetails: CaseDetail[] = [
     ],
     comments: [
       {
+        id: 'comment-1',
         author: 'P. Nguyen',
         time: '10:21',
         body: '@J. Tanaka audit log pulled — consent grants preceded by click on the billing lure for 2 of 3 users. See task 2.',
       },
       {
+        id: 'comment-2',
         author: 'J. Tanaka',
         time: '10:34',
         body: 'Thanks. svc-finops is a service account — owner notified before reset. Escalating severity to High.',
@@ -397,26 +428,38 @@ export const caseDetails: CaseDetail[] = [
     ],
     attachments: [
       {
+        id: 'att-1',
+        linkId: 'link-1',
         kind: 'JSON',
         name: 'rule-RSS-Feeds2.json',
         size: '2.1 KB',
+        sizeBytes: 2150,
         sha256: '4f0e7a91…c29a',
+        contentType: 'application/json',
         author: 'A. Whitford',
         time: '10:32',
       },
       {
+        id: 'att-2',
+        linkId: 'link-2',
         kind: 'EML',
         name: 'AL-9119-export.eml',
         size: '148 KB',
+        sizeBytes: 151552,
         sha256: '77ab03d1…1f44',
+        contentType: 'message/rfc822',
         author: 'P. Nguyen',
         time: '09:44',
       },
       {
+        id: 'att-3',
+        linkId: 'link-3',
         kind: 'PNG',
         name: 'consent-grant-screenshot.png',
         size: '412 KB',
+        sizeBytes: 421888,
         sha256: 'b2c411ef…908d',
+        contentType: 'image/png',
         author: 'J. Tanaka',
         time: '09:21',
       },
@@ -427,30 +470,40 @@ export const caseDetails: CaseDetail[] = [
         when: '09:12',
         text: '**Case created** from alert AL-9119',
         who: 'J. Tanaka',
+        kind: 'audit',
+        createdAt: '2026-06-12T09:12:00Z',
       },
       {
         when: '09:26',
         text: 'Severity raised to **High**, TLP set to AMBER',
         who: 'J. Tanaka',
         tone: 'warn',
+        kind: 'audit',
+        createdAt: '2026-06-12T09:26:00Z',
       },
       {
         when: '09:41',
         text: 'Responder **Revoke user sessions** run on 2 accounts',
         who: 'Cortex',
         tone: 'ok',
+        kind: 'audit',
+        createdAt: '2026-06-12T09:41:00Z',
       },
       {
         when: '10:05',
         text: 'Mailbox rule "RSS Feeds2" found on svc-finops — added as evidence',
         who: 'A. Whitford',
         tone: 'warn',
+        kind: 'audit',
+        createdAt: '2026-06-12T10:05:00Z',
       },
       {
         when: '10:32',
         text: '4 observables pushed to **MISP** event 4417',
         who: 'P. Nguyen',
         tone: 'ok',
+        kind: 'audit',
+        createdAt: '2026-06-12T10:32:00Z',
       },
     ],
     responders: [
@@ -511,7 +564,7 @@ function compactDateTime(iso: string): string {
   })
 }
 
-function compactTime(iso: string): string {
+export function compactTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-AU', {
     hour: '2-digit',
     minute: '2-digit',
@@ -559,8 +612,46 @@ function taskStatus(status: string) {
   return TASK_STATUS_MAP[status] ?? TASK_STATUS_MAP.Waiting
 }
 
+function resolvedActor(
+  actor: string,
+  displayNameByUserId: Map<string, string>,
+): string {
+  if (actor === 'system' || actor === 'analyzer') return actor
+  return displayNameByUserId.get(actor) ?? actor
+}
+
 function auditText(event: AuditPublic) {
-  return `**${event.action}** ${event.object_type} ${event.object_id}`
+  const label = auditLabel(event)
+  return `**${event.action}** ${event.object_type} ${label}`
+}
+
+function auditLabel(event: AuditPublic): string {
+  // ponytail: extract human label from details when available; fall back to raw id
+  const title = event.details?.title
+  if (title && typeof title === 'string') return title
+  const name = event.details?.name
+  if (name && typeof name === 'string') return name
+  return event.object_id
+}
+
+function timelineLink(event: AuditPublic, caseId: number): string | undefined {
+  const entityId = event.object_id
+  switch (event.object_type) {
+    case 'case':
+      return `/cases/${entityId}`
+    case 'task':
+      return `/cases/${caseId}/tasks`
+    case 'comment':
+      return `/cases/${caseId}/comments`
+    case 'log':
+      return `/cases/${caseId}/tasks`
+    case 'observable':
+      return `/cases/${caseId}/observables`
+    case 'alert':
+      return `/alerts`
+    default:
+      return undefined
+  }
 }
 
 export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
@@ -625,18 +716,34 @@ export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
       added: compactTime(observable.created_at),
     })),
     comments: comments.map((comment) => ({
-      author: displayNameByUserId.get(comment.created_by) ?? comment.created_by,
+      id: comment.id,
+      author: comment.author_name,
       time: compactTime(comment.created_at),
       body: comment.message,
     })),
-    attachments: [],
+    attachments: (resources.attachments ?? []).map(toCaseDetailAttachment),
     shares: 0,
-    timeline: activity.map((event) => ({
-      when: compactTime(event.created_at),
-      text: auditText(event),
-      who: event.actor,
-      tone: event.action === 'delete' ? 'warn' : undefined,
-    })),
+    timeline: [
+      ...activity.map((event) => ({
+        when: compactTime(event.created_at),
+        text: auditText(event),
+        who: resolvedActor(event.actor, displayNameByUserId),
+        tone: (event.action === 'delete' ? 'warn' as const : undefined),
+        kind: 'audit' as const,
+        createdAt: event.created_at,
+        link: timelineLink(event, caseItem.id),
+      })),
+      ...comments.map((comment) => ({
+        when: compactTime(comment.created_at),
+        text: comment.message,
+        who: comment.author_name,
+        kind: 'comment' as const,
+        createdAt: comment.created_at,
+      })),
+    ].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    ),
     responders: [],
     related: [
       ...caseItem.merged_from.map((id) => ({

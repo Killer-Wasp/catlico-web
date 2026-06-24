@@ -36,6 +36,8 @@ const orgDto = {
   id: 'origin-soc',
   name: 'Backend SOC',
   description: 'Primary backend tenant',
+  timezone: 'UTC',
+  default_tlp: 2,
   created_at: '2026-06-12T09:12:00Z',
   updated_at: null,
 }
@@ -207,6 +209,8 @@ describe('SettingsPage', () => {
         json: {
           name: 'Updated Backend SOC',
           description: 'Updated description',
+          timezone: 'UTC',
+          default_tlp: 2,
         },
       }),
     )
@@ -269,12 +273,15 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save organisation' }))
 
     await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledWith('organisations/origin-soc', {
-        json: {
-          name: 'Updated Backend SOC',
-          description: 'Updated description',
-        },
-      }),
+      expect(api.patch).toHaveBeenCalledWith(
+        'organisations/origin-soc',
+        expect.objectContaining({
+          json: expect.objectContaining({
+            name: 'Updated Backend SOC',
+            description: 'Updated description',
+          }),
+        }),
+      ),
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete organisation' }))

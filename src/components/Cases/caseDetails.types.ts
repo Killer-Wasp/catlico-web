@@ -55,16 +55,22 @@ export type CaseDetailAlert = {
 }
 
 export type CaseDetailComment = {
+  id: string
   author: string
   time: string
   body: string
 }
 
 export type CaseDetailAttachment = {
+  id: string
+  linkId: string
   kind: string
   name: string
   size: string
+  sizeBytes: number
   sha256: string
+  /** content-type (e.g. application/pdf) */
+  contentType: string
   author: string
   time: string
 }
@@ -74,6 +80,9 @@ export type CaseDetailTimelineEvent = {
   text: string
   who: string
   tone?: 'warn' | 'ok'
+  kind: 'audit' | 'comment'
+  createdAt: string
+  link?: string
 }
 
 export type CaseDetail = {

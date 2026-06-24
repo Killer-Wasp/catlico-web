@@ -45,9 +45,7 @@ describe('LoginPage', () => {
     expect(screen.getByRole('link', { name: 'Forgot password' })).toBeDefined()
     expect(screen.getByRole('link', { name: 'Request access' })).toBeDefined()
     expect(screen.queryByText(/THEHIVE CONSOLE/i)).toBeNull()
-    expect(
-      screen.queryByText(/Use of this system is monitored/i),
-    ).toBeNull()
+    expect(screen.queryByText(/Use of this system is monitored/i)).toBeNull()
     expect(screen.queryByText(/v5\.4\.2/i)).toBeNull()
   })
 })

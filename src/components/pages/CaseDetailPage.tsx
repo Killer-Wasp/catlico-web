@@ -2,7 +2,6 @@ import type {
   CaseDetail,
   CaseDetailAlert,
   CaseDetailAttachment,
-  CaseDetailComment,
   CaseDetailObservable,
   CaseDetailTask,
   CaseDetailTimelineEvent,
@@ -14,7 +13,7 @@ import type {
 } from '#/components/Observables/observables.types'
 import { ObservableDetailDrawer } from '#/components/pages/ObservablesPage'
 import type { ReactNode } from 'react'
-import { SEV } from '#/lib/domain'
+import { SEV, TLP, type Tlp } from '#/lib/domain'
 import { avatarFor } from '#/components/Cases/cases'
 import { CaseDescription } from '#/components/Cases/CaseDescription'
 import type { MentionUser } from '#/components/Cases/mentionSuggestion'
@@ -24,11 +23,22 @@ import {
 } from '#/components/Cases/mentionSuggestion'
 import {
   caseKeys,
+  caseCommentsQueryOptions,
+  createCaseComment,
+  updateCaseComment,
+  createCaseObservable,
+  createCaseTask,
+  deleteCaseAttachment,
+  deleteCaseComment,
   createTaskWorkLog,
+  downloadCaseAttachment,
   updateTaskDetailFields,
   updateTaskWorkLog,
+  updateCaseAssignee,
   updateCaseDescription,
+  uploadCaseAttachment,
 } from '#/components/Cases/casesQueries'
+import { observableTypesQueryOptions } from '#/components/Settings/settingsQueries'
 import { trafficLabel } from '#/components/Cases/caseDetails'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
@@ -42,6 +52,8 @@ import {
   Checkbox,
   Divider,
   Group,
+  Menu,
+  Modal,
   Paper,
   ScrollArea,
   Select,
@@ -50,7 +62,6 @@ import {
   Table,
   Tabs,
   Text,
-  Textarea,
   TextInput,
   Title,
 } from '@mantine/core'
@@ -64,7 +75,9 @@ import { useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Clock3,
   Download,
   Flag,
@@ -131,7 +144,7 @@ export function CaseDetailPage({
         </Text>
       </Group>
 
-      <CaseSummaryCard caseDetail={caseDetail} />
+      <CaseSummaryCard caseDetail={caseDetail} caseId={caseId} />
 
       <Box className={classes.caseDetailLayout} mt="md">
         <CaseBody caseDetail={caseDetail} caseId={caseId} />
@@ -141,8 +154,28 @@ export function CaseDetailPage({
   )
 }
 
-function CaseSummaryCard({ caseDetail }: { caseDetail: CaseDetail }) {
+function CaseSummaryCard({
+  caseDetail,
+  caseId,
+}: {
+  caseDetail: CaseDetail
+  caseId: string
+}) {
+  const queryClient = useQueryClient()
   const [initials, color] = avatarFor(caseDetail.assignee)
+  const { data: members } = useQuery(mentionableUsersQueryOptions())
+
+  const assignMutation = useMutation({
+    mutationFn: (assigneeId: string | null) =>
+      updateCaseAssignee(caseId, assigneeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      notifications.show({ color: 'green', message: 'Assignee updated' })
+    },
+    onError: () => {
+      notifications.show({ color: 'red', message: 'Failed to update assignee' })
+    },
+  })
 
   return (
     <Paper
@@ -194,13 +227,45 @@ function CaseSummaryCard({ caseDetail }: { caseDetail: CaseDetail }) {
         </Box>
 
         <Group gap="sm" visibleFrom="md" wrap="nowrap">
-          <Button
-            variant="default"
-            leftSection={<UserPlus size={16} />}
-            onClick={() => actionNotice('Assignee menu opened')}
-          >
-            Assign
-          </Button>
+          <Menu shadow="md" width={260} position="bottom-end">
+            <Menu.Target>
+              <Button
+                variant="default"
+                leftSection={<UserPlus size={16} />}
+                loading={assignMutation.isPending}
+              >
+                Assign
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={
+                  <Avatar size={24} radius="xl" bg="#54463A">
+                    —
+                  </Avatar>
+                }
+                onClick={() => assignMutation.mutate(null)}
+              >
+                Unassigned
+              </Menu.Item>
+              {members?.map((member) => {
+                const [mi, mc] = avatarFor(member.email)
+                return (
+                  <Menu.Item
+                    key={member.id}
+                    leftSection={
+                      <Avatar size={24} radius="xl" bg={mc}>
+                        {mi}
+                      </Avatar>
+                    }
+                    onClick={() => assignMutation.mutate(member.id)}
+                  >
+                    {member.label}
+                  </Menu.Item>
+                )
+              })}
+            </Menu.Dropdown>
+          </Menu>
           <Button
             variant="default"
             leftSection={<Download size={16} />}
@@ -252,9 +317,45 @@ function CaseSummaryCard({ caseDetail }: { caseDetail: CaseDetail }) {
       </SimpleGrid>
 
       <Group gap="sm" hiddenFrom="md" mt="lg">
-        <Button variant="default" leftSection={<UserPlus size={16} />}>
-          Assign
-        </Button>
+        <Menu shadow="md" width={260} position="bottom-start">
+          <Menu.Target>
+            <Button
+              variant="default"
+              leftSection={<UserPlus size={16} />}
+              loading={assignMutation.isPending}
+            >
+              Assign
+            </Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item
+              leftSection={
+                <Avatar size={24} radius="xl" bg="#54463A">
+                  —
+                </Avatar>
+              }
+              onClick={() => assignMutation.mutate(null)}
+            >
+              Unassigned
+            </Menu.Item>
+            {members?.map((member) => {
+              const [mi, mc] = avatarFor(member.email)
+              return (
+                <Menu.Item
+                  key={member.id}
+                  leftSection={
+                    <Avatar size={24} radius="xl" bg={mc}>
+                      {mi}
+                    </Avatar>
+                  }
+                  onClick={() => assignMutation.mutate(member.id)}
+                >
+                  {member.label}
+                </Menu.Item>
+              )
+            })}
+          </Menu.Dropdown>
+        </Menu>
         <Button color="orange" leftSection={<Play size={16} />}>
           Run analyzers
         </Button>
@@ -372,13 +473,18 @@ export function CaseTabPanel({
     case 'tasks':
       return <TasksPanel caseDetail={caseDetail} caseId={caseId} />
     case 'observables':
-      return <ObservablesPanel caseDetail={caseDetail} />
+      return <ObservablesPanel caseDetail={caseDetail} caseId={caseId} />
     case 'comments':
-      return <CommentsPanel comments={caseDetail.comments} />
+      return <CommentsPanel caseId={caseId} />
     case 'attachments':
-      return <AttachmentsPanel attachments={caseDetail.attachments} />
+      return (
+        <AttachmentsPanel
+          attachments={caseDetail.attachments}
+          caseId={caseId}
+        />
+      )
     case 'timeline':
-      return <TimelinePanel timeline={caseDetail.timeline} />
+      return <TimelinePanel timeline={caseDetail.timeline} caseId={caseId} />
     case 'sharing':
       return (
         <EmptyTab
@@ -551,7 +657,25 @@ function TasksPanel({
   caseId: string
 }) {
   const [activeTask, setActiveTask] = useState<CaseDetailTask | null>(null)
+  const [newTaskTitle, setNewTaskTitle] = useState('')
   const tasks = caseDetail.tasks
+  const queryClient = useQueryClient()
+
+  const addTask = useMutation({
+    mutationFn: (title: string) => createCaseTask(caseId, title),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      setNewTaskTitle('')
+      actionNotice('Task added')
+    },
+    onError: () => actionNotice('Failed to add task'),
+  })
+
+  function submitNewTask() {
+    const title = newTaskTitle.trim()
+    if (!title || addTask.isPending) return
+    addTask.mutate(title)
+  }
 
   if (activeTask) {
     return (
@@ -641,8 +765,19 @@ function TasksPanel({
         <TextInput
           flex={1}
           placeholder="Add a task… e.g. Revoke refresh tokens for affected users"
+          value={newTaskTitle}
+          onChange={(event) => setNewTaskTitle(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') submitNewTask()
+          }}
+          disabled={addTask.isPending}
         />
-        <Button variant="default" onClick={() => actionNotice('Task added')}>
+        <Button
+          variant="default"
+          onClick={submitNewTask}
+          loading={addTask.isPending}
+          disabled={!newTaskTitle.trim()}
+        >
           Add
         </Button>
       </Group>
@@ -1192,9 +1327,48 @@ function toObservable(
   }
 }
 
-function ObservablesPanel({ caseDetail }: { caseDetail: CaseDetail }) {
+function ObservablesPanel({
+  caseDetail,
+  caseId,
+}: {
+  caseDetail: CaseDetail
+  caseId: string
+}) {
   const [activeObservable, setActiveObservable] =
     useState<CaseDetailObservable | null>(null)
+  const [addingObservable, setAddingObservable] = useState(false)
+  const [newType, setNewType] = useState<string | null>(null)
+  const [newData, setNewData] = useState('')
+  const [newTlp, setNewTlp] = useState<string>('2')
+  const [newIoc, setNewIoc] = useState(false)
+  const [newSighted, setNewSighted] = useState(false)
+  const queryClient = useQueryClient()
+
+  const { data: obsTypes } = useQuery(observableTypesQueryOptions())
+  const nonAttachmentTypes = (obsTypes ?? [])
+    .filter((t) => !t.is_attachment)
+    .map((t) => t.name)
+
+  const addObservable = useMutation({
+    mutationFn: () =>
+      createCaseObservable(caseId, {
+        observable_type: newType!,
+        data: newData,
+        tlp: Number(newTlp),
+        ioc: newIoc,
+        sighted: newSighted,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      setAddingObservable(false)
+      setNewType(null)
+      setNewData('')
+      setNewTlp('2')
+      setNewIoc(false)
+      setNewSighted(false)
+    },
+  })
+
   const observables = caseDetail.observables
   const drawerObservable = activeObservable
     ? toObservable(activeObservable, caseDetail)
@@ -1206,6 +1380,58 @@ function ObservablesPanel({ caseDetail }: { caseDetail: CaseDetail }) {
         observable={drawerObservable}
         onClose={() => setActiveObservable(null)}
       />
+
+      <Modal
+        opened={addingObservable}
+        onClose={() => setAddingObservable(false)}
+        title="Add observable"
+      >
+        <Stack gap="md">
+          <Select
+            label="Type"
+            data={nonAttachmentTypes.map((name) => ({
+              value: name,
+              label: name,
+            }))}
+            value={newType}
+            onChange={setNewType}
+            required
+          />
+          <TextInput
+            label="Value"
+            value={newData}
+            onChange={(e) => setNewData(e.currentTarget.value)}
+            required
+          />
+          <Select
+            label="TLP"
+            data={[0, 1, 2, 3].map((n) => ({
+              value: String(n),
+              label: `${n} — ${TLP[n as Tlp]}`,
+            }))}
+            value={newTlp}
+            onChange={(v) => setNewTlp(v ?? '2')}
+          />
+          <Checkbox
+            label="IOC (indicator of compromise)"
+            checked={newIoc}
+            onChange={(e) => setNewIoc(e.currentTarget.checked)}
+          />
+          <Checkbox
+            label="Sighted"
+            checked={newSighted}
+            onChange={(e) => setNewSighted(e.currentTarget.checked)}
+          />
+          <Button
+            fullWidth
+            disabled={!newType || !newData.trim()}
+            loading={addObservable.isPending}
+            onClick={() => addObservable.mutate()}
+          >
+            Add observable
+          </Button>
+        </Stack>
+      </Modal>
       <Table verticalSpacing="sm" horizontalSpacing={0} highlightOnHover>
         <Table.Thead>
           <Table.Tr>
@@ -1295,7 +1521,7 @@ function ObservablesPanel({ caseDetail }: { caseDetail: CaseDetail }) {
         <Button
           variant="default"
           leftSection={<Plus size={16} />}
-          onClick={() => actionNotice('Observable picker opened')}
+          onClick={() => setAddingObservable(true)}
         >
           Add observable
         </Button>
@@ -1326,29 +1552,11 @@ function CaseDrawerSection({
   )
 }
 
-function CaseKeyValue({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
-  return (
-    <Group gap={12} mb={6} wrap="nowrap" align="flex-start">
-      <Text ff="monospace" fz={12} c="dimmed" w={110}>
-        {label}
-      </Text>
-      <Box fz={13} style={{ flex: 1 }}>
-        {children}
-      </Box>
-    </Group>
-  )
-}
-
-const TIMELINE_MARKER: Record<'warn' | 'ok' | 'neutral', string> = {
+const TIMELINE_MARKER: Record<'warn' | 'ok' | 'neutral' | 'comment', string> = {
   warn: 'var(--sev-high)',
   ok: 'var(--ok)',
   neutral: 'var(--muted)',
+  comment: 'var(--mantine-color-blue-6)',
 }
 
 // Renders **bold** spans in timeline text without a full markdown parser.
@@ -1368,7 +1576,44 @@ function BoldText({ text }: { text: string }) {
   )
 }
 
-function TimelinePanel({ timeline }: { timeline: CaseDetailTimelineEvent[] }) {
+function TimelinePanel({
+  timeline,
+  caseId,
+}: {
+  timeline: CaseDetailTimelineEvent[]
+  caseId: string
+}) {
+  const queryClient = useQueryClient()
+  const [note, setNote] = useState('')
+  const [posting, setPosting] = useState(false)
+
+  const markerColor = (event: CaseDetailTimelineEvent) =>
+    event.kind === 'comment'
+      ? TIMELINE_MARKER.comment
+      : TIMELINE_MARKER[event.tone ?? 'neutral']
+
+  // ponytail: inline comment key, dedup index when comment id absent
+  let commentIndex = 0
+  function eventKey(event: CaseDetailTimelineEvent) {
+    if (event.kind === 'comment') return `comment-${commentIndex++}`
+    return `audit-${event.createdAt}`
+  }
+
+  async function post() {
+    const trimmed = note.trim()
+    if (!trimmed || posting) return
+    setPosting(true)
+    try {
+      await createCaseComment(caseId, trimmed)
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      setNote('')
+    } catch {
+      actionNotice('Failed to post note')
+    } finally {
+      setPosting(false)
+    }
+  }
+
   return (
     <Stack gap="md" p="lg">
       <Box style={{ position: 'relative' }}>
@@ -1385,7 +1630,7 @@ function TimelinePanel({ timeline }: { timeline: CaseDetailTimelineEvent[] }) {
         <Stack gap={0}>
           {timeline.map((event) => (
             <Group
-              key={`${event.when}-${event.text}`}
+              key={eventKey(event)}
               gap="md"
               align="flex-start"
               wrap="nowrap"
@@ -1398,30 +1643,67 @@ function TimelinePanel({ timeline }: { timeline: CaseDetailTimelineEvent[] }) {
                 style={{
                   flexShrink: 0,
                   borderRadius: '50%',
-                  border: `2px solid ${TIMELINE_MARKER[event.tone ?? 'neutral']}`,
-                  background: 'var(--mantine-color-body)',
+                  border: `2px solid ${markerColor(event)}`,
+                  background:
+                    event.kind === 'comment'
+                      ? markerColor(event)
+                      : 'var(--mantine-color-body)',
                   zIndex: 1,
                 }}
               />
-              <Box>
-                <Text ff="monospace" fz={12} c="dimmed" mb={2}>
-                  {event.when} AEST
-                </Text>
-                <Text>
-                  <BoldText text={event.text} /> &middot;{' '}
-                  <Text component="span" c="dimmed">
-                    {event.who}
+              {event.kind === 'comment' ? (
+                <Box flex={1} miw={0}>
+                  <Group gap={8} mb={4}>
+                    <Text fw={700}>{event.who}</Text>
+                    <Text ff="monospace" fz={12} c="dimmed">
+                      {event.when} AEST
+                    </Text>
+                  </Group>
+                  <Text>{event.text}</Text>
+                </Box>
+              ) : (
+                <Box>
+                  <Text ff="monospace" fz={12} c="dimmed" mb={2}>
+                    {event.when} AEST
                   </Text>
-                </Text>
-              </Box>
+                  <Text>
+                    {event.link ? (
+                      <Text
+                        component={Link}
+                        to={event.link}
+                        style={{ textDecoration: 'none', cursor: 'pointer' }}
+                      >
+                        <BoldText text={event.text} />
+                      </Text>
+                    ) : (
+                      <BoldText text={event.text} />
+                    )}{' '}
+                    &middot;{' '}
+                    <Text component="span" c="dimmed">
+                      {event.who}
+                    </Text>
+                  </Text>
+                </Box>
+              )}
             </Group>
           ))}
         </Stack>
       </Box>
 
       <Group gap="sm" wrap="nowrap">
-        <TextInput flex={1} placeholder="Add a note to the case log…" />
-        <Button variant="default" onClick={() => actionNotice('Note posted')}>
+        <TextInput
+          flex={1}
+          placeholder="Add a note to the case log…"
+          value={note}
+          onChange={(e) => setNote(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              post()
+            }
+          }}
+        />
+        <Button variant="default" onClick={post} loading={posting}>
           Post
         </Button>
       </Group>
@@ -1429,14 +1711,73 @@ function TimelinePanel({ timeline }: { timeline: CaseDetailTimelineEvent[] }) {
   )
 }
 
-function CommentsPanel({ comments }: { comments: CaseDetailComment[] }) {
+function CommentsPanel({
+  caseId,
+}: {
+  caseId: string
+}) {
+  const queryClient = useQueryClient()
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  const { data: comments = [] } = useQuery(
+    caseCommentsQueryOptions(caseId, sortOrder),
+  )
+
+  const deleteComment = useMutation({
+    mutationFn: (commentId: string) => deleteCaseComment(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+    },
+  })
+
+  const editingComment = editingCommentId
+    ? comments.find((c) => c.id === editingCommentId)
+    : null
+
   return (
     <Stack gap={0} p="lg">
+      <Group justify="flex-end" mb="xs">
+        <Menu shadow="md" width={160}>
+          <Menu.Target>
+            <ActionIcon variant="subtle" color="gray" size="sm">
+              {sortOrder === 'desc' ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item
+              leftSection={<ArrowDown size={14} />}
+              rightSection={sortOrder === 'desc' ? '✓' : undefined}
+              onClick={() => setSortOrder('desc')}
+            >
+              Newest first
+            </Menu.Item>
+            <Menu.Item
+              leftSection={<ArrowUp size={14} />}
+              rightSection={sortOrder === 'asc' ? '✓' : undefined}
+              onClick={() => setSortOrder('asc')}
+            >
+              Oldest first
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      </Group>
+
+      <CaseCommentEditor
+        caseId={caseId}
+        editingComment={
+          editingComment
+            ? { id: editingComment.id, body: editingComment.body }
+            : null
+        }
+        onEditDone={() => setEditingCommentId(null)}
+      />
+
       {comments.map((comment, index) => {
         const [initials, color] = avatarFor(comment.author)
         return (
           <Group
-            key={`${comment.author}-${comment.time}`}
+            key={comment.id}
             gap="sm"
             align="flex-start"
             wrap="nowrap"
@@ -1459,19 +1800,50 @@ function CommentsPanel({ comments }: { comments: CaseDetailComment[] }) {
               </Group>
               <Text c="var(--desc)">{comment.body}</Text>
             </Box>
+            <Menu shadow="md" width={120}>
+              <Menu.Target>
+                <ActionIcon variant="subtle" color="gray" size="sm">
+                  <Pencil size={14} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<Pencil size={14} />}
+                  onClick={() => setEditingCommentId(comment.id)}
+                >
+                  Edit
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<Trash2 size={14} />}
+                  color="red"
+                  onClick={() => deleteComment.mutate(comment.id)}
+                >
+                  Delete
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         )
       })}
-
-      <CaseCommentEditor />
     </Stack>
   )
 }
 
-function CaseCommentEditor() {
+function CaseCommentEditor({
+  caseId,
+  editingComment,
+  onEditDone,
+}: {
+  caseId: string
+  editingComment?: { id: string; body: string } | null
+  onEditDone?: () => void
+}) {
   const [empty, setEmpty] = useState(true)
+  const [posting, setPosting] = useState(false)
   const { data: mentionUsers } = useQuery(mentionableUsersQueryOptions())
   const usersRef = useRef<MentionUser[]>([])
+  const queryClient = useQueryClient()
+  const editIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     usersRef.current = mentionUsers ?? []
@@ -1492,11 +1864,11 @@ function CaseCommentEditor() {
     onUpdate: ({ editor: activeEditor }) => setEmpty(activeEditor.isEmpty),
     editorProps: {
       attributes: {
-        'aria-label': 'Add a comment',
+        'aria-label': editingComment ? 'Edit comment' : 'Add a comment',
       },
       handleKeyDown: (_view, event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-          post()
+          save()
           return true
         }
         return false
@@ -1504,11 +1876,41 @@ function CaseCommentEditor() {
     },
   })
 
-  function post() {
-    if (!editor || editor.isEmpty) return
-    actionNotice('Comment posted')
-    editor.commands.clearContent()
-    setEmpty(true)
+  // Populate editor when entering edit mode or clear when leaving it
+  useEffect(() => {
+    if (!editor) return
+    const prevId = editIdRef.current
+    editIdRef.current = editingComment?.id ?? null
+    if (editingComment && editingComment.id !== prevId) {
+      editor.commands.setContent(editingComment.body, { contentType: 'markdown' })
+    } else if (!editingComment && prevId) {
+      editor.commands.clearContent()
+      setEmpty(true)
+    }
+  }, [editor, editingComment])
+
+  async function save() {
+    if (!editor || editor.isEmpty || posting) return
+    const markdown = editor.getMarkdown() as string
+    if (!markdown.trim()) return
+    setPosting(true)
+    try {
+      if (editingComment) {
+        await updateCaseComment(editingComment.id, markdown)
+        actionNotice('Comment updated')
+        onEditDone?.()
+      } else {
+        await createCaseComment(caseId, markdown)
+        actionNotice('Comment posted')
+        editor.commands.clearContent()
+        setEmpty(true)
+      }
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+    } catch {
+      actionNotice(editingComment ? 'Failed to update comment' : 'Failed to post comment')
+    } finally {
+      setPosting(false)
+    }
   }
 
   return (
@@ -1532,14 +1934,25 @@ function CaseCommentEditor() {
             <RichTextEditor.Link />
             <RichTextEditor.Unlink />
           </RichTextEditor.ControlsGroup>
+          {editingComment && (
+            <Button
+              variant="subtle"
+              size="xs"
+              color="gray"
+              onClick={() => onEditDone?.()}
+              ml="auto"
+            >
+              Cancel
+            </Button>
+          )}
           <Button
             color="orange"
             size="xs"
-            onClick={post}
+            onClick={save}
             disabled={empty}
-            ml="auto"
+            ml={editingComment ? undefined : 'auto'}
           >
-            Post comment
+            {editingComment ? 'Save comment' : 'Post comment'}
           </Button>
         </RichTextEditor.Toolbar>
         <ScrollArea h={120}>
@@ -1552,14 +1965,62 @@ function CaseCommentEditor() {
 
 function AttachmentsPanel({
   attachments,
+  caseId,
 }: {
   attachments: CaseDetailAttachment[]
+  caseId: string
 }) {
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const dropZoneRef = useRef<HTMLDivElement | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadCaseAttachment(caseId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+    },
+    onError: () => actionNotice('Upload failed'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (linkId: string) => deleteCaseAttachment(caseId, linkId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+    },
+    onError: () => actionNotice('Delete failed'),
+  })
+
+  async function handleDownload(attachment: CaseDetailAttachment) {
+    try {
+      await downloadCaseAttachment(caseId, attachment.linkId, attachment.name)
+    } catch {
+      actionNotice(`Download failed for ${attachment.name}`)
+    }
+  }
+
+  function handleFiles(files: FileList | File[]) {
+    for (const f of Array.from(files)) uploadMutation.mutate(f)
+  }
+
+  // paste handler on the upload area
+  useEffect(() => {
+    const el = dropZoneRef.current
+    if (!el) return
+    function onPaste(e: ClipboardEvent) {
+      if (!e.clipboardData?.files.length) return
+      e.preventDefault()
+      handleFiles(e.clipboardData.files)
+    }
+    el.addEventListener('paste', onPaste)
+    return () => el.removeEventListener('paste', onPaste)
+  }, [caseId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Stack gap={0} p="lg">
       {attachments.map((file) => (
         <Group
-          key={file.name}
+          key={file.linkId}
           gap="sm"
           wrap="nowrap"
           py={12}
@@ -1595,7 +2056,7 @@ function AttachmentsPanel({
             variant="default"
             size="xs"
             leftSection={<Download size={14} />}
-            onClick={() => actionNotice(`Downloading ${file.name}`)}
+            onClick={() => handleDownload(file)}
           >
             Download
           </Button>
@@ -1603,25 +2064,66 @@ function AttachmentsPanel({
             variant="default"
             size="xs"
             leftSection={<Trash2 size={14} />}
-            onClick={() => actionNotice(`${file.name} deleted`)}
+            loading={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate(file.linkId)}
           >
             Delete
           </Button>
         </Group>
       ))}
 
-      <Group gap="md" pt="md">
-        <Button
-          variant="default"
-          leftSection={<Upload size={16} />}
-          onClick={() => actionNotice('File picker opened')}
-        >
-          Upload file
-        </Button>
-        <Text ff="monospace" fz={12} c="dimmed">
-          drag &amp; drop or paste · hashed on upload (SHA-256)
-        </Text>
-      </Group>
+      <Box
+        ref={dropZoneRef}
+        pt="md"
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setDragOver(true)
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setDragOver(false)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setDragOver(false)
+          if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files)
+        }}
+        style={{
+          border: dragOver
+            ? '2px dashed var(--mantine-color-orange-5)'
+            : '2px dashed transparent',
+          borderRadius: 'var(--mantine-radius-sm)',
+          transition: 'border 0.15s',
+        }}
+      >
+        <Group gap="md">
+          <Button
+            variant="default"
+            leftSection={<Upload size={16} />}
+            loading={uploadMutation.isPending}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Upload file
+          </Button>
+          <input
+            ref={fileInputRef}
+            aria-label="Case attachment file picker"
+            type="file"
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              const f = event.currentTarget.files?.[0]
+              if (f) uploadMutation.mutate(f)
+              event.currentTarget.value = ''
+            }}
+          />
+          <Text ff="monospace" fz={12} c="dimmed">
+            drag &amp; drop or paste &middot; hashed on upload (SHA-256)
+          </Text>
+        </Group>
+      </Box>
     </Stack>
   )
 }

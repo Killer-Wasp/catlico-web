@@ -97,9 +97,15 @@ const truncate: CSSProperties = {
   textOverflow: 'ellipsis',
 }
 
-const nameStyle: CSSProperties = { fontSize: 13, fontWeight: 600, ...truncate }
+const nameStyle: CSSProperties = {
+  display: 'block',
+  fontSize: 13,
+  fontWeight: 600,
+  ...truncate,
+}
 
 const subStyle: CSSProperties = {
+  display: 'block',
   fontSize: 11,
   color: 'var(--mantine-color-dimmed)',
   fontFamily: 'var(--mantine-font-family-monospace)',
@@ -152,21 +158,28 @@ const MentionList = forwardRef<MentionListHandle, MentionListProps>(
 
     return (
       <div style={menuStyle}>
-        {props.items.map((item, index) => (
-          <button
-            key={item.id}
-            type="button"
-            // mousedown (not click) so the editor selection isn't lost first.
-            onMouseDown={(event) => {
-              event.preventDefault()
-              select(index)
-            }}
-            onMouseEnter={() => setSelected(index)}
-            style={itemStyle(index === selected)}
-          >
-            {item.label}
-          </button>
-        ))}
+        {props.items.map((item, index) => {
+          const [initials, color] = avatarFor(item.email)
+          return (
+            <button
+              key={item.id}
+              type="button"
+              // mousedown (not click) so the editor selection isn't lost first.
+              onMouseDown={(event) => {
+                event.preventDefault()
+                select(index)
+              }}
+              onMouseEnter={() => setSelected(index)}
+              style={itemStyle(index === selected)}
+            >
+              <span style={avatarStyle(color)}>{initials}</span>
+              <span style={{ ...truncate, minWidth: 0 }}>
+                <span style={nameStyle}>{item.label}</span>
+                <span style={subStyle}>{item.email}</span>
+              </span>
+            </button>
+          )
+        })}
       </div>
     )
   },

@@ -11,7 +11,7 @@ import {
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   organisationProfileQueryOptions,
   settingsKeys,
@@ -30,15 +30,29 @@ export function OrgProfilePanel() {
   } = useQuery(organisationProfileQueryOptions())
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const browserTz = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    [],
+  )
+  const [timezone, setTimezone] = useState(browserTz)
+  const [defaultTlp, setDefaultTlp] = useState(2)
 
   useEffect(() => {
     if (!org) return
     setName(org.name)
     setDescription(org.description)
+    setTimezone(org.timezone)
+    setDefaultTlp(org.default_tlp)
   }, [org])
 
   const saveMutation = useMutation({
-    mutationFn: () => updateOrganisationProfile({ name, description }),
+    mutationFn: () =>
+      updateOrganisationProfile({
+        name,
+        description,
+        timezone,
+        default_tlp: defaultTlp,
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(settingsKeys.organisation(updated.id), updated)
       notifications.show({
@@ -98,14 +112,27 @@ export function OrgProfilePanel() {
           />
           <Select
             label="Timezone"
-            data={['Australia/Sydney (AEST)', 'UTC']}
-            defaultValue="Australia/Sydney (AEST)"
+            data={Array.from(new Set([
+              browserTz,
+              'UTC',
+              'Australia/Sydney',
+              'America/New_York',
+              'Europe/London',
+              'Asia/Tokyo',
+            ]))}
+            value={timezone}
+            onChange={(v) => setTimezone(v ?? browserTz)}
             allowDeselect={false}
           />
           <Select
             label="Default case TLP"
-            data={['TLP:AMBER', 'TLP:GREEN', 'TLP:RED']}
-            defaultValue="TLP:AMBER"
+            data={[
+              { value: '2', label: 'TLP:AMBER' },
+              { value: '1', label: 'TLP:GREEN' },
+              { value: '3', label: 'TLP:RED' },
+            ]}
+            value={String(defaultTlp)}
+            onChange={(v) => setDefaultTlp(Number(v) ?? 2)}
             allowDeselect={false}
           />
         </SimpleGrid>

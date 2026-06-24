@@ -162,7 +162,13 @@ function ReportProperty({
       <Text ff="monospace" fz={13} c="dimmed" w={120} style={{ flexShrink: 0 }}>
         {label}
       </Text>
-      <Text ff="monospace" fz={13} fw={600} c="dark.9" style={{ wordBreak: 'break-word' }}>
+      <Text
+        ff="monospace"
+        fz={13}
+        fw={600}
+        c="dark.9"
+        style={{ wordBreak: 'break-word' }}
+      >
         {children}
       </Text>
     </Group>
@@ -223,7 +229,13 @@ function AnalysisReportDrawer({
             }}
           >
             <Text {...headerProps}>Observable · {detail.observableType}</Text>
-            <Text ff="monospace" fz={18} fw={800} mt={8} style={{ wordBreak: 'break-word' }}>
+            <Text
+              ff="monospace"
+              fz={18}
+              fw={800}
+              mt={8}
+              style={{ wordBreak: 'break-word' }}
+            >
               {detail.observable}
             </Text>
             <Group gap={8} mt="sm">
@@ -260,13 +272,21 @@ function AnalysisReportDrawer({
             <ReportProperty label="Analyzer">
               {detail.plugin} {detail.version && `· ${detail.version}`}
             </ReportProperty>
-            <ReportProperty label="Type">{detail.observableType}</ReportProperty>
+            <ReportProperty label="Type">
+              {detail.observableType}
+            </ReportProperty>
             <ReportProperty label="TLP">{detail.tlp}</ReportProperty>
             <ReportProperty label="Attempts">{detail.attempts}</ReportProperty>
-            <ReportProperty label="Queued">{detail.queued ?? '—'}</ReportProperty>
-            <ReportProperty label="Started">{detail.started ?? '—'}</ReportProperty>
+            <ReportProperty label="Queued">
+              {detail.queued ?? '—'}
+            </ReportProperty>
+            <ReportProperty label="Started">
+              {detail.started ?? '—'}
+            </ReportProperty>
             <ReportProperty label="Ended">{detail.ended ?? '—'}</ReportProperty>
-            <ReportProperty label="Duration">{detail.duration ?? '—'}</ReportProperty>
+            <ReportProperty label="Duration">
+              {detail.duration ?? '—'}
+            </ReportProperty>
           </Stack>
 
           {detail.error && (
@@ -274,7 +294,12 @@ function AnalysisReportDrawer({
               <Divider />
               <Stack gap={8} px="xl" py="lg">
                 <Text {...headerProps}>Error</Text>
-                <Text ff="monospace" fz={13} c="red.7" style={{ wordBreak: 'break-word' }}>
+                <Text
+                  ff="monospace"
+                  fz={13}
+                  c="red.7"
+                  style={{ wordBreak: 'break-word' }}
+                >
                   {detail.error}
                 </Text>
               </Stack>
@@ -312,7 +337,13 @@ function AnalysisReportDrawer({
               <Stack gap={8}>
                 {reportEntries.map(([key, value]) => (
                   <Group key={key} gap={24} align="flex-start" wrap="nowrap">
-                    <Text ff="monospace" fz={13} c="dimmed" w={150} style={{ flexShrink: 0 }}>
+                    <Text
+                      ff="monospace"
+                      fz={13}
+                      c="dimmed"
+                      w={150}
+                      style={{ flexShrink: 0 }}
+                    >
                       {key}
                     </Text>
                     <Code block style={{ flex: 1, fontSize: 12 }}>
@@ -344,7 +375,9 @@ export function ConnectorJobsPage() {
   const detailQuery = useQuery(analyzerJobDetailQueryOptions(selectedJobId))
 
   const invalidateList = () =>
-    queryClient.invalidateQueries({ queryKey: analyzerJobsQueryOptions().queryKey })
+    queryClient.invalidateQueries({
+      queryKey: analyzerJobsQueryOptions().queryKey,
+    })
 
   const retryMutation = useMutation({
     mutationFn: retryFailedAnalyzerJobs,
@@ -529,7 +562,9 @@ export function ConnectorJobsPage() {
                 <Table.Tr
                   key={job.id}
                   tabIndex={0}
-                  style={{ cursor: isTerminal(job.status) ? 'pointer' : 'default' }}
+                  style={{
+                    cursor: isTerminal(job.status) ? 'pointer' : 'default',
+                  }}
                   onClick={() => {
                     if (isTerminal(job.status)) setSelectedJobId(job.id)
                   }}

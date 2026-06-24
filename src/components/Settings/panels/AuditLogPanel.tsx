@@ -1,16 +1,48 @@
-import { Button, Code, Table } from '@mantine/core'
-import { auditEvents } from '#/components/Settings/settingsData'
-import { notify, Panel, TableBox } from '#/components/Settings/settingsUi'
+import { Button, Code, Table, Text } from '@mantine/core'
+import { useQuery } from '@tanstack/react-query'
+import {
+  auditsQueryOptions,
+} from '#/components/Settings/settingsQueries'
+import type { AuditPublic } from '#/components/Settings/settingsQueries'
+import {
+  compactDate,
+  LoadingPanel,
+  Panel,
+  TableBox,
+} from '#/components/Settings/settingsUi'
 
 export function AuditLogPanel() {
+  const { data, isPending } = useQuery(auditsQueryOptions())
+  const items = data?.items ?? []
+
+  if (isPending) return <LoadingPanel label="Loading audit log..." />
+
   return (
     <Panel
       title="Audit log"
-      count={`${auditEvents.length} events`}
+      count={`${data?.total ?? items.length} events`}
       action={
         <Button
           variant="default"
-          onClick={() => notify('Audit log exported - audit-log.csv')}
+          onClick={() => {
+            // ponytail: client-side CSV export; proper server export if needed
+            const header = 'Time,Actor,Action,Entity,Object,Org\n'
+            const rows = items
+              .map(
+                (r) =>
+                  `${r.created_at},${r.actor},${r.action},${r.object_type},${r.object_id},${r.context_id ?? ''}`,
+              )
+              .join('\n')
+            const blob = new Blob([header + rows], {
+              type: 'text/csv',
+            })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = 'audit-log.csv'
+            a.click()
+            URL.revokeObjectURL(url)
+          }}
         >
           Export CSV
         </Button>
@@ -29,24 +61,33 @@ export function AuditLogPanel() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {auditEvents.map(([time, actor, action, entity, object, org]) => (
-              <Table.Tr key={`${time}-${action}-${object}`}>
+            {items.map((item: AuditPublic) => (
+              <Table.Tr key={item.id}>
                 <Table.Td ff="monospace" c="var(--faint)">
-                  {time}
+                  {compactDate(item.created_at)}
                 </Table.Td>
-                <Table.Td>{actor}</Table.Td>
+                <Table.Td>{item.actor}</Table.Td>
                 <Table.Td>
-                  <Code>{action}</Code>
+                  <Code>{item.action}</Code>
                 </Table.Td>
-                <Table.Td>{entity}</Table.Td>
+                <Table.Td>{item.object_type}</Table.Td>
                 <Table.Td ff="monospace" c="var(--faint)">
-                  {object}
+                  {item.object_id}
                 </Table.Td>
                 <Table.Td>
-                  <Code>{org}</Code>
+                  <Code>{item.context_id ?? '—'}</Code>
                 </Table.Td>
               </Table.Tr>
             ))}
+            {items.length === 0 && (
+              <Table.Tr>
+                <Table.Td colSpan={6}>
+                  <Text c="dimmed" ta="center">
+                    No audit events found.
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
           </Table.Tbody>
         </Table>
       </TableBox>

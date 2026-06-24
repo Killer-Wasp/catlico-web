@@ -32,8 +32,10 @@ import {
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Outlet, useLocation } from '@tanstack/react-router'
+import { Outlet, useLocation } from '@tanstack/react-router'
+import { ButtonLink } from '#/components/ui/ButtonLink'
 import { useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 
 const filterTabs: { value: CaseTemplateFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -41,7 +43,7 @@ const filterTabs: { value: CaseTemplateFilter; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ]
 
-function TemplateChip({ children }: { children: string }) {
+function TemplateChip({ children }: { children: ReactNode }) {
   return (
     <Text
       component="span"
@@ -87,8 +89,7 @@ function TemplateCard({
       }}
     >
       <Group align="flex-start" justify="space-between" gap="sm" wrap="nowrap">
-        <Button
-          component={Link}
+        <ButtonLink
           to="/case-templates/$templateId"
           params={{ templateId: template.id }}
           variant="transparent"
@@ -101,7 +102,7 @@ function TemplateCard({
           style={{ whiteSpace: 'normal', lineHeight: 1.25 }}
         >
           {template.name}
-        </Button>
+        </ButtonLink>
         {template.builtin && (
           <Badge
             variant="outline"
@@ -162,15 +163,14 @@ function TemplateCard({
         <Text ff="monospace" fz={11} c="var(--faint)" flex={1}>
           updated {template.updated}
         </Text>
-        <Button
-          component={Link}
+        <ButtonLink
           to="/case-templates/$templateId"
           params={{ templateId: template.id }}
           size="xs"
           variant="default"
         >
           Edit
-        </Button>
+        </ButtonLink>
         <Button
           size="xs"
           variant="default"
@@ -306,13 +306,9 @@ export function CaseTemplatesPage() {
           >
             Import JSON
           </Button>
-          <Button
-            component={Link}
-            to={newTemplateLink.to}
-            params={newTemplateLink.params}
-          >
+          <ButtonLink to={newTemplateLink.to} params={newTemplateLink.params}>
             + New template
-          </Button>
+          </ButtonLink>
         </Group>
       </Group>
 

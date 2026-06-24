@@ -1,9 +1,12 @@
 import {
+  Badge,
   Box,
   Button,
   Code,
   Group,
+  Modal,
   Paper,
+  Select,
   Stack,
   Table,
   Text,
@@ -14,20 +17,24 @@ import {
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { orgLinks } from '#/components/Settings/settingsData'
 import {
   createOrganisation,
+  createOrganisationLink,
   deleteOrganisation,
+  deleteOrganisationLink,
+  fetchOrganisationLinks,
   organisationProfileQueryOptions,
   organisationsQueryOptions,
   settingsKeys,
   updateOrganisationProfile,
 } from '#/components/Settings/settingsQueries'
-import type { OrganisationPublic } from '#/components/Settings/settingsQueries'
+import type {
+  OrganisationLinkPublic,
+  OrganisationPublic,
+} from '#/components/Settings/settingsQueries'
 import {
   compactDate,
   Panel,
-  StatusBadge,
   TableBox,
   toOrgShortName,
 } from '#/components/Settings/settingsUi'
@@ -133,6 +140,48 @@ export function OrganisationsPanel() {
           error instanceof Error
             ? error.message
             : 'Unable to delete organisation',
+      }),
+  })
+
+  const [linkModalOpen, setLinkModalOpen] = useState(false)
+  const [linkToOrg, setLinkToOrg] = useState('')
+
+  const { data: links = [] } = useQuery({
+    queryKey: settingsKeys.links(activeOrg?.id ?? ''),
+    queryFn: () =>
+      activeOrg ? fetchOrganisationLinks(activeOrg.id) : Promise.resolve([]),
+    enabled: !!activeOrg,
+  })
+
+  const linkCreateMutation = useMutation({
+    mutationFn: () =>
+      createOrganisationLink({ to_org_id: linkToOrg }, activeOrg!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+      notifications.show({ color: 'green', message: 'Link created' })
+      setLinkModalOpen(false)
+      setLinkToOrg('')
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to create link',
+      }),
+  })
+
+  const linkDeleteMutation = useMutation({
+    mutationFn: (toOrgId: string) =>
+      deleteOrganisationLink(toOrgId, activeOrg!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+      notifications.show({ message: 'Link removed' })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to remove link',
       }),
   })
 
@@ -338,22 +387,87 @@ export function OrganisationsPanel() {
         </TableBox>
       </Panel>
 
-      <Panel title="Organisation links" count="who can share with whom">
-        <Stack gap={8} p={18}>
-          {orgLinks.map(([from, to]) => (
-            <Group key={`${from}-${to}`} gap="sm">
-              <Text fz={13}>{from}</Text>
+      <Panel title="Organisation links" count={`${links.length} links`}>
+        <Group justify="flex-end" p={12}>
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => setLinkModalOpen(true)}
+            disabled={!activeOrg}
+          >
+            + Add link
+          </Button>
+        </Group>
+        <Stack gap={8} px={18} pb={18}>
+          {links.map((link: OrganisationLinkPublic) => (
+            <Group key={`${link.from_org_id}-${link.to_org_id}`} gap="sm">
+              <Text fz={13}>{link.from_org_id}</Text>
               <Text ff="monospace" c="orange.7">
-                -&gt;
+                &rarr;
               </Text>
               <Text fz={13} flex={1}>
-                {to}
+                {link.to_org_id}
               </Text>
-              <StatusBadge state="CAN SHARE" />
+              <Badge
+                variant="light"
+                color="green"
+                radius="xl"
+                ff="monospace"
+                size="sm"
+              >
+                CAN SHARE
+              </Badge>
+              <Button
+                size="xs"
+                variant="default"
+                color="red"
+                onClick={() => linkDeleteMutation.mutate(link.to_org_id)}
+              >
+                Remove
+              </Button>
             </Group>
           ))}
+          {links.length === 0 && (
+            <Text c="dimmed" fz={13}>
+              No organisation links configured.
+            </Text>
+          )}
         </Stack>
       </Panel>
+
+      <Modal
+        opened={linkModalOpen}
+        onClose={() => setLinkModalOpen(false)}
+        title="Add organisation link"
+      >
+        <Stack gap="md">
+          <Select
+            label="Target organisation"
+            data={organisations
+              .filter((o) => o.id !== activeOrg?.id)
+              .map((o) => ({ value: o.id, label: `${o.name} (${o.id})` }))}
+            value={linkToOrg}
+            onChange={(v) => setLinkToOrg(v ?? '')}
+            searchable
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => setLinkModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="orange"
+              loading={linkCreateMutation.isPending}
+              disabled={!linkToOrg}
+              onClick={() => linkCreateMutation.mutate()}
+            >
+              Add link
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   )
 }

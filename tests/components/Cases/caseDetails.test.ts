@@ -140,6 +140,7 @@ describe('case detail data helpers', () => {
           created_at: '2026-06-12T10:21:00Z',
           created_by: '3713abbf-4e3c-401c-bd0b-e8a2f5597554',
           updated_at: null,
+          author_name: 'P. Nguyen',
         },
       ],
       members: [
@@ -209,8 +210,14 @@ describe('case detail data helpers', () => {
       body: '@J. Tanaka audit log pulled.',
     })
     expect(detail.timeline[0]).toMatchObject({
+      text: '@J. Tanaka audit log pulled.',
+      who: 'P. Nguyen',
+      kind: 'comment',
+    })
+    expect(detail.timeline[1]).toMatchObject({
       text: '**update** case 1842',
       who: 'J. Tanaka',
+      kind: 'audit',
     })
     expect(detail.attachments).toEqual([])
     expect(detail.responders).toEqual([])

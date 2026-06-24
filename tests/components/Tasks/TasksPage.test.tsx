@@ -146,7 +146,7 @@ describe('TasksPage', () => {
 
   test('shows a backend error instead of falling back to fixture tasks', async () => {
     vi.mocked(api.get).mockReturnValue({
-      json: async () => {
+      json: async (): Promise<unknown> => {
         throw new Error('backend unavailable')
       },
     } satisfies JsonResponse as ReturnType<typeof api.get>)
