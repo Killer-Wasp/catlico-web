@@ -1,48 +1,23 @@
-import { TLP } from '#/lib/domain'
 import classes from '#/components/Cases/CasesPage.module.css'
 import type {
   Observable,
   ObservableFlag,
-  ObservableType,
 } from '#/components/Observables/observables.types'
 import { observableTypeLabels } from '#/components/Observables/observables'
-import {
-  observableEnrichmentsQueryOptions,
-  observablesQueryOptions,
-} from '#/components/Observables/observablesQueries'
-import type {
-  EnrichmentJob,
-  EnrichmentOverview,
-  EnrichmentVerdict,
-  ReportTag,
-} from '#/components/Observables/observablesQueries'
+import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import { TokenSearch } from '#/components/Table/TokenSearch'
 import {
-  ActionIcon,
-  Badge,
   Box,
   Button,
-  Checkbox,
-  Drawer,
   Group,
-  Loader,
   Pagination,
   Paper,
   Select,
-  Stack,
-  Table,
   Text,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
-import type {
-  ColumnDef,
-  FilterFn,
-  SortingFn,
-  SortingState,
-} from '@tanstack/react-table'
+import type { SortingState } from '@tanstack/react-table'
 import {
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -50,133 +25,16 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useQuery } from '@tanstack/react-query'
-import { Play, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { ObservableDetailDrawer } from './observables/ObservableDetailDrawer'
+import { ObservablesTable } from './observables/ObservablesTable'
+import { buildObservableColumns } from './observables/observableColumns'
+import { TYPE_ORDER } from './observables/constants'
+import styles from './observables/styles.module.css'
+import { addFlag, toggleFlag } from './observables/tableFns'
 
-const filterLblProps = {
-  ff: 'monospace',
-  fz: 10,
-  lts: '0.8px',
-  tt: 'uppercase',
-  c: 'dimmed',
-} as const
-
-const headerProps = {
-  ff: 'monospace',
-  tt: 'uppercase',
-  fz: 10,
-  fw: 500,
-  c: 'dimmed',
-  lts: '1px',
-} as const
-
-const TYPE_ORDER: ObservableType[] = [
-  'domain',
-  'url',
-  'mail',
-  'ip',
-  'other',
-  'hash',
-  'file',
-]
-
-const UNIT_MIN: Record<string, number> = { m: 1, h: 60, d: 1440 }
-const addedMinutes = (s: string) => {
-  const relative = /^(\d+)\s*([mhd])$/.exec(s.trim())
-  if (relative) return Number(relative[1]) * UNIT_MIN[relative[2]]
-
-  const absolute = /^(\d{2}):(\d{2})$/.exec(s.trim())
-  if (!absolute) return Number.POSITIVE_INFINITY
-  return Number(absolute[1]) * 60 + Number(absolute[2])
-}
-
-const byAdded: SortingFn<Observable> = (a, b) =>
-  addedMinutes(a.original.added) - addedMinutes(b.original.added)
-
-const includesOneString: FilterFn<Observable> = (
-  row,
-  columnId,
-  filterValue: string[],
-) => {
-  if (!filterValue.length) return true
-  return filterValue.includes(String(row.getValue(columnId)))
-}
-
-const includesAnySubstring: FilterFn<Observable> = (
-  row,
-  columnId,
-  filterValue: string[],
-) => {
-  if (!filterValue.length) return true
-  const cell = String(row.getValue(columnId)).toLowerCase()
-  return filterValue.some((query) => cell.includes(query.toLowerCase()))
-}
-
-const includesAnyFlag: FilterFn<Observable> = (
-  row,
-  columnId,
-  filterValue: string[],
-) => {
-  if (!filterValue.length) return true
-  const flags = row.getValue<ObservableFlag[]>(columnId)
-  return filterValue.some((flag) => flags.includes(flag as ObservableFlag))
-}
-
-function flagLabel(flag: ObservableFlag) {
-  return flag === 'ioc' ? 'IOC' : 'SIGHTED'
-}
-
-function TypePill({ type }: { type: ObservableType }) {
-  return (
-    <Badge
-      variant="light"
-      color="gray"
-      radius="sm"
-      tt="lowercase"
-      ff="monospace"
-      fz={11}
-    >
-      {type}
-    </Badge>
-  )
-}
-
-function TlpPill({ tlp }: { tlp: Observable['tlp'] }) {
-  const label = TLP[tlp].toUpperCase()
-  const color =
-    tlp === 1 ? 'green' : tlp === 2 ? 'yellow' : tlp === 3 ? 'red' : 'gray'
-  return (
-    <Badge variant="light" color={color} radius="sm" ff="monospace" fz={11}>
-      TLP:{label}
-    </Badge>
-  )
-}
-
-function AnalysisPill({ observable }: { observable: Observable }) {
-  if (!observable.analysis) {
-    return (
-      <Text component="span" c="dimmed" ff="monospace" fz={13}>
-        —
-      </Text>
-    )
-  }
-
-  return (
-    <Badge variant="light" color="violet" radius="sm" ff="monospace" fz={11}>
-      {observable.analysis.analyzer} {observable.analysis.verdict}
-    </Badge>
-  )
-}
-
-function addFlag(flags: ObservableFlag[], flag: ObservableFlag) {
-  return flags.includes(flag) ? flags : [...flags, flag]
-}
-
-function toggleFlag(flags: ObservableFlag[], flag: ObservableFlag) {
-  return flags.includes(flag)
-    ? flags.filter((item) => item !== flag)
-    : [...flags, flag]
-}
+export { ObservableDetailDrawer } from './observables/ObservableDetailDrawer'
 
 export function ObservablesPage() {
   const { data, isPending, isError, refetch, isFetching } = useQuery(
@@ -216,160 +74,7 @@ export function ObservablesPage() {
     )
   }
 
-  const columns = useMemo<ColumnDef<Observable>[]>(
-    () => [
-      {
-        id: 'select',
-        header: ({ table }) => (
-          <Checkbox
-            size="xs"
-            checked={table.getIsAllRowsSelected()}
-            indeterminate={table.getIsSomeRowsSelected()}
-            onChange={table.getToggleAllRowsSelectedHandler()}
-            aria-label="Select all observables"
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            size="xs"
-            checked={row.getIsSelected()}
-            onChange={row.getToggleSelectedHandler()}
-            aria-label={`Select observable ${row.original.value}`}
-          />
-        ),
-        enableColumnFilter: false,
-        enableSorting: false,
-        meta: { ta: 'center' },
-      },
-      {
-        id: 'type',
-        header: 'Type',
-        accessorFn: (row) => row.type,
-        filterFn: includesOneString,
-        enableSorting: false,
-        cell: (info) => <TypePill type={info.getValue<ObservableType>()} />,
-      },
-      {
-        id: 'value',
-        header: 'Value',
-        accessorFn: (row) => row.value,
-        filterFn: includesAnySubstring,
-        enableSorting: true,
-        cell: (info) => (
-          <Text
-            ff="monospace"
-            fz={13}
-            fw={600}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {info.getValue<string>()}
-          </Text>
-        ),
-      },
-      {
-        id: 'flags',
-        header: 'Flags',
-        accessorFn: (row) => row.flags,
-        filterFn: includesAnyFlag,
-        enableSorting: false,
-        meta: { visibleFrom: 'sm' },
-        cell: (info) => {
-          const flags = info.getValue<ObservableFlag[]>()
-          return flags.length ? (
-            <Group gap={6} wrap="nowrap">
-              {flags.map((flag) => (
-                <Text
-                  key={flag}
-                  component="span"
-                  ff="monospace"
-                  fz={11}
-                  fw={700}
-                  c={flag === 'ioc' ? 'dark.8' : 'yellow.7'}
-                >
-                  {flagLabel(flag)}
-                </Text>
-              ))}
-            </Group>
-          ) : (
-            <Text component="span" c="dimmed" ff="monospace" fz={13}>
-              —
-            </Text>
-          )
-        },
-      },
-      {
-        id: 'tlp',
-        header: 'TLP',
-        accessorFn: (row) => row.tlp,
-        filterFn: includesOneString,
-        enableSorting: false,
-        cell: (info) => <TlpPill tlp={info.getValue<Observable['tlp']>()} />,
-      },
-      {
-        id: 'source',
-        header: 'Source',
-        accessorFn: (row) => row.source,
-        filterFn: includesOneString,
-        enableSorting: false,
-        meta: { visibleFrom: 'md' },
-        cell: (info) => (
-          <Badge variant="light" color="gray" radius="sm" ff="monospace">
-            {info.getValue<string>()}
-          </Badge>
-        ),
-      },
-      {
-        id: 'analysis',
-        header: 'Analysis',
-        enableColumnFilter: false,
-        enableSorting: false,
-        meta: { visibleFrom: 'md' },
-        cell: ({ row }) => <AnalysisPill observable={row.original} />,
-      },
-      {
-        id: 'added',
-        header: 'Added',
-        accessorFn: (row) => row.added,
-        enableColumnFilter: false,
-        enableSorting: true,
-        sortingFn: byAdded,
-        meta: { visibleFrom: 'sm' },
-        cell: (info) => (
-          <Text
-            ff="monospace"
-            fz={12}
-            c="dimmed"
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {info.getValue<string>()}
-          </Text>
-        ),
-      },
-      {
-        id: 'actions',
-        header: '',
-        enableColumnFilter: false,
-        enableSorting: false,
-        meta: { ta: 'right' },
-        cell: ({ row }) => (
-          <Button
-            size="xs"
-            variant="default"
-            color="gray"
-            leftSection={<Play size={12} fill="currentColor" />}
-            onClick={() =>
-              notifications.show({
-                message: `Analyzer queued for ${row.original.value}`,
-              })
-            }
-          >
-            Analyze
-          </Button>
-        ),
-      },
-    ],
-    [],
-  )
+  const columns = useMemo(() => buildObservableColumns(), [])
 
   const table = useReactTable({
     data: observables,
@@ -458,7 +163,6 @@ export function ObservablesPage() {
   const pageCount = Math.max(1, table.getPageCount())
   const rangeStart = totalFiltered === 0 ? 0 : pageIndex * pageSize + 1
   const rangeEnd = Math.min((pageIndex + 1) * pageSize, totalFiltered)
-  const rows = table.getRowModel().rows
 
   const columnFilters = table.getState().columnFilters
   const tokens = useMemo<Token[]>(() => {
@@ -556,7 +260,7 @@ export function ObservablesPage() {
           align="center"
           style={{ borderBottom: '1px solid var(--line-soft)' }}
         >
-          <Text component="span" {...filterLblProps}>
+          <Text component="span" className={styles.fieldLabel}>
             filter
           </Text>
           <TokenSearch
@@ -578,137 +282,14 @@ export function ObservablesPage() {
           )}
         </Group>
 
-        <Table.ScrollContainer minWidth={1080}>
-          <Table
-            highlightOnHover
-            horizontalSpacing="lg"
-            verticalSpacing="sm"
-            borderColor="var(--line-soft)"
-          >
-            <Table.Thead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <Table.Tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const meta = header.column.columnDef.meta
-                    return (
-                      <Table.Th
-                        key={header.id}
-                        {...headerProps}
-                        ta={meta?.ta}
-                        visibleFrom={meta?.visibleFrom}
-                        w={header.column.id === 'select' ? 40 : undefined}
-                      >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                      </Table.Th>
-                    )
-                  })}
-                </Table.Tr>
-              ))}
-            </Table.Thead>
-            <Table.Tbody>
-              {isPending ? (
-                <Table.Tr>
-                  <Table.Td
-                    ta="center"
-                    c="dimmed"
-                    fz={13}
-                    py={40}
-                    px={18}
-                    colSpan={table.getVisibleLeafColumns().length}
-                  >
-                    <Group justify="center" gap="xs">
-                      <Loader size="xs" />
-                      <Text component="span" fz={13} c="dimmed">
-                        Loading observables…
-                      </Text>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ) : isError ? (
-                <Table.Tr>
-                  <Table.Td
-                    ta="center"
-                    c="red.7"
-                    fz={13}
-                    py={40}
-                    px={18}
-                    colSpan={table.getVisibleLeafColumns().length}
-                  >
-                    <Stack align="center" gap="xs">
-                      <Text component="span" fz={13} c="red.7">
-                        Couldn’t load observables from the backend.
-                      </Text>
-                      <Button
-                        size="xs"
-                        variant="default"
-                        loading={isFetching}
-                        onClick={() => refetch()}
-                      >
-                        Retry
-                      </Button>
-                    </Stack>
-                  </Table.Td>
-                </Table.Tr>
-              ) : (
-                rows.map((row) => {
-                  const isSelected = row.getIsSelected()
-                  return (
-                    <Table.Tr
-                      key={row.id}
-                      bg={isSelected ? 'orange.0' : undefined}
-                      tabIndex={0}
-                      onClick={() => setActiveObservable(row.original)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter')
-                          setActiveObservable(row.original)
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {row.getVisibleCells().map((cell) => {
-                        const meta = cell.column.columnDef.meta
-                        return (
-                          <Table.Td
-                            key={cell.id}
-                            ta={meta?.ta}
-                            visibleFrom={meta?.visibleFrom}
-                            onClick={
-                              cell.column.id === 'select' ||
-                              cell.column.id === 'actions'
-                                ? (event) => event.stopPropagation()
-                                : undefined
-                            }
-                          >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </Table.Td>
-                        )
-                      })}
-                    </Table.Tr>
-                  )
-                })
-              )}
-              {!isPending && !isError && rows.length === 0 && (
-                <Table.Tr>
-                  <Table.Td
-                    ta="center"
-                    c="dimmed"
-                    fz={13}
-                    py={40}
-                    px={18}
-                    colSpan={table.getVisibleLeafColumns().length}
-                  >
-                    No observables match the current filters.
-                  </Table.Td>
-                </Table.Tr>
-              )}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <ObservablesTable
+          table={table}
+          isPending={isPending}
+          isError={isError}
+          isFetching={isFetching}
+          onRetry={() => refetch()}
+          onOpen={setActiveObservable}
+        />
 
         <Group
           gap={12}
@@ -722,7 +303,7 @@ export function ObservablesPage() {
           </Text>
           <Group gap="md" wrap="nowrap" ml="auto">
             <Group gap="xs" wrap="nowrap">
-              <Text component="span" {...filterLblProps}>
+              <Text component="span" className={styles.fieldLabel}>
                 rows
               </Text>
               <Select
@@ -776,331 +357,5 @@ export function ObservablesPage() {
         onClose={() => setActiveObservable(null)}
       />
     </Box>
-  )
-}
-
-function DetailRow({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <Group gap={20} align="flex-start" wrap="nowrap">
-      <Text ff="monospace" fz={12} c="dimmed" w={120}>
-        {label}
-      </Text>
-      <Text fz={13} fw={600}>
-        {children}
-      </Text>
-    </Group>
-  )
-}
-
-function DetailChip({
-  children,
-  color = 'gray',
-}: {
-  children: React.ReactNode
-  color?: string
-}) {
-  return (
-    <Badge variant="light" color={color} radius="sm" ff="monospace" fz={11}>
-      {children}
-    </Badge>
-  )
-}
-
-const VERDICT_RANK: Record<EnrichmentVerdict, number> = {
-  info: 0,
-  safe: 1,
-  suspicious: 2,
-  malicious: 3,
-}
-
-const VERDICT_COLOR: Record<EnrichmentVerdict, string> = {
-  info: 'blue',
-  safe: 'green',
-  suspicious: 'yellow',
-  malicious: 'red',
-}
-
-function topVerdict(jobs: EnrichmentJob[]): EnrichmentVerdict | null {
-  let best: EnrichmentVerdict | null = null
-  for (const job of jobs) {
-    if (!job.verdict) continue
-    if (best === null || VERDICT_RANK[job.verdict] > VERDICT_RANK[best]) {
-      best = job.verdict
-    }
-  }
-  return best
-}
-
-function clockTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-AU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-}
-
-function EnrichmentCard({
-  job,
-  tags,
-}: {
-  job: EnrichmentJob
-  tags: ReportTag[]
-}) {
-  const failed = job.status !== 'success'
-  const verdict = job.verdict ?? 'info'
-  const color = failed ? 'gray' : VERDICT_COLOR[verdict]
-  const stamp = clockTime(job.ended_at ?? job.queued_at)
-  const meta = [
-    `v${job.connector_version}`,
-    stamp,
-    job.from_cache ? 'cached' : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-
-  return (
-    <Paper bg="gray.0" p="sm" radius="md" withBorder={false}>
-      <Group justify="space-between" align="flex-start" mb={8}>
-        <Group gap={8}>
-          <DetailChip color={color}>
-            {failed ? job.status.toUpperCase() : verdict.toUpperCase()}
-          </DetailChip>
-          <Text fw={700} fz={14}>
-            {tags.length ? tags[0].namespace : job.connector_name}
-          </Text>
-        </Group>
-        <Text ff="monospace" fz={11} c="dimmed">
-          {meta}
-        </Text>
-      </Group>
-      {failed && job.error ? (
-        <Text fz={12} c="red.7">
-          {job.error}
-        </Text>
-      ) : tags.length ? (
-        <Group gap={6}>
-          {tags.map((tag) => (
-            <DetailChip
-              key={`${tag.namespace}:${tag.predicate}=${tag.value}`}
-              color={VERDICT_COLOR[tag.level]}
-            >
-              {tag.namespace}:{tag.predicate}={tag.value}
-            </DetailChip>
-          ))}
-        </Group>
-      ) : (
-        <Text fz={12} c="dimmed">
-          No taxonomy reported.
-        </Text>
-      )}
-    </Paper>
-  )
-}
-
-function EnrichmentSection({ observableId }: { observableId: string }) {
-  const { data, isPending, isError, isFetching, refetch } = useQuery(
-    observableEnrichmentsQueryOptions(observableId),
-  )
-  const jobs = data?.jobs ?? []
-  const tags = data?.tags ?? []
-  const runAnalyzers = async () => {
-    await refetch()
-    notifications.show({
-      color: 'blue',
-      message: 'Analyzers queued and enrichment refreshed',
-    })
-  }
-
-  return (
-    <Stack gap="sm">
-      <Group justify="space-between">
-        <Text {...headerProps}>Enrichment</Text>
-        <Button
-          size="xs"
-          variant="default"
-          color="gray"
-          leftSection={<Play size={12} fill="currentColor" />}
-          loading={isFetching}
-          onClick={runAnalyzers}
-        >
-          Run analyzers
-        </Button>
-      </Group>
-
-      {isPending ? (
-        <Group gap="xs" py="sm">
-          <Loader size="xs" />
-          <Text fz={13} c="dimmed">
-            Loading enrichment…
-          </Text>
-        </Group>
-      ) : isError ? (
-        <Text fz={13} c="red.7">
-          Couldn’t load enrichment for this observable.
-        </Text>
-      ) : jobs.length === 0 ? (
-        <Text fz={13} c="dimmed">
-          No analyzers have run yet — run analyzers to enrich this observable.
-        </Text>
-      ) : (
-        jobs.map((job) => (
-          <EnrichmentCard
-            key={job.id}
-            job={job}
-            tags={tags.filter(
-              (tag) => tag.connector_name === job.connector_name,
-            )}
-          />
-        ))
-      )}
-    </Stack>
-  )
-}
-
-function VerdictBadge({ data }: { data: EnrichmentOverview | undefined }) {
-  const verdict = data ? topVerdict(data.jobs) : null
-  const label = verdict ? verdict.toUpperCase() : 'OBSERVED'
-  const color = verdict ? VERDICT_COLOR[verdict] : 'gray'
-  return (
-    <Badge color={color} variant="light" mt="sm" radius="sm">
-      {label}
-    </Badge>
-  )
-}
-
-function sourceLabel(source: string): string {
-  if (source.startsWith('#')) return `Case ${source}`
-  if (source.startsWith('AL-')) return `Alert ${source.slice(3)}`
-  return source
-}
-
-export function ObservableDetailDrawer({
-  observable,
-  onToggleIoc,
-  onMarkSighted,
-  onClose,
-}: {
-  observable: Observable | null
-  onToggleIoc?: (observable: Observable) => void
-  onMarkSighted?: (observable: Observable) => void
-  onClose: () => void
-}) {
-  if (!observable) return null
-
-  return (
-    <Drawer
-      opened
-      onClose={onClose}
-      position="right"
-      size={560}
-      title="Observable detail"
-      padding={0}
-      overlayProps={{ backgroundOpacity: 0.35, blur: 3 }}
-      styles={{
-        content: { borderLeft: '4px solid var(--mantine-color-red-6)' },
-        header: { display: 'none' },
-        body: { height: '100%', padding: 0 },
-      }}
-    >
-      <ObservableDetailContent
-        observable={observable}
-        onToggleIoc={onToggleIoc}
-        onMarkSighted={onMarkSighted}
-        onClose={onClose}
-      />
-    </Drawer>
-  )
-}
-
-function ObservableDetailContent({
-  observable,
-  onToggleIoc,
-  onMarkSighted,
-  onClose,
-}: {
-  observable: Observable
-  onToggleIoc?: (observable: Observable) => void
-  onMarkSighted?: (observable: Observable) => void
-  onClose: () => void
-}) {
-  const { data } = useQuery(observableEnrichmentsQueryOptions(observable.id))
-  const ioc = observable.flags.includes('ioc')
-  const sighted = observable.flags.includes('sighted')
-
-  return (
-    <Stack h="100%" gap={0}>
-      <Box p="lg" style={{ borderBottom: '1px solid var(--line-soft)' }}>
-        <Group justify="space-between" align="flex-start">
-          <Box>
-            <Text ff="monospace" fz={12} fw={700} c="dimmed" tt="uppercase">
-              OBSERVABLE · {observable.type}
-            </Text>
-            <Text ff="monospace" fz={18} fw={700} mt={8}>
-              {observable.value}
-            </Text>
-            <VerdictBadge data={data} />
-          </Box>
-          <ActionIcon
-            variant="default"
-            color="gray"
-            aria-label="Close observable detail"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </ActionIcon>
-        </Group>
-      </Box>
-
-      <Box style={{ flex: 1, overflowY: 'auto' }}>
-        <Stack gap="lg" p="lg">
-          <Stack gap="xs">
-            <Text {...headerProps}>Properties</Text>
-            <DetailRow label="Type">{observable.type}</DetailRow>
-            <DetailRow label="Value">{observable.value}</DetailRow>
-            <DetailRow label="IOC">
-              <Text component="span" c={ioc ? 'red.7' : 'dimmed'} fw={700}>
-                {ioc ? 'yes' : 'no'}
-              </Text>
-            </DetailRow>
-            <DetailRow label="Sighted">{sighted ? 'yes' : 'no'}</DetailRow>
-            <DetailRow label="First seen">{observable.added}</DetailRow>
-            <DetailRow label="Source">
-              {sourceLabel(observable.source)}
-            </DetailRow>
-          </Stack>
-
-          <EnrichmentSection observableId={observable.id} />
-        </Stack>
-      </Box>
-
-      <Group
-        p="lg"
-        gap="sm"
-        grow
-        style={{ borderTop: '1px solid var(--line-soft)' }}
-      >
-        {onToggleIoc ? (
-          <Button variant="default" onClick={() => onToggleIoc(observable)}>
-            Toggle IOC
-          </Button>
-        ) : null}
-        {onMarkSighted ? (
-          <Button
-            variant="default"
-            disabled={sighted}
-            onClick={() => onMarkSighted(observable)}
-          >
-            Mark sighted
-          </Button>
-        ) : null}
-        <Button disabled>Export to MISP</Button>
-      </Group>
-    </Stack>
   )
 }

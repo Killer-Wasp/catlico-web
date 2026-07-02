@@ -2,12 +2,7 @@ import type {
   CaseTemplate,
   CaseTemplateFilter,
 } from '#/components/Cases/caseTemplates.types'
-import {
-  filterCaseTemplates,
-  getCaseTemplateStats,
-  severityTemplateLabel,
-  trafficTemplateLabel,
-} from '#/components/Cases/caseTemplates'
+import { filterCaseTemplates } from '#/components/Cases/caseTemplates'
 import {
   caseTemplateKeys,
   caseTemplatesQueryOptions,
@@ -16,17 +11,15 @@ import {
   importCaseTemplate,
 } from '#/components/Cases/caseTemplatesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
-import { Tag } from '#/components/Tag/Tag'
 import {
-  Badge,
   Box,
   Button,
   Group,
   Loader,
   Paper,
-  SimpleGrid,
   Stack,
   Tabs,
+  Table,
   Text,
   Title,
 } from '@mantine/core'
@@ -35,160 +28,24 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Outlet, useLocation } from '@tanstack/react-router'
 import { ButtonLink } from '#/components/ui/ButtonLink'
 import { useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
-
-const filterTabs: { value: CaseTemplateFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'builtin', label: 'Built-In' },
-  { value: 'custom', label: 'Custom' },
-]
-
-function TemplateChip({ children }: { children: ReactNode }) {
-  return (
-    <Text
-      component="span"
-      ff="monospace"
-      fz={10}
-      c="var(--muted)"
-      bg="gray.0"
-      px={8}
-      py={3}
-      style={{
-        border: '1px solid var(--line-soft)',
-        borderRadius: 4,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </Text>
-  )
-}
-
-function TemplateCard({
-  template,
-  onDuplicate,
-  onDelete,
-}: {
-  template: CaseTemplate
-  onDuplicate: (template: CaseTemplate) => void
-  onDelete: (template: CaseTemplate) => void
-}) {
-  const stats = getCaseTemplateStats(template)
-  const visibleTags = template.tags.slice(0, 3)
-  const overflowTagCount = template.tags.length - visibleTags.length
-
-  return (
-    <Paper
-      radius="md"
-      p={18}
-      shadow="xs"
-      style={{
-        minHeight: 240,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <Group align="flex-start" justify="space-between" gap="sm" wrap="nowrap">
-        <ButtonLink
-          to="/case-templates/$templateId"
-          params={{ templateId: template.id }}
-          variant="transparent"
-          color="dark"
-          p={0}
-          h="auto"
-          ta="left"
-          fz={16}
-          fw={700}
-          style={{ whiteSpace: 'normal', lineHeight: 1.25 }}
-        >
-          {template.name}
-        </ButtonLink>
-        {template.builtin && (
-          <Badge
-            variant="outline"
-            color="orange"
-            radius={4}
-            ff="monospace"
-            fw={500}
-            lts="0.8px"
-          >
-            Built-In
-          </Badge>
-        )}
-      </Group>
-
-      <Text c="var(--muted)" fz={14} fw={500} lh={1.45} mt={18}>
-        {template.description}
-      </Text>
-
-      <Group gap={6} mt={16}>
-        <TemplateChip>SEV {severityTemplateLabel(template.sev)}</TemplateChip>
-        <TemplateChip>TLP {trafficTemplateLabel(template.tlp)}</TemplateChip>
-        <TemplateChip>PAP {trafficTemplateLabel(template.pap)}</TemplateChip>
-        {visibleTags.map((tag) => (
-          <Tag key={tag} label={tag} />
-        ))}
-        {overflowTagCount > 0 && (
-          <TemplateChip>+{overflowTagCount}</TemplateChip>
-        )}
-      </Group>
-
-      <Group gap={16} mt={16} ff="monospace" fz={12} c="var(--faint)">
-        <Text component="span" inherit>
-          {stats.tasks} tasks
-        </Text>
-        {stats.flagged > 0 && (
-          <Text component="span" inherit>
-            <Text component="span" c="var(--text)" inherit>
-              {stats.flagged}
-            </Text>{' '}
-            flagged
-          </Text>
-        )}
-        <Text component="span" inherit>
-          <Text component="span" c="var(--text)" inherit>
-            {stats.customFields}
-          </Text>{' '}
-          custom fields
-        </Text>
-      </Group>
-
-      <Group
-        gap={8}
-        mt="auto"
-        pt={16}
-        wrap="nowrap"
-        style={{ borderTop: '1px solid var(--line-soft)' }}
-      >
-        <Text ff="monospace" fz={11} c="var(--faint)" flex={1}>
-          updated {template.updated}
-        </Text>
-        <ButtonLink
-          to="/case-templates/$templateId"
-          params={{ templateId: template.id }}
-          size="xs"
-          variant="default"
-        >
-          Edit
-        </ButtonLink>
-        <Button
-          size="xs"
-          variant="default"
-          onClick={() => onDuplicate(template)}
-        >
-          Duplicate
-        </Button>
-        <Button size="xs" variant="default" onClick={() => onDelete(template)}>
-          Delete
-        </Button>
-      </Group>
-    </Paper>
-  )
-}
+import { filterTabs } from './case-templates/constants'
+import { TemplateRow } from './case-templates/TemplateRow'
 
 export function CaseTemplatesPage() {
-  const [filter, setFilter] = useState<CaseTemplateFilter>('all')
   const { pathname } = useLocation()
+
+  if (
+    pathname.startsWith('/case-templates/') &&
+    pathname !== '/case-templates/'
+  ) {
+    return <Outlet />
+  }
+
+  return <CaseTemplatesIndex />
+}
+
+function CaseTemplatesIndex() {
+  const [filter, setFilter] = useState<CaseTemplateFilter>('all')
   const queryClient = useQueryClient()
   const importInputRef = useRef<HTMLInputElement>(null)
   const { data, isPending, isError, refetch, isFetching } = useQuery(
@@ -200,13 +57,6 @@ export function CaseTemplatesPage() {
     () => filterCaseTemplates(templates, filter),
     [templates, filter],
   )
-
-  if (
-    pathname.startsWith('/case-templates/') &&
-    pathname !== '/case-templates/'
-  ) {
-    return <Outlet />
-  }
 
   const refreshTemplates = () =>
     queryClient.invalidateQueries({ queryKey: caseTemplateKeys.all })
@@ -361,16 +211,42 @@ export function CaseTemplatesPage() {
           </Stack>
         </Paper>
       ) : visibleTemplates.length ? (
-        <SimpleGrid cols={{ base: 1, md: 2, xl: 4 }} spacing={20}>
-          {visibleTemplates.map((template) => (
-            <TemplateCard
-              key={template.id}
-              template={template}
-              onDuplicate={(item) => duplicateMutation.mutate(item)}
-              onDelete={(item) => deleteMutation.mutate(item)}
-            />
-          ))}
-        </SimpleGrid>
+        <Paper radius="md" shadow="xs" withBorder>
+          <Table.ScrollContainer minWidth={680}>
+            <Table
+              aria-label="Case templates"
+              verticalSpacing="sm"
+              horizontalSpacing="lg"
+              highlightOnHover
+            >
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>
+                    <Text ff="monospace" fz={11} c="var(--faint)" fw={700}>
+                      Template
+                    </Text>
+                  </Table.Th>
+                  <Table.Th>
+                    <Text ff="monospace" fz={11} c="var(--faint)" fw={700}>
+                      Tags
+                    </Text>
+                  </Table.Th>
+                  <Table.Th aria-label="Actions" />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {visibleTemplates.map((template) => (
+                  <TemplateRow
+                    key={template.id}
+                    template={template}
+                    onDuplicate={(item) => duplicateMutation.mutate(item)}
+                    onDelete={(item) => deleteMutation.mutate(item)}
+                  />
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        </Paper>
       ) : (
         <Paper radius="md" p="xl" shadow="xs" ta="center">
           <Text c="dimmed">No case templates found.</Text>

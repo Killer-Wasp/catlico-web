@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { NotificationsPanel } from '#/components/Settings/panels/NotificationsPanel'
+import { NotificationsPanel } from '#/components/pages/settings/panels/NotificationsPanel'
 import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'

@@ -1,10 +1,5 @@
 import classes from '#/components/Cases/CasesPage.module.css'
-import type {
-  CaseTemplate,
-  CaseTemplateCustomField,
-  CaseTemplateTask,
-  CustomFieldType,
-} from '#/components/Cases/caseTemplates.types'
+import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
 import {
   severityTemplateLabel,
   trafficTemplateLabel,
@@ -17,9 +12,33 @@ import {
   exportCaseTemplate,
   updateCaseTemplate,
 } from '#/components/Cases/caseTemplatesQueries'
+import { CustomFieldsTable } from './case-template-editor/CustomFieldsTable'
+import { downloadJsonFile } from './case-template-editor/downloadJsonFile'
 import {
-  ActionIcon,
-  Badge,
+  moveTask,
+  newDraft,
+  newDraftTask,
+  toDraft,
+  toSavedTemplate,
+  toSlug,
+  updateTask,
+} from './case-template-editor/draft'
+import type { DraftTemplate } from './case-template-editor/draft'
+import {
+  assigneeOptions,
+  severityOptions,
+  trafficOptions,
+} from './case-template-editor/options'
+import { Panel } from './case-template-editor/Panel'
+import { RichTextField } from './case-template-editor/RichTextField'
+import { TemplateSelect } from './case-template-editor/TemplateSelect'
+import { TemplateTagsInput } from './case-template-editor/TemplateTagsInput'
+import {
+  TaskFormModal,
+  TaskTemplatesTable,
+} from './case-template-editor/TaskTemplatesTable'
+import { arrayMove } from '@dnd-kit/sortable'
+import {
   Box,
   Button,
   Group,
@@ -30,410 +49,17 @@ import {
   Stack,
   Text,
   TextInput,
-  Textarea,
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, Flag, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-type DraftTask = CaseTemplateTask & {
-  dueAmount: string
-  dueUnit: 'hours' | 'days'
-}
-
-type DraftTemplate = Omit<CaseTemplate, 'tasks'> & {
-  tasks: DraftTask[]
-}
-
-const severityOptions = [
-  { value: '1', label: 'LOW' },
-  { value: '2', label: 'MEDIUM' },
-  { value: '3', label: 'HIGH' },
-  { value: '4', label: 'CRITICAL' },
-]
-
-const trafficOptions = [
-  { value: '0', label: 'WHITE' },
-  { value: '1', label: 'GREEN' },
-  { value: '2', label: 'AMBER' },
-  { value: '3', label: 'RED' },
-]
-
-function TemplateSegmentedControl<T extends number>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string
-  options: { value: string; label: string }[]
-  value: T
-  onChange: (value: T) => void
-}) {
-  return (
-    <Box>
-      <Text fw={600} size="sm" mb={6}>
-        {label}
-      </Text>
-      <Group gap={6} role="radiogroup" aria-label={label}>
-        {options.map((option) => {
-          const active = option.value === String(value)
-          return (
-            <Button
-              key={option.value}
-              type="button"
-              size="xs"
-              variant={active ? 'filled' : 'default'}
-              role="radio"
-              aria-checked={active}
-              onClick={() => onChange(Number(option.value) as T)}
-            >
-              {option.label}
-            </Button>
-          )
-        })}
-      </Group>
-    </Box>
-  )
-}
-
-const assigneeOptions = [
-  { value: '', label: 'Unassigned' },
-  { value: 'J. Tanaka', label: 'J. Tanaka' },
-  { value: 'P. Nguyen', label: 'P. Nguyen' },
-  { value: 'A. Whitford', label: 'A. Whitford' },
-  { value: 'S. Iyer', label: 'S. Iyer' },
-]
-
-const customFieldTypes: CustomFieldType[] = [
-  'string',
-  'integer',
-  'float',
-  'boolean',
-  'date',
-]
-
-function toSlug(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .slice(0, 40)
-}
-
-function dueFromHours(hours: number) {
-  if (hours >= 24 && hours % 24 === 0) {
-    return { dueAmount: String(hours / 24), dueUnit: 'days' as const }
-  }
-
-  return { dueAmount: String(hours), dueUnit: 'hours' as const }
-}
-
-function hoursFromDue(amount: string, unit: DraftTask['dueUnit']) {
-  const parsed = Number(amount)
-  if (!Number.isFinite(parsed) || parsed < 0) return 0
-  return unit === 'days' ? Math.round(parsed * 24) : Math.round(parsed)
-}
-
-function toDraft(template: CaseTemplate): DraftTemplate {
-  return {
-    ...template,
-    tags: [...template.tags],
-    tasks: template.tasks.map((task) => ({
-      ...task,
-      ...dueFromHours(task.dueInHours),
-    })),
-    customFields: template.customFields.map((field) => ({ ...field })),
-  }
-}
-
-function newDraft(): DraftTemplate {
-  return {
-    id: '',
-    slug: '',
-    name: '',
-    builtin: false,
-    updated: 'just now',
-    description: '',
-    prefix: '',
-    assignee: '',
-    sev: 2,
-    tlp: 2,
-    pap: 2,
-    tags: [],
-    tasks: [],
-    customFields: [],
-  }
-}
-
-function Panel({
-  title,
-  badge,
-  action,
-  children,
-}: {
-  title: string
-  badge?: string | number
-  action?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <Paper
-      withBorder
-      radius="md"
-      shadow="sm"
-      bg="body"
-      style={{ overflow: 'hidden' }}
-    >
-      <Group
-        justify="space-between"
-        px="lg"
-        py="md"
-        style={{ borderBottom: '1px solid var(--line-soft)' }}
-      >
-        <Group gap="sm">
-          <Title order={2} size="h4">
-            {title}
-          </Title>
-          {badge !== undefined ? (
-            <Badge variant="default" color="gray" radius="xl" ff="monospace">
-              {badge}
-            </Badge>
-          ) : null}
-        </Group>
-        {action}
-      </Group>
-      {children}
-    </Paper>
-  )
-}
-
-function updateTask(
-  tasks: DraftTask[],
-  index: number,
-  patch: Partial<DraftTask>,
-) {
-  return tasks.map((task, taskIndex) =>
-    taskIndex === index ? { ...task, ...patch } : task,
-  )
-}
-
-function moveTask(tasks: DraftTask[], index: number, direction: -1 | 1) {
-  const next = [...tasks]
-  const target = index + direction
-  if (target < 0 || target >= next.length) return next
-  ;[next[index], next[target]] = [next[target], next[index]]
-  return next
-}
-
-function TaskEditor({
-  task,
-  index,
-  onUpdate,
-  onRemove,
-  onMove,
-}: {
-  task: DraftTask
-  index: number
-  onUpdate: (patch: Partial<DraftTask>) => void
-  onRemove: () => void
-  onMove: (direction: -1 | 1) => void
-}) {
-  return (
-    <Paper p="md" radius="md" bg="gray.0" withBorder>
-      <Stack gap="sm">
-        <Group gap="sm" align="center" wrap="nowrap">
-          <Text ff="monospace" c="dimmed" w={24} ta="right">
-            {index + 1}
-          </Text>
-          <TextInput
-            value={task.title}
-            onChange={(event) => onUpdate({ title: event.currentTarget.value })}
-            placeholder="Task title"
-            aria-label={`Task ${index + 1} title`}
-            style={{ flex: 1 }}
-          />
-          <TextInput
-            value={task.group}
-            onChange={(event) => onUpdate({ group: event.currentTarget.value })}
-            placeholder="Group"
-            aria-label={`Task ${index + 1} group`}
-            w={180}
-          />
-          <ActionIcon
-            variant={task.flagged ? 'filled' : 'default'}
-            color={task.flagged ? 'orange' : 'gray'}
-            aria-label={`Flag task ${index + 1}`}
-            onClick={() => onUpdate({ flagged: !task.flagged })}
-          >
-            <Flag size={15} />
-          </ActionIcon>
-          <ActionIcon
-            variant="default"
-            aria-label={`Move task ${index + 1} up`}
-            onClick={() => onMove(-1)}
-          >
-            <ArrowUp size={15} />
-          </ActionIcon>
-          <ActionIcon
-            variant="default"
-            aria-label={`Move task ${index + 1} down`}
-            onClick={() => onMove(1)}
-          >
-            <ArrowDown size={15} />
-          </ActionIcon>
-          <ActionIcon
-            variant="default"
-            color="red"
-            aria-label={`Remove task ${index + 1}`}
-            onClick={onRemove}
-          >
-            <X size={15} />
-          </ActionIcon>
-        </Group>
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <Textarea
-            label="Description"
-            value={task.description}
-            minRows={2}
-            onChange={(event) =>
-              onUpdate({ description: event.currentTarget.value })
-            }
-          />
-          <Box>
-            <Text ff="monospace" fz={10} c="dimmed" tt="uppercase" mb={4}>
-              Due in
-            </Text>
-            <Group gap={6} wrap="nowrap">
-              <TextInput
-                type="number"
-                min={0}
-                value={task.dueAmount}
-                onChange={(event) =>
-                  onUpdate({ dueAmount: event.currentTarget.value })
-                }
-                aria-label={`Task ${index + 1} due amount`}
-              />
-              <Select
-                data={['hours', 'days']}
-                value={task.dueUnit}
-                onChange={(value) => onUpdate({ dueUnit: value ?? 'hours' })}
-                aria-label={`Task ${index + 1} due unit`}
-                w={96}
-              />
-            </Group>
-          </Box>
-        </SimpleGrid>
-      </Stack>
-    </Paper>
-  )
-}
-
-function CustomFieldEditor({
-  field,
-  index,
-  onUpdate,
-  onRemove,
-}: {
-  field: CaseTemplateCustomField
-  index: number
-  onUpdate: (patch: Partial<CaseTemplateCustomField>) => void
-  onRemove: () => void
-}) {
-  return (
-    <SimpleGrid cols={{ base: 1, md: 4 }} spacing="sm" verticalSpacing="sm">
-      <TextInput
-        value={field.label}
-        placeholder="Label"
-        aria-label={`Custom field ${index + 1} label`}
-        onChange={(event) => {
-          const label = event.currentTarget.value
-          onUpdate({
-            label,
-            key: label
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_')
-              .replace(/(^_|_$)/g, ''),
-          })
-        }}
-      />
-      <Select
-        data={customFieldTypes}
-        value={field.type}
-        aria-label={`Custom field ${index + 1} type`}
-        onChange={(value) => onUpdate({ type: value ?? 'string' })}
-      />
-      <TextInput
-        value={field.defaultValue}
-        placeholder="Default value"
-        aria-label={`Custom field ${index + 1} default value`}
-        onChange={(event) =>
-          onUpdate({ defaultValue: event.currentTarget.value })
-        }
-      />
-      <ActionIcon
-        variant="default"
-        color="red"
-        aria-label={`Remove custom field ${index + 1}`}
-        onClick={onRemove}
-      >
-        <X size={15} />
-      </ActionIcon>
-    </SimpleGrid>
-  )
-}
-
-function tagsToText(tags: string[]) {
-  return tags.join(', ')
-}
-
-function textToTags(value: string) {
-  return value
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-}
-
-function toSavedTemplate(draft: DraftTemplate): CaseTemplate {
-  const displayName = draft.name.trim()
-  const slug = toSlug(draft.slug || draft.id || displayName)
-
-  return {
-    ...draft,
-    id: draft.id || slug || `tpl-${Date.now().toString(36)}`,
-    slug,
-    name: displayName,
-    description: draft.description.trim(),
-    prefix: draft.prefix,
-    assignee: draft.assignee,
-    updated: 'just now',
-    tasks: draft.tasks
-      .filter((task) => task.title.trim())
-      .map(({ dueAmount, dueUnit, ...task }) => ({
-        ...task,
-        title: task.title.trim(),
-        group: task.group.trim() || 'default',
-        description: task.description.trim(),
-        dueInHours: hoursFromDue(dueAmount, dueUnit),
-      })),
-    customFields: draft.customFields
-      .filter((field) => field.label.trim())
-      .map((field) => ({
-        ...field,
-        label: field.label.trim(),
-        key:
-          field.key ||
-          field.label
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/(^_|_$)/g, ''),
-      })),
-  }
-}
+type TaskModalState =
+  | { mode: 'create' }
+  | { mode: 'edit'; index: number }
+  | null
 
 export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
   const isNew = templateId === 'new'
@@ -445,6 +71,7 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
     refetch,
   } = useQuery(caseTemplateQueryOptions(templateId))
   const [draft, setDraft] = useState<DraftTemplate>(() => newDraft())
+  const [taskModal, setTaskModal] = useState<TaskModalState>(null)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -500,20 +127,23 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
 
   const saveTemplate = () => {
     if (!draft.name.trim()) {
-      notifications.show({ color: 'red', message: 'Display name is required' })
+      notifications.show({
+        color: 'red',
+        message: 'Case Template Name is required',
+      })
       return
     }
 
-    const saved = toSavedTemplate(draft)
-    saveMutation.mutate(saved)
+    saveMutation.mutate(toSavedTemplate(draft))
   }
 
   const exportJson = async () => {
     const payload = isNew
       ? toSavedTemplate(draft)
       : await exportCaseTemplate(draft.id)
-    void navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
-    notifications.show({ message: 'Template JSON copied' })
+    const filename = `${toSlug(payload.name || draft.slug || draft.name) || 'case-template'}.json`
+    downloadJsonFile(payload, filename)
+    notifications.show({ message: 'Template JSON downloaded' })
   }
 
   if (!isNew && isPending) {
@@ -594,57 +224,68 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
       <Stack gap="md">
         <Panel title="Basics">
           <Stack p="lg">
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <Box
+              data-testid="template-name-id-row"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 7fr) minmax(0, 3fr)',
+                gap: 'var(--mantine-spacing-md)',
+                alignItems: 'start',
+              }}
+            >
               <TextInput
-                label="Display name"
-                aria-label="Display name"
+                label="Case Template Name"
+                aria-label="Case Template Name"
                 required
                 value={draft.name}
                 onChange={(event) => {
                   const name = event.currentTarget.value
-                  setDraft((current) => ({
-                    ...current,
-                    name,
-                    slug: current.slug || toSlug(name),
-                  }))
+                  setDraft((current) => ({ ...current, name }))
                 }}
               />
               <TextInput
-                label="Slug / id"
-                aria-label="Slug / id"
+                label="Id"
+                aria-label="Id"
+                required
+                placeholder="e.g. phishing-investigation"
+                autoComplete="off"
                 value={draft.slug ?? draft.id}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const value = event.currentTarget.value
                   setDraft((current) => ({
                     ...current,
-                    slug: toSlug(event.currentTarget.value),
+                    slug: toSlug(value),
                   }))
-                }
+                }}
                 disabled={!isNew}
                 description="used in alert imports and API calls"
               />
-            </SimpleGrid>
-            <Textarea
-              label="Description"
-              value={draft.description}
-              minRows={3}
-              onChange={(event) =>
+            </Box>
+            <TextInput
+              label="Case Template Description"
+              value={draft.summary ?? ''}
+              maxLength={255}
+              onChange={(event) => {
+                const summary = event.currentTarget.value.slice(0, 255)
                 setDraft((current) => ({
                   ...current,
-                  description: event.currentTarget.value,
+                  summary,
                 }))
-              }
+              }}
+              description={`${(draft.summary ?? '').length}/255`}
             />
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <TextInput
                 label="Case title prefix"
                 value={draft.prefix}
                 placeholder="[Phishing]"
-                onChange={(event) =>
+                onChange={(event) => {
+                  const value = event.currentTarget.value
                   setDraft((current) => ({
                     ...current,
-                    prefix: event.currentTarget.value,
+                    prefix: value,
                   }))
-                }
+                }}
                 description="prepended to case title on creation"
               />
               <Select
@@ -656,6 +297,16 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
                 }
               />
             </SimpleGrid>
+            <RichTextField
+              label="Body"
+              value={draft.description}
+              onChange={(description) =>
+                setDraft((current) => ({
+                  ...current,
+                  description,
+                }))
+              }
+            />
           </Stack>
         </Panel>
 
@@ -663,7 +314,7 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
           <Stack p="lg">
             <SimpleGrid cols={{ base: 1, md: 3 }}>
               <Box>
-                <TemplateSegmentedControl
+                <TemplateSelect
                   label="Severity"
                   options={severityOptions}
                   value={draft.sev}
@@ -679,7 +330,7 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
                 </Text>
               </Box>
               <Box>
-                <TemplateSegmentedControl
+                <TemplateSelect
                   label="TLP"
                   options={trafficOptions}
                   value={draft.tlp}
@@ -695,7 +346,7 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
                 </Text>
               </Box>
               <Box>
-                <TemplateSegmentedControl
+                <TemplateSelect
                   label="PAP"
                   options={trafficOptions}
                   value={draft.pap}
@@ -711,14 +362,12 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
                 </Text>
               </Box>
             </SimpleGrid>
-            <TextInput
-              label="Default tags"
-              value={tagsToText(draft.tags)}
-              placeholder="type a tag and press Enter... (MITRE T-codes auto-style)"
-              onChange={(event) =>
+            <TemplateTagsInput
+              value={draft.tags}
+              onChange={(tags) =>
                 setDraft((current) => ({
                   ...current,
-                  tags: textToTags(event.currentTarget.value),
+                  tags,
                 }))
               }
             />
@@ -731,24 +380,7 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
           action={
             <Button
               variant="default"
-              onClick={() =>
-                setDraft((current) => ({
-                  ...current,
-                  tasks: [
-                    ...current.tasks,
-                    {
-                      title: 'New template task',
-                      group: 'Triage',
-                      description: '',
-                      assignee: '',
-                      dueInHours: 1,
-                      flagged: false,
-                      dueAmount: '1',
-                      dueUnit: 'hours',
-                    },
-                  ],
-                }))
-              }
+              onClick={() => setTaskModal({ mode: 'create' })}
             >
               + Add task
             </Button>
@@ -756,33 +388,24 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
         >
           <Stack p="lg">
             {draft.tasks.length ? (
-              draft.tasks.map((task, index) => (
-                <TaskEditor
-                  key={`${index}-${task.title}`}
-                  task={task}
-                  index={index}
-                  onUpdate={(patch) =>
-                    setDraft((current) => ({
-                      ...current,
-                      tasks: updateTask(current.tasks, index, patch),
-                    }))
-                  }
-                  onRemove={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      tasks: current.tasks.filter(
-                        (_, taskIndex) => taskIndex !== index,
-                      ),
-                    }))
-                  }
-                  onMove={(direction) =>
-                    setDraft((current) => ({
-                      ...current,
-                      tasks: moveTask(current.tasks, index, direction),
-                    }))
-                  }
-                />
-              ))
+              <TaskTemplatesTable
+                tasks={draft.tasks}
+                onEdit={(index) => setTaskModal({ mode: 'edit', index })}
+                onRemove={(index) =>
+                  setDraft((current) => ({
+                    ...current,
+                    tasks: current.tasks.filter(
+                      (_, taskIndex) => taskIndex !== index,
+                    ),
+                  }))
+                }
+                onReorder={(oldIndex, newIndex) =>
+                  setDraft((current) => ({
+                    ...current,
+                    tasks: arrayMove(current.tasks, oldIndex, newIndex),
+                  }))
+                }
+              />
             ) : (
               <Paper withBorder radius="md" p="xl" ta="center">
                 <Text c="dimmed">
@@ -792,6 +415,42 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
             )}
           </Stack>
         </Panel>
+
+        {taskModal ? (
+          <TaskFormModal
+            mode={taskModal.mode}
+            initialTask={
+              taskModal.mode === 'edit'
+                ? draft.tasks[taskModal.index]
+                : newDraftTask()
+            }
+            canMoveUp={taskModal.mode === 'edit' && taskModal.index > 0}
+            canMoveDown={
+              taskModal.mode === 'edit' &&
+              taskModal.index < draft.tasks.length - 1
+            }
+            onClose={() => setTaskModal(null)}
+            onSave={(task) => {
+              setDraft((current) => ({
+                ...current,
+                tasks:
+                  taskModal.mode === 'edit'
+                    ? updateTask(current.tasks, taskModal.index, task)
+                    : [...current.tasks, task],
+              }))
+              setTaskModal(null)
+            }}
+            onMove={(direction) => {
+              if (taskModal.mode !== 'edit') return
+              const nextIndex = taskModal.index + direction
+              setDraft((current) => ({
+                ...current,
+                tasks: moveTask(current.tasks, taskModal.index, direction),
+              }))
+              setTaskModal({ mode: 'edit', index: nextIndex })
+            }}
+          />
+        ) : null}
 
         <Panel
           title="Custom fields"
@@ -820,30 +479,25 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
         >
           <Stack p="lg">
             {draft.customFields.length ? (
-              draft.customFields.map((field, index) => (
-                <CustomFieldEditor
-                  key={`${index}-${field.key}`}
-                  field={field}
-                  index={index}
-                  onUpdate={(patch) =>
-                    setDraft((current) => ({
-                      ...current,
-                      customFields: current.customFields.map(
-                        (item, itemIndex) =>
-                          itemIndex === index ? { ...item, ...patch } : item,
-                      ),
-                    }))
-                  }
-                  onRemove={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      customFields: current.customFields.filter(
-                        (_, itemIndex) => itemIndex !== index,
-                      ),
-                    }))
-                  }
-                />
-              ))
+              <CustomFieldsTable
+                fields={draft.customFields}
+                onUpdate={(index, patch) =>
+                  setDraft((current) => ({
+                    ...current,
+                    customFields: current.customFields.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, ...patch } : item,
+                    ),
+                  }))
+                }
+                onRemove={(index) =>
+                  setDraft((current) => ({
+                    ...current,
+                    customFields: current.customFields.filter(
+                      (_, itemIndex) => itemIndex !== index,
+                    ),
+                  }))
+                }
+              />
             ) : (
               <Paper withBorder radius="md" p="xl" ta="center">
                 <Text c="dimmed">

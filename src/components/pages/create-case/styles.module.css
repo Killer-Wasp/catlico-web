@@ -1,0 +1,13 @@
+/* Create-case form typography. Replaces the fieldLblProps / monoMetaProps
+   Mantine style objects. */
+.fieldLabel {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.metaText {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.65625rem;
+  color: var(--faint);
+}

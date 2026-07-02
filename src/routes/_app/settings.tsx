@@ -4,7 +4,7 @@ import {
   customFieldsQueryOptions,
   organisationMembersQueryOptions,
   organisationProfileQueryOptions,
-} from '#/components/Settings/settingsQueries'
+} from '#/components/pages/settings/settingsQueries'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_app/settings')({

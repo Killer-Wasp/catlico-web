@@ -1,0 +1,9 @@
+/* Case detail typography. Replaces the fieldLabelProps Mantine style object
+   used across the summary card, panels and drawer sections. */
+.fieldLabel {
+  font-family: var(--mantine-font-family-monospace);
+  text-transform: uppercase;
+  font-size: 0.625rem;
+  letter-spacing: 1px;
+  color: var(--mantine-color-dimmed);
+}

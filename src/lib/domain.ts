@@ -34,3 +34,33 @@ export const TLP: Record<Tlp, string> = {
 // Mirrors the backend case status enum (app/models/case_.py): Open | Resolved
 // | Duplicated.
 export type CaseStatus = 'open' | 'resolved' | 'duplicated'
+
+// --- Shared select options + colour maps -----------------------------------
+// Reusable, cross-feature presentation constants derived from the domain
+// scales above. Feature pages import these instead of redeclaring their own
+// copies (alerts, cases, observables, create-case…).
+
+// Severity filter/select options, highest first. Values are the severity
+// number as a string (the form controls speak strings).
+export const SEVERITY_OPTIONS: { value: string; label: string }[] = [
+  { value: '4', label: 'Critical' },
+  { value: '3', label: 'High' },
+  { value: '2', label: 'Medium' },
+  { value: '1', label: 'Low' },
+]
+
+// TLP (and PAP — same scale) filter/select options, most restrictive first.
+export const TLP_OPTIONS: { value: string; label: string }[] = [
+  { value: '3', label: 'RED' },
+  { value: '2', label: 'AMBER' },
+  { value: '1', label: 'GREEN' },
+  { value: '0', label: 'WHITE' },
+]
+
+// TLP level name (see `TLP`) → Mantine palette colour for badges.
+export const TLP_COLOR: Record<string, string> = {
+  red: 'red',
+  amber: 'yellow',
+  green: 'green',
+  white: 'gray',
+}

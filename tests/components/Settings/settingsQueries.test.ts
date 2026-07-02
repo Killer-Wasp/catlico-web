@@ -11,7 +11,7 @@ import {
   settingsKeys,
   updateCustomField,
   updateOrganisationProfile,
-} from '#/components/Settings/settingsQueries'
+} from '#/components/pages/settings/settingsQueries'
 import { api } from '#/lib/api/client'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 

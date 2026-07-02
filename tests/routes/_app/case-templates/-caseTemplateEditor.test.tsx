@@ -10,6 +10,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import {
   afterEach,
@@ -62,6 +63,13 @@ const templateDto = {
       group: 'Triage',
       description: 'Confirm scope.',
       order: 0,
+    },
+    {
+      id: 'task-template-2',
+      title: 'Contain account',
+      group: 'Containment',
+      description: 'Disable suspicious sessions.',
+      order: 1,
     },
   ],
   tags: ['phishing', 'T1566'],
@@ -141,6 +149,14 @@ beforeEach(() => {
   Object.assign(navigator, {
     clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
   })
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: vi.fn(() => 'blob:case-template-json'),
+  })
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: vi.fn(),
+  })
 })
 
 afterEach(cleanup)
@@ -155,12 +171,72 @@ describe('CaseTemplateEditorPage', () => {
     expect(api.get).toHaveBeenCalledWith('case-templates/7')
     expect(screen.getByDisplayValue('phishing-playbook')).toBeDefined()
     expect(
-      screen.getByDisplayValue('Standard phishing playbook.'),
+      screen.getByDisplayValue('Use for reported credential lures.'),
     ).toBeDefined()
     expect(
-      screen.getByRole('radio', { name: 'HIGH' }).getAttribute('aria-checked'),
-    ).toBe('true')
-    expect(screen.getAllByDisplayValue('Triage').length).toBeGreaterThan(0)
+      screen.getByRole('combobox', { name: 'Severity' }).getAttribute('value'),
+    ).toBe('HIGH')
+    expect(screen.getAllByText('Triage').length).toBeGreaterThan(0)
+  })
+
+  test('lays out the basics fields with name and id sharing the first row', async () => {
+    render(<Harness />)
+
+    expect(
+      await screen.findByDisplayValue('Phishing / credential harvesting'),
+    ).toBeDefined()
+
+    const nameIdRow = screen.getByTestId('template-name-id-row')
+    expect(within(nameIdRow).getByLabelText('Case Template Name')).toBeDefined()
+    expect(within(nameIdRow).getByLabelText('Id')).toBeDefined()
+    expect(nameIdRow.getAttribute('style')).toContain('7fr')
+    expect(nameIdRow.getAttribute('style')).toContain('3fr')
+    expect(screen.getByLabelText('Case Template Description')).toBeDefined()
+
+    const pageText = document.body.textContent
+    expect(pageText.indexOf('Case Template Description')).toBeLessThan(
+      pageText.indexOf('Case title prefix'),
+    )
+  })
+
+  test('renders template tasks as an ordered table with row actions', async () => {
+    render(<Harness />)
+
+    const table = await screen.findByRole('table', {
+      name: 'Template tasks',
+    })
+    const triageRow = within(table).getByRole('row', { name: /1 Triage/i })
+
+    expect(
+      within(table).getByRole('columnheader', { name: 'Order' }),
+    ).toBeDefined()
+    expect(
+      within(table).getByRole('columnheader', { name: 'Task' }),
+    ).toBeDefined()
+    expect(
+      within(triageRow).getByRole('button', { name: 'Drag task 1' }),
+    ).toBeDefined()
+    expect(
+      within(triageRow).getByRole('button', { name: 'Actions for task 1' }),
+    ).toBeDefined()
+  })
+
+  test('renders custom fields in a table when fields are added', async () => {
+    render(<Harness />)
+
+    expect(
+      await screen.findByDisplayValue('Phishing / credential harvesting'),
+    ).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+
+    const table = screen.getByRole('table', { name: 'Custom fields' })
+    expect(
+      within(table).getByRole('columnheader', { name: 'Label' }),
+    ).toBeDefined()
+    expect(
+      within(table).getByRole('columnheader', { name: 'Type' }),
+    ).toBeDefined()
+    expect(within(table).getByLabelText('Custom field 1 label')).toBeDefined()
   })
 
   test('saves edits and template tags to the backend', async () => {
@@ -195,7 +271,7 @@ describe('CaseTemplateEditorPage', () => {
   test('creates a new template through the backend', async () => {
     render(<Harness templateId="new" />)
 
-    fireEvent.change(screen.getByLabelText('Display name'), {
+    fireEvent.change(screen.getByLabelText('Case Template Name'), {
       target: { value: 'New response template' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'Save template' })[0])
@@ -214,6 +290,9 @@ describe('CaseTemplateEditorPage', () => {
   })
 
   test('exports template JSON from the backend', async () => {
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {})
     render(<Harness />)
 
     expect(
@@ -224,8 +303,10 @@ describe('CaseTemplateEditorPage', () => {
     await waitFor(() =>
       expect(api.get).toHaveBeenCalledWith('case-templates/7/export'),
     )
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining('"kind": "catlico.caseTemplate"'),
-    )
+    expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    expect(anchorClick).toHaveBeenCalled()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:case-template-json')
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
+    anchorClick.mockRestore()
   })
 })

@@ -1,22 +1,22 @@
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Box, Group, Tabs, Text, Title } from '@mantine/core'
 import { useState } from 'react'
-import { ApiKeysPanel } from '#/components/Settings/panels/ApiKeysPanel'
-import { AuditLogPanel } from '#/components/Settings/panels/AuditLogPanel'
-import { ConnectorsPanel } from '#/components/Settings/panels/ConnectorsPanel'
-import { CustomFieldsPanel } from '#/components/Settings/panels/CustomFieldsPanel'
-import { IntegrationsPanel } from '#/components/Settings/panels/IntegrationsPanel'
-import { NotificationsPanel } from '#/components/Settings/panels/NotificationsPanel'
-import { ObservableTypesPanel } from '#/components/Settings/panels/ObservableTypesPanel'
-import { OrganisationsPanel } from '#/components/Settings/panels/OrganisationsPanel'
-import { OrgProfilePanel } from '#/components/Settings/panels/OrgProfilePanel'
-import { ProfilesPanel } from '#/components/Settings/panels/ProfilesPanel'
-import { SlaPanel } from '#/components/Settings/panels/SlaPanel'
-import { TaxonomiesPanel } from '#/components/Settings/panels/TaxonomiesPanel'
-import { UsersPanel } from '#/components/Settings/panels/UsersPanel'
-import { settingsSections } from '#/components/Settings/settingsData'
-import type { SettingsSection } from '#/components/Settings/settingsData'
-import { useStamp } from '#/components/Settings/settingsUi'
+import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
+import { AuditLogPanel } from './settings/panels/AuditLogPanel'
+import { ConnectorsPanel } from './settings/panels/ConnectorsPanel'
+import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
+import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
+import { NotificationsPanel } from './settings/panels/NotificationsPanel'
+import { ObservableTypesPanel } from './settings/panels/ObservableTypesPanel'
+import { OrganisationsPanel } from './settings/panels/OrganisationsPanel'
+import { OrgProfilePanel } from './settings/panels/OrgProfilePanel'
+import { ProfilesPanel } from './settings/panels/ProfilesPanel'
+import { SlaPanel } from './settings/panels/SlaPanel'
+import { TaxonomiesPanel } from './settings/panels/TaxonomiesPanel'
+import { UsersPanel } from './settings/panels/UsersPanel'
+import { settingsSections } from './settings/settingsData'
+import type { SettingsSection } from './settings/settingsData'
+import { useStamp } from './settings/settingsUi'
 
 function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'Organisations') return <OrganisationsPanel />
@@ -55,6 +55,7 @@ export function SettingsPage() {
         onChange={(value) => {
           if (value) setActiveSection(value as SettingsSection)
         }}
+        styles={{ tabLabel: { textAlign: 'left' } }}
       >
         <Box
           component="nav"

@@ -10,6 +10,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import {
   afterEach,
@@ -118,6 +119,14 @@ beforeAll(() => {
       dispatchEvent: () => false,
     }),
   })
+  Object.defineProperty(window, 'ResizeObserver', {
+    writable: true,
+    value: class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  })
 })
 
 function Harness() {
@@ -167,7 +176,7 @@ describe('CaseTemplatesPage', () => {
     routerState.pathname = '/case-templates'
   })
 
-  test('loads backend templates and links cards to the item editor route', async () => {
+  test('loads backend templates and links rows to the item editor route', async () => {
     render(<Harness />)
 
     expect(
@@ -181,16 +190,55 @@ describe('CaseTemplatesPage', () => {
         .getByRole('link', { name: 'Phishing / credential harvesting' })
         .getAttribute('href'),
     ).toBe('/case-templates/7')
-    expect(screen.getByText('1 tasks')).toBeDefined()
+    expect(screen.getByText('phishing')).toBeDefined()
+    expect(screen.getByText('T1566')).toBeDefined()
   })
 
-  test('duplicates and deletes templates through the backend', async () => {
+  test('renders templates as compact table rows with menu actions', async () => {
+    render(<Harness />)
+
+    const table = await screen.findByRole('table', {
+      name: 'Case templates',
+    })
+    const row = within(table).getByRole('row', {
+      name: /Phishing \/ credential harvesting/i,
+    })
+
+    expect(
+      within(row)
+        .getByRole('link', {
+          name: 'Phishing / credential harvesting',
+        })
+        .getAttribute('href'),
+    ).toBe('/case-templates/7')
+    expect(within(row).getByText('phishing')).toBeDefined()
+    expect(within(row).getByText('T1566')).toBeDefined()
+    expect(screen.queryByText('Standard phishing playbook.')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Duplicate' })).toBeNull()
+
+    fireEvent.click(
+      within(row).getByRole('button', {
+        name: 'Template actions for Phishing / credential harvesting',
+      }),
+    )
+
+    expect(
+      await screen.findByRole('menuitem', { name: 'Duplicate' }),
+    ).toBeDefined()
+  })
+
+  test('duplicates templates through the row action menu', async () => {
     render(<Harness />)
 
     expect(
       await screen.findByText('Phishing / credential harvesting'),
     ).toBeDefined()
-    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Template actions for Phishing / credential harvesting',
+      }),
+    )
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Duplicate' }))
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith(
@@ -202,8 +250,17 @@ describe('CaseTemplatesPage', () => {
         }),
       ),
     )
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+  test('deletes templates through the row action menu', async () => {
+    render(<Harness />)
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Template actions for Phishing / credential harvesting',
+      }),
+    )
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith('case-templates/7'),
     )

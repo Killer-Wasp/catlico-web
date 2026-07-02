@@ -1,11 +1,6 @@
 import { AV } from '#/components/Cases/cases'
-import { formatTemplateDue } from '#/components/Cases/caseTemplates'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
-import type {
-  CaseTemplateTask,
-  CustomFieldType,
-  NewCaseCustomField,
-} from '#/components/Cases/caseTemplates.types'
+import type { NewCaseCustomField } from '#/components/Cases/caseTemplates.types'
 import {
   caseKeys,
   createCaseFromTemplate,
@@ -16,9 +11,7 @@ import {
   Anchor,
   Box,
   Button,
-  Checkbox,
   Group,
-  NumberInput,
   Paper,
   Select,
   SimpleGrid,
@@ -32,249 +25,22 @@ import {
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, Hourglass, TriangleAlert } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-
-type TrafficLight = 0 | 1 | 2 | 3
-type SeverityChoice = 1 | 2 | 3 | 4
-
-const businessUnits = [
-  'Corporate IT',
-  'Retail',
-  'Energy Markets',
-  'Generation / OT',
-  'Digital',
-]
-
-const severityChoices: {
-  value: SeverityChoice
-  label: string
-  color: string
-}[] = [
-  { value: 1, label: 'LOW', color: 'var(--sev-low)' },
-  { value: 2, label: 'MEDIUM', color: 'var(--sev-medium)' },
-  { value: 3, label: 'HIGH', color: 'var(--sev-high)' },
-  { value: 4, label: 'CRITICAL', color: 'var(--sev-critical)' },
-]
-
-const trafficChoices: {
-  value: TrafficLight
-  label: string
-  color: string
-}[] = [
-  { value: 0, label: 'WHITE', color: 'var(--tlp-white)' },
-  { value: 1, label: 'GREEN', color: 'var(--tlp-green)' },
-  { value: 2, label: 'AMBER', color: 'var(--tlp-amber)' },
-  { value: 3, label: 'RED', color: 'var(--tlp-red)' },
-]
-
-const fieldLblProps = {
-  fz: 12,
-  c: 'var(--muted)',
-  fw: 600,
-} as const
-
-const monoMetaProps = {
-  ff: 'monospace',
-  fz: 10.5,
-  c: 'var(--faint)',
-} as const
-
-function RequiredMark() {
-  return (
-    <Text component="span" c="var(--sev-critical)" inherit>
-      {' '}
-      *
-    </Text>
-  )
-}
-
-function FieldLabel({
-  children,
-  required,
-}: {
-  children: string
-  required?: boolean
-}) {
-  return (
-    <Text component="span" {...fieldLblProps}>
-      {children}
-      {required && <RequiredMark />}
-    </Text>
-  )
-}
-
-function choiceStyle(active: boolean, color: string) {
-  return active
-    ? {
-        color,
-        borderColor: color,
-        background: `color-mix(in srgb, ${color} 10%, transparent)`,
-      }
-    : undefined
-}
-
-function SegmentedButtons<T extends number>({
-  label,
-  choices,
-  value,
-  onChange,
-  required,
-}: {
-  label: string
-  choices: { value: T; label: string; color: string }[]
-  value: T
-  onChange: (value: T) => void
-  required?: boolean
-}) {
-  return (
-    <Stack gap={6}>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <Group gap={6} role="radiogroup" aria-label={label}>
-        {choices.map((choice) => {
-          const active = choice.value === value
-          return (
-            <Button
-              key={choice.value}
-              type="button"
-              size="xs"
-              variant="default"
-              role="radio"
-              aria-checked={active}
-              onClick={() => onChange(choice.value)}
-              ff="monospace"
-              fz={11}
-              lts="0.4px"
-              fw={700}
-              style={choiceStyle(active, choice.color)}
-            >
-              {choice.label}
-            </Button>
-          )
-        })}
-      </Group>
-    </Stack>
-  )
-}
-
-function CustomFieldInput({
-  type,
-  label,
-  value,
-  error,
-  onChange,
-  mandatory,
-}: {
-  type: CustomFieldType
-  label: string
-  value: string
-  error: boolean
-  onChange: (value: string) => void
-  mandatory: boolean
-}) {
-  const inputProps = {
-    label: <FieldLabel required={mandatory}>{label}</FieldLabel>,
-    error: error ? 'Required' : undefined,
-  }
-
-  if (type === 'integer' || type === 'float') {
-    return (
-      <NumberInput
-        {...inputProps}
-        placeholder={type}
-        value={value === '' ? undefined : Number(value)}
-        allowDecimal={type === 'float'}
-        onChange={(next) => onChange(next === '' ? '' : String(next))}
-      />
-    )
-  }
-
-  if (type === 'boolean') {
-    return (
-      <Select
-        {...inputProps}
-        placeholder="—"
-        data={['yes', 'no']}
-        value={value || null}
-        onChange={(next) => onChange(next ?? '')}
-      />
-    )
-  }
-
-  return (
-    <TextInput
-      {...inputProps}
-      type={type === 'date' ? 'date' : 'text'}
-      placeholder={type}
-      value={value}
-      onChange={(event) => onChange(event.currentTarget.value)}
-    />
-  )
-}
-
-function TaskTemplateRow({ task }: { task: CaseTemplateTask }) {
-  return (
-    <Group
-      gap={12}
-      wrap="nowrap"
-      py={10}
-      style={{
-        borderBottom: '1px solid var(--line-soft)',
-      }}
-    >
-      <Checkbox size="xs" readOnly aria-label={`Template task ${task.title}`} />
-      <Box flex={1} miw={0}>
-        <Group gap={5} wrap="nowrap">
-          <Text fw={600} fz={13} truncate>
-            {task.title}
-          </Text>
-          {task.flagged && (
-            <TriangleAlert
-              size={13}
-              aria-label="Flagged task"
-              style={{ color: 'var(--sev-medium)', flexShrink: 0 }}
-            />
-          )}
-        </Group>
-        <Text {...monoMetaProps} truncate>
-          {[
-            task.group,
-            task.assignee,
-            task.description ? 'has description' : '',
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </Text>
-      </Box>
-      <Text
-        component="span"
-        ff="monospace"
-        fz={10.5}
-        c="var(--muted)"
-        bg="gray.0"
-        px={8}
-        py={3}
-        style={{ borderRadius: 4, whiteSpace: 'nowrap' }}
-      >
-        <Hourglass size={11} style={{ verticalAlign: '-1px' }} />{' '}
-        {formatTemplateDue(task.dueInHours)}
-      </Text>
-      <Text
-        component="span"
-        ff="monospace"
-        fz={10}
-        fw={700}
-        c="var(--muted)"
-        bg="gray.0"
-        px={8}
-        py={3}
-        style={{ borderRadius: 99, whiteSpace: 'nowrap' }}
-      >
-        WAITING
-      </Text>
-    </Group>
-  )
-}
+import {
+  BUSINESS_UNITS,
+  SEVERITY_CHOICES,
+  TRAFFIC_CHOICES,
+} from './create-case/constants'
+import type { SeverityChoice, TrafficLight } from './create-case/constants'
+import styles from './create-case/styles.module.css'
+import {
+  CustomFieldInput,
+  FieldLabel,
+  RequiredMark,
+  SegmentedButtons,
+} from './create-case/Fields'
+import { TaskTemplateRow } from './create-case/TaskTemplateRow'
 
 export function CreateCasePage() {
   const navigate = useNavigate()
@@ -497,7 +263,7 @@ export function CreateCasePage() {
                   }
                   allowDeselect={false}
                 />
-                <Text {...monoMetaProps} mt={5}>
+                <Text className={styles.metaText} mt={5}>
                   templates pre-load defaults, tags, tasks and custom fields ·{' '}
                   <Anchor
                     component="button"
@@ -522,7 +288,7 @@ export function CreateCasePage() {
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={18}>
               <SegmentedButtons
                 label="Severity"
-                choices={severityChoices}
+                choices={SEVERITY_CHOICES}
                 value={severity}
                 onChange={setSeverity}
                 required
@@ -530,7 +296,7 @@ export function CreateCasePage() {
 
               <Select
                 label={<FieldLabel>Business unit</FieldLabel>}
-                data={businessUnits}
+                data={BUSINESS_UNITS}
                 value={businessUnit}
                 onChange={(next) => setBusinessUnit(next ?? 'Corporate IT')}
                 allowDeselect={false}
@@ -540,7 +306,7 @@ export function CreateCasePage() {
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={18}>
               <SegmentedButtons
                 label="TLP"
-                choices={trafficChoices}
+                choices={TRAFFIC_CHOICES}
                 value={tlp}
                 onChange={setTlp}
               />
@@ -548,11 +314,11 @@ export function CreateCasePage() {
               <Box>
                 <SegmentedButtons
                   label="PAP"
-                  choices={trafficChoices}
+                  choices={TRAFFIC_CHOICES}
                   value={pap}
                   onChange={setPap}
                 />
-                <Text {...monoMetaProps} mt={5}>
+                <Text className={styles.metaText} mt={5}>
                   permissible actions protocol — how observables may be used
                 </Text>
               </Box>
@@ -578,7 +344,7 @@ export function CreateCasePage() {
               <Box>
                 <Group gap={8} mb={8}>
                   <FieldLabel>Custom fields</FieldLabel>
-                  <Text {...monoMetaProps}>
+                  <Text className={styles.metaText}>
                     from template ·{' '}
                     <Text component="span" c="var(--sev-critical)" inherit>
                       *

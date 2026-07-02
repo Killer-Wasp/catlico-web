@@ -1,0 +1,8 @@
+/* Cases list typography. Replaces the filterLblProps Mantine style object. */
+.fieldLabel {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.625rem;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+}

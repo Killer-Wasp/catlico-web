@@ -1,6 +1,4 @@
 import type { Alert } from '#/components/Alerts/alerts.types'
-import { SEV, TLP } from '#/lib/domain'
-import { fmtAge, srcColor } from '#/components/Alerts/alerts'
 import {
   alertKeys,
   alertsQueryOptions,
@@ -8,7 +6,6 @@ import {
   promoteAlertToCase,
 } from '#/components/Alerts/alertsQueries'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
-import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
 import { caseKeys } from '#/components/Cases/casesQueries'
 import {
   useMutation,
@@ -19,132 +16,34 @@ import {
 // Reuse the Cases page var scope so both tables share the SOC palette
 // (severity / TLP / MITRE colours, soft borders) defined on `.page`.
 import classes from '#/components/Cases/CasesPage.module.css'
-import { Severity } from '#/components/Severity/Severity'
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import { TokenSearch } from '#/components/Table/TokenSearch'
-import { Tag } from '#/components/Tag/Tag'
 import {
-  ActionIcon,
-  Badge,
   Box,
   Button,
-  Checkbox,
-  ColorSwatch,
-  Drawer,
   Group,
-  Menu,
   Pagination,
   Paper,
   Select,
-  Stack,
-  Table,
   Text,
-  Textarea,
-  VisuallyHidden,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useNavigate } from '@tanstack/react-router'
-import type {
-  ColumnDef,
-  FilterFn,
-  SortingFn,
-  SortingState,
-} from '@tanstack/react-table'
+import type { SortingState } from '@tanstack/react-table'
 import {
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import {
-  ChevronDown,
-  ChevronUp,
-  ChevronsUpDown,
-  EyeOff,
-  ListChecks,
-  Play,
-  Settings,
-  Sparkles,
-  X,
-} from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-
-const SEV_OPTIONS = [
-  { value: '4', label: 'Critical' },
-  { value: '3', label: 'High' },
-  { value: '2', label: 'Medium' },
-  { value: '1', label: 'Low' },
-]
-
-const TLP_OPTIONS = [
-  { value: '3', label: 'RED' },
-  { value: '2', label: 'AMBER' },
-  { value: '1', label: 'GREEN' },
-  { value: '0', label: 'WHITE' },
-]
-
-const TLP_COLOR: Record<string, string> = {
-  red: 'red',
-  amber: 'yellow',
-  green: 'green',
-  white: 'gray',
-}
-
-// Mono, uppercase, dimmed column headers — applied via Mantine style props.
-const headerProps = {
-  ff: 'monospace',
-  tt: 'uppercase',
-  fz: 10,
-  fw: 500,
-  c: 'dimmed',
-  lts: '1px',
-} as const
-
-// Mono, uppercase, dimmed inline field labels (filter / sort / rows …).
-const filterLblProps = {
-  ff: 'monospace',
-  fz: 10,
-  lts: '0.8px',
-  tt: 'uppercase',
-  c: 'dimmed',
-} as const
-
-// Match a single scalar cell value against the OR-list of selected values.
-const includesOne: FilterFn<Alert> = (row, columnId, filterValue: string[]) => {
-  if (!filterValue.length) return true
-  return filterValue.includes(String(row.getValue(columnId)))
-}
-
-const includesAnyTag: FilterFn<Alert> = (
-  row,
-  columnId,
-  filterValue: string[],
-) => {
-  if (!filterValue.length) return true
-  const tags = row.getValue<string[]>(columnId)
-  return filterValue.some((t) => tags.includes(t))
-}
-
-// Free-text fields (alert number, title): cell contains any typed substring.
-const includesAnySubstring: FilterFn<Alert> = (
-  row,
-  columnId,
-  filterValue: string[],
-) => {
-  if (!filterValue.length) return true
-  const cell = String(row.getValue(columnId)).toLowerCase()
-  return filterValue.some((q) => cell.includes(q.toLowerCase()))
-}
-
-// Sort the "Alert" column by the numeric id (e.g. "AL-9123").
-const byAlertId: SortingFn<Alert> = (a, b) =>
-  Number(a.original.id.replace(/\D/g, '')) -
-  Number(b.original.id.replace(/\D/g, ''))
-
-// Sort "Age" chronologically by the underlying minutes.
-const byAge: SortingFn<Alert> = (a, b) => a.original.ageMin - b.original.ageMin
+import { SEVERITY_OPTIONS, TLP_OPTIONS } from '#/lib/domain'
+import { ListChecks, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { AlertDetailDrawer } from './alerts/AlertDetailDrawer'
+import { AlertsTable } from './alerts/AlertsTable'
+import { buildAlertColumns } from './alerts/alertColumns'
+import styles from './alerts/styles.module.css'
 
 export function AlertsPage() {
   const navigate = useNavigate()
@@ -242,170 +141,9 @@ export function AlertsPage() {
     notifications.show({ message: `Alert ${id} marked as ignored` })
   }
 
-  const columns = useMemo<ColumnDef<Alert>[]>(
-    () => [
-      {
-        id: 'select',
-        header: ({ table }) => (
-          <Checkbox
-            size="xs"
-            checked={table.getIsAllRowsSelected()}
-            indeterminate={table.getIsSomeRowsSelected()}
-            onChange={table.getToggleAllRowsSelectedHandler()}
-            aria-label="Select all alerts"
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            size="xs"
-            checked={row.getIsSelected()}
-            onChange={row.getToggleSelectedHandler()}
-            aria-label={`Select alert ${row.original.id}`}
-          />
-        ),
-        enableColumnFilter: false,
-        enableSorting: false,
-        meta: { ta: 'center' },
-      },
-      {
-        id: 'id',
-        header: 'Alert',
-        accessorFn: (row) => row.sev,
-        filterFn: includesOne,
-        sortingFn: byAlertId,
-        cell: ({ row }) => (
-          <Severity id={row.original.id} sev={row.original.sev} />
-        ),
-      },
-      {
-        id: 'title',
-        header: 'Title',
-        accessorFn: (row) => row.title,
-        filterFn: includesAnySubstring,
-        enableSorting: false,
-        cell: ({ row }) => (
-          <Box>
-            <Text fw={500} truncate maw={420}>
-              {row.original.title}
-            </Text>
-            <Group gap={6} mt={4} wrap="wrap">
-              {row.original.tags.map((t) => (
-                <Tag key={t} label={t} />
-              ))}
-            </Group>
-          </Box>
-        ),
-      },
-      {
-        id: 'source',
-        header: 'Source',
-        accessorFn: (row) => row.src,
-        filterFn: includesOne,
-        enableSorting: false,
-        cell: ({ row }) => (
-          <Group gap={8} wrap="nowrap">
-            <ColorSwatch
-              size={8}
-              radius="sm"
-              color={srcColor(row.original.src)}
-              withShadow={false}
-            />
-            <Text size="sm" c="dimmed">
-              {row.original.src}
-            </Text>
-          </Group>
-        ),
-      },
-      {
-        id: 'tlp',
-        header: 'TLP',
-        accessorFn: (row) => row.tlp,
-        filterFn: includesOne,
-        enableSorting: false,
-        cell: ({ row }) => {
-          const tlpName = TLP[row.original.tlp]
-          return (
-            <Badge
-              color={TLP_COLOR[tlpName]}
-              variant="light"
-              radius="sm"
-              size="sm"
-              ff="monospace"
-            >
-              TLP:{tlpName.toUpperCase()}
-            </Badge>
-          )
-        },
-      },
-      {
-        id: 'tags',
-        accessorFn: (row) => row.tags,
-        filterFn: includesAnyTag,
-        // Filter-only column; rendered inline in the title cell.
-        enableHiding: true,
-        enableSorting: false,
-      },
-      {
-        id: 'alertNo',
-        accessorFn: (row) => row.id,
-        filterFn: includesAnySubstring,
-        // Filter-only column for the `alert:` token; never rendered.
-        enableHiding: true,
-        enableSorting: false,
-      },
-      {
-        id: 'age',
-        header: 'Age',
-        accessorFn: (row) => row.ageMin,
-        enableColumnFilter: false,
-        sortingFn: byAge,
-        cell: ({ row }) => (
-          <Text
-            ff="monospace"
-            fz={11}
-            c={row.original.breach ? 'var(--sev-critical)' : 'dimmed'}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {fmtAge(row.original.ageMin)}
-            {row.original.breach ? ' ⚠' : ''}
-          </Text>
-        ),
-      },
-      {
-        id: 'actions',
-        header: '',
-        enableColumnFilter: false,
-        enableSorting: false,
-        meta: { ta: 'right' },
-        cell: ({ row }) => (
-          <Menu position="bottom-end" withArrow shadow="md">
-            <Menu.Target>
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                aria-label={`Alert ${row.original.id} actions`}
-              >
-                <Settings size={16} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<Sparkles size={14} />}
-                onClick={() => runAnalysis(row.original.id)}
-              >
-                Run analysis
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<EyeOff size={14} />}
-                onClick={() => ignoreAlert(row.original.id)}
-              >
-                Ignore
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        ),
-      },
-    ],
+  const columns = useMemo(
+    () =>
+      buildAlertColumns({ onRunAnalysis: runAnalysis, onIgnore: ignoreAlert }),
     [],
   )
 
@@ -447,7 +185,7 @@ export function AlertsPage() {
         label: 'Severity',
         kind: 'enum',
         columnId: 'id',
-        options: SEV_OPTIONS,
+        options: SEVERITY_OPTIONS,
       },
       {
         key: 'source',
@@ -560,7 +298,6 @@ export function AlertsPage() {
   const pageCount = table.getPageCount()
   const rangeStart = totalFiltered === 0 ? 0 : pageIndex * pageSize + 1
   const rangeEnd = Math.min((pageIndex + 1) * pageSize, totalFiltered)
-  const rows = table.getRowModel().rows
 
   return (
     <Box className={classes.page}>
@@ -666,7 +403,7 @@ export function AlertsPage() {
           align="center"
           style={{ borderBottom: '1px solid var(--line-soft)' }}
         >
-          <Text component="span" {...filterLblProps}>
+          <Text component="span" className={styles.fieldLabel}>
             filter
           </Text>
           <TokenSearch
@@ -676,122 +413,11 @@ export function AlertsPage() {
           />
         </Group>
 
-        <Table.ScrollContainer minWidth={820}>
-          <Table
-            highlightOnHover
-            horizontalSpacing="lg"
-            verticalSpacing="sm"
-            borderColor="var(--line-soft)"
-          >
-            <Table.Thead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <Table.Tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const meta = header.column.columnDef.meta
-                    const canSort = header.column.getCanSort()
-                    const sorted = header.column.getIsSorted()
-                    const label = flexRender(
-                      header.column.columnDef.header,
-                      header.getContext(),
-                    )
-                    return (
-                      <Table.Th
-                        key={header.id}
-                        {...headerProps}
-                        ta={meta?.ta}
-                        visibleFrom={meta?.visibleFrom}
-                        w={header.column.id === 'select' ? 40 : undefined}
-                      >
-                        {canSort ? (
-                          <Group
-                            gap={4}
-                            wrap="nowrap"
-                            onClick={header.column.getToggleSortingHandler()}
-                            style={{ cursor: 'pointer', userSelect: 'none' }}
-                          >
-                            {label}
-                            {sorted === 'asc' ? (
-                              <ChevronUp size={12} />
-                            ) : sorted === 'desc' ? (
-                              <ChevronDown size={12} />
-                            ) : (
-                              <ChevronsUpDown
-                                size={12}
-                                style={{ opacity: 0.4 }}
-                              />
-                            )}
-                          </Group>
-                        ) : (
-                          label
-                        )}
-                      </Table.Th>
-                    )
-                  })}
-                </Table.Tr>
-              ))}
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((row) => {
-                const isSel = row.getIsSelected()
-                return (
-                  <Table.Tr
-                    key={row.id}
-                    bg={isSel ? 'orange.0' : undefined}
-                    tabIndex={0}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() =>
-                      selectMode
-                        ? row.toggleSelected()
-                        : openAlert(row.original.id)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter')
-                        selectMode
-                          ? row.toggleSelected()
-                          : openAlert(row.original.id)
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => {
-                      const meta = cell.column.columnDef.meta
-                      const stop =
-                        cell.column.id === 'select' ||
-                        cell.column.id === 'actions'
-                      return (
-                        <Table.Td
-                          key={cell.id}
-                          ta={meta?.ta}
-                          visibleFrom={meta?.visibleFrom}
-                          onClick={
-                            stop ? (e) => e.stopPropagation() : undefined
-                          }
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </Table.Td>
-                      )
-                    })}
-                  </Table.Tr>
-                )
-              })}
-              {rows.length === 0 && (
-                <Table.Tr>
-                  <Table.Td
-                    ta="center"
-                    c="dimmed"
-                    fz={13}
-                    py={40}
-                    px={18}
-                    colSpan={table.getVisibleLeafColumns().length}
-                  >
-                    No alerts match the current filters.
-                  </Table.Td>
-                </Table.Tr>
-              )}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <AlertsTable
+          table={table}
+          selectMode={selectMode}
+          onOpenAlert={openAlert}
+        />
 
         <Group
           gap={12}
@@ -805,7 +431,7 @@ export function AlertsPage() {
           </Text>
           <Group gap="md" wrap="nowrap" ml="auto">
             <Group gap="xs" wrap="nowrap">
-              <Text component="span" {...filterLblProps}>
+              <Text component="span" className={styles.fieldLabel}>
                 rows
               </Text>
               <Select
@@ -844,350 +470,5 @@ export function AlertsPage() {
         </Group>
       </Paper>
     </Box>
-  )
-}
-
-function AlertDetailDrawer({
-  alert,
-  caseTemplates,
-  comments,
-  onClose,
-  onAddComment,
-  onIgnore,
-  onRunAnalysis,
-  onPromote,
-  promotionPending,
-}: {
-  alert: Alert | null
-  caseTemplates: CaseTemplate[]
-  comments: string[]
-  onClose: () => void
-  onAddComment: (id: string, note: string) => void
-  onIgnore: (id: string) => void
-  onRunAnalysis: (id: string) => void
-  onPromote: (id: string, templateId: string) => void
-  promotionPending: boolean
-}) {
-  const [note, setNote] = useState('')
-  const [templateId, setTemplateId] = useState('')
-
-  useEffect(() => {
-    if (!templateId && caseTemplates.length > 0) {
-      setTemplateId(caseTemplates[0].id)
-    }
-  }, [caseTemplates, templateId])
-
-  const selectedTemplate =
-    caseTemplates.find((template) => template.id === templateId) ??
-    (caseTemplates.length > 0 ? caseTemplates[0] : undefined)
-
-  const close = () => {
-    setNote('')
-    onClose()
-  }
-
-  if (!alert) return null
-
-  const tlpName = TLP[alert.tlp]
-  const reference = `${alert.src.toLowerCase().replace(/\s+/g, '-')}:${alert.id.toLowerCase()}`
-
-  return (
-    <Drawer
-      opened
-      onClose={close}
-      position="right"
-      size="min(520px, 94vw)"
-      padding={0}
-      title={<VisuallyHidden>Alert detail</VisuallyHidden>}
-      aria-label="Alert detail"
-      closeButtonProps={{ 'aria-label': 'Close alert detail' }}
-      overlayProps={{ backgroundOpacity: 0.55, blur: 2 }}
-      styles={{
-        content: { borderLeft: '1px solid var(--line-soft)' },
-        header: {
-          alignItems: 'flex-start',
-          borderBottom: '1px solid var(--line-soft)',
-          padding: '18px 22px 0',
-        },
-        body: { padding: 0 },
-      }}
-    >
-      <Box
-        style={{
-          borderLeft: `4px solid var(--sev-${SEV[alert.sev]})`,
-          marginTop: -44,
-          paddingTop: 44,
-        }}
-      >
-        <Box px={22} pb={16}>
-          <Text ff="monospace" fz={11} c="dimmed" mb={6}>
-            ALERT {alert.id}
-          </Text>
-          <Text fw={700} fz={18} lh={1.25} pr={36}>
-            {alert.title}
-          </Text>
-          <Group gap={7} mt={12} wrap="wrap">
-            <Badge color="red" variant="light" radius="sm" ff="monospace">
-              {SEV[alert.sev].toUpperCase()}
-            </Badge>
-            <Badge
-              color={TLP_COLOR[tlpName]}
-              variant="light"
-              radius="sm"
-              ff="monospace"
-            >
-              TLP:{tlpName.toUpperCase()}
-            </Badge>
-            {alert.tags.map((tag) => (
-              <Tag key={tag} label={tag} />
-            ))}
-          </Group>
-        </Box>
-
-        <DrawerSection title="Details">
-          <KeyValue label="Source">{alert.src}</KeyValue>
-          <KeyValue label="First seen">{fmtAge(alert.ageMin)} ago</KeyValue>
-          <KeyValue label="SLA">
-            <Text component="span" c={alert.breach ? 'red.6' : 'green.7'}>
-              {alert.breach ? 'breached' : 'within SLA'}
-            </Text>
-          </KeyValue>
-          <KeyValue label="Status">Read</KeyValue>
-          <KeyValue label="Reference">
-            <Text component="span" ff="monospace" fz={12}>
-              {reference}
-            </Text>
-          </KeyValue>
-        </DrawerSection>
-
-        <DrawerSection title="Description">
-          <Text fz={14} lh={1.45} c="var(--text)">
-            {alert.description}
-          </Text>
-        </DrawerSection>
-
-        <DrawerSection
-          title="Observables"
-          action={
-            <Button
-              size="xs"
-              variant="default"
-              leftSection={<Play size={12} />}
-              onClick={() => onRunAnalysis(alert.id)}
-            >
-              Run analyzers
-            </Button>
-          }
-        >
-          <Stack gap={0}>
-            {alert.observables.map((observable) => (
-              <Group
-                key={`${observable.type}:${observable.value}`}
-                py={7}
-                gap={10}
-                wrap="nowrap"
-                style={{ borderBottom: '1px solid var(--line-soft)' }}
-              >
-                <Badge
-                  variant="outline"
-                  color="gray"
-                  radius="sm"
-                  ff="monospace"
-                >
-                  {observable.type}
-                </Badge>
-                <Text fz={13} ff="monospace" truncate>
-                  {observable.value}
-                </Text>
-              </Group>
-            ))}
-          </Stack>
-        </DrawerSection>
-
-        <DrawerSection title="Similar cases">
-          {alert.similarCases.length ? (
-            <Stack gap={0}>
-              {alert.similarCases.map((similar) => (
-                <Group
-                  key={similar.id}
-                  py={8}
-                  gap={10}
-                  wrap="nowrap"
-                  style={{ borderBottom: '1px solid var(--line-soft)' }}
-                >
-                  <Text ff="monospace" fz={12} c="dimmed">
-                    {similar.id}
-                  </Text>
-                  <Text fz={13} fw={500} truncate style={{ flex: 1 }}>
-                    {similar.title}
-                  </Text>
-                  <Badge size="xs" variant="light" color="blue">
-                    {similar.status}
-                  </Badge>
-                </Group>
-              ))}
-            </Stack>
-          ) : (
-            <Text fz={13} c="dimmed">
-              No similar cases found.
-            </Text>
-          )}
-        </DrawerSection>
-
-        <DrawerSection title={`Comments ${comments.length}`}>
-          <Stack gap={8}>
-            {comments.length ? (
-              comments.map((comment, index) => (
-                <Text key={`${alert.id}-comment-${index}`} fz={13} c="dimmed">
-                  {comment}
-                </Text>
-              ))
-            ) : (
-              <Text fz={13} c="dimmed">
-                No triage notes yet — they transfer to the case on promotion.
-              </Text>
-            )}
-            <Textarea
-              value={note}
-              onChange={(event) => setNote(event.currentTarget.value)}
-              placeholder="Triage note... transfers to the case on promotion (Ctrl+Enter)"
-              minRows={3}
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                  onAddComment(alert.id, note)
-                  setNote('')
-                }
-              }}
-            />
-            <Group justify="flex-end">
-              <Button
-                size="xs"
-                variant="default"
-                onClick={() => {
-                  onAddComment(alert.id, note)
-                  setNote('')
-                }}
-              >
-                Post note
-              </Button>
-            </Group>
-          </Stack>
-        </DrawerSection>
-
-        <DrawerSection title="Promote with template">
-          <Select
-            data={caseTemplates.map((template) => ({
-              value: template.id,
-              label: template.name,
-            }))}
-            value={templateId || null}
-            onChange={(value) => setTemplateId(value ?? '')}
-            disabled={caseTemplates.length === 0}
-            placeholder="No templates found"
-            allowDeselect={false}
-          />
-          <Text mt={6} ff="monospace" fz={10} c="dimmed">
-            pre-loads tasks, custom fields, TLP/PAP & tags
-          </Text>
-          {selectedTemplate && (
-            <Group gap={6} mt={8} wrap="wrap">
-              <Tag label={`SEV ${SEV[selectedTemplate.sev].toUpperCase()}`} />
-              <Tag label={`TLP ${TLP[selectedTemplate.tlp].toUpperCase()}`} />
-              <Tag label={`${selectedTemplate.tasks.length} tasks`} />
-              <Tag
-                label={`${selectedTemplate.customFields.length} custom fields`}
-              />
-            </Group>
-          )}
-        </DrawerSection>
-
-        <Group
-          p={16}
-          gap={10}
-          wrap="nowrap"
-          style={{
-            position: 'sticky',
-            bottom: 0,
-            background: 'var(--mantine-color-body)',
-            borderTop: '1px solid var(--line-soft)',
-          }}
-        >
-          <Button
-            fullWidth
-            variant="default"
-            onClick={() => {
-              onIgnore(alert.id)
-              close()
-            }}
-          >
-            Ignore
-          </Button>
-          <Button
-            fullWidth
-            variant="default"
-            onClick={() =>
-              notifications.show({
-                message: `Pick a target case to merge ${alert.id} into`,
-              })
-            }
-          >
-            Merge into case...
-          </Button>
-          <Button
-            fullWidth
-            color="orange"
-            loading={promotionPending}
-            onClick={() => onPromote(alert.id, templateId)}
-          >
-            Promote to case
-          </Button>
-        </Group>
-      </Box>
-    </Drawer>
-  )
-}
-
-function DrawerSection({
-  title,
-  action,
-  children,
-}: {
-  title: string
-  action?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <Box px={22} py={16} style={{ borderTop: '1px solid var(--line-soft)' }}>
-      <Group mb={10} gap="xs" wrap="nowrap">
-        <Text component="h3" {...headerProps} m={0}>
-          {title}
-        </Text>
-        {action && (
-          <Group ml="auto" gap={6}>
-            {action}
-          </Group>
-        )}
-      </Group>
-      {children}
-    </Box>
-  )
-}
-
-function KeyValue({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <Group gap={12} mb={6} wrap="nowrap" align="flex-start">
-      <Text ff="monospace" fz={12} c="dimmed" w={110}>
-        {label}
-      </Text>
-      <Box fz={13} style={{ flex: 1 }}>
-        {children}
-      </Box>
-    </Group>
   )
 }
