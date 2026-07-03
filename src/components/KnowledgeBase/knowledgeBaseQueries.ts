@@ -4,6 +4,30 @@ import { getActiveOrgId } from '#/lib/auth/session'
 
 type Page<T> = { items: T[]; total: number; skip: number; limit: number }
 
+export type KnowledgeBaseContributor = {
+  id: string
+  email: string
+  last_edited_at: string
+}
+
+export type KnowledgeBasePageVersionPublic = {
+  id: number
+  page_id: number
+  version_number: number
+  action: 'create' | 'update' | 'revert' | 'import'
+  snapshot: {
+    title: string
+    summary: string
+    tags: string[]
+    content: string
+  }
+  changed_fields: string[]
+  edited_by: string
+  edited_by_email: string
+  edited_at: string
+  reverted_from_version_id: number | null
+}
+
 export type KnowledgeBasePagePublic = {
   id: number
   title: string
@@ -14,6 +38,8 @@ export type KnowledgeBasePagePublic = {
   created_by: string
   created_at: string
   updated_at: string | null
+  contributors?: KnowledgeBaseContributor[]
+  last_edited_by?: KnowledgeBaseContributor | null
 }
 
 export type KnowledgeBasePageCreateInput = {
@@ -36,6 +62,7 @@ export const kbKeys = {
   list: (orgId: string) => [...kbKeys.lists(), orgId] as const,
   details: () => [...kbKeys.all, 'detail'] as const,
   detail: (id: number) => [...kbKeys.details(), id] as const,
+  versions: (id: number) => [...kbKeys.detail(id), 'versions'] as const,
 }
 
 function activeOrgId(): string {
@@ -67,6 +94,21 @@ export async function updateKnowledgeBasePage(
 
 export async function deleteKnowledgeBasePage(id: number): Promise<void> {
   await api.delete(`knowledge-base/${id}`)
+}
+
+export async function fetchKnowledgeBasePageVersions(
+  id: number,
+): Promise<KnowledgeBasePageVersionPublic[]> {
+  return api.get(`knowledge-base/${id}/versions`).json<KnowledgeBasePageVersionPublic[]>()
+}
+
+export async function revertKnowledgeBasePage(
+  pageId: number,
+  versionId: number,
+): Promise<KnowledgeBasePagePublic> {
+  return api
+    .post(`knowledge-base/${pageId}/versions/${versionId}/revert`)
+    .json<KnowledgeBasePagePublic>()
 }
 
 export const knowledgeBaseQueryOptions = (orgId = activeOrgId()) =>

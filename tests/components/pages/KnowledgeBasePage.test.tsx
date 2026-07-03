@@ -50,6 +50,18 @@ const pageDto = {
   created_by: 'P. Nguyen',
   created_at: '2026-06-20T00:00:00Z',
   updated_at: '2026-06-21T00:00:00Z',
+  contributors: [
+    {
+      id: 'user-1',
+      email: 'analyst@example.com',
+      last_edited_at: '2026-06-21T00:00:00Z',
+    },
+  ],
+  last_edited_by: {
+    id: 'user-1',
+    email: 'analyst@example.com',
+    last_edited_at: '2026-06-21T00:00:00Z',
+  },
 }
 
 const pageDto2 = {
@@ -62,6 +74,8 @@ const pageDto2 = {
   created_by: 'A. Whitford',
   created_at: '2026-06-19T00:00:00Z',
   updated_at: null,
+  contributors: [],
+  last_edited_by: null,
 }
 
 beforeAll(() => {
@@ -198,6 +212,7 @@ describe('KnowledgeBasePage', () => {
     expect(summary.className).toContain('mantine-Text-root')
     expect(summary.getAttribute('data-size')).toBe('sm')
     expect(summary.getAttribute('data-dimmed')).toBe('true')
+    expect(screen.getByText(/Edited by analyst@example.com/)).toBeDefined()
   })
 
   test('clicking Edit in the action menu replaces the detail view with an inline rich text editor', async () => {

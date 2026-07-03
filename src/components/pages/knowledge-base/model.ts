@@ -8,6 +8,8 @@ export type KBPage = {
   tags: string[]
   summary: string
   content: string
+  contributors: { id: string; email: string; lastEditedAt: string }[]
+  lastEditedBy: { id: string; email: string; lastEditedAt: string } | null
 }
 
 export function formatRelativeTime(iso: string): string {
@@ -33,5 +35,17 @@ export function fromApi(p: KnowledgeBasePagePublic): KBPage {
     tags: p.tags,
     summary: p.summary,
     content: p.content,
+    contributors: (p.contributors ?? []).map((contributor) => ({
+      id: contributor.id,
+      email: contributor.email,
+      lastEditedAt: contributor.last_edited_at,
+    })),
+    lastEditedBy: p.last_edited_by
+      ? {
+          id: p.last_edited_by.id,
+          email: p.last_edited_by.email,
+          lastEditedAt: p.last_edited_by.last_edited_at,
+        }
+      : null,
   }
 }

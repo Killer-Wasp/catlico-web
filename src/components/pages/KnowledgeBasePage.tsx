@@ -446,6 +446,11 @@ export function KnowledgeBasePage() {
                       <Tag key={tag} label={tag} />
                     ))}
                   </Group>
+                  {selectedPage.lastEditedBy && (
+                    <Text c="dimmed" size="xs">
+                      Edited by {selectedPage.lastEditedBy.email}
+                    </Text>
+                  )}
                   {selectedPage.summary && (
                     <Text c="dimmed" data-dimmed="true" size="sm" maw="74ch" lh={1.5}>
                       {selectedPage.summary}
