@@ -4,17 +4,12 @@ import { getActiveOrgId } from '#/lib/auth/session'
 
 type Page<T> = { items: T[]; total: number; skip: number; limit: number }
 
-export type KnowledgeBaseBlock =
-  | { type: 'paragraph'; text: string; code?: string }
-  | { type: 'section'; title: string; items: string[] }
-  | { type: 'list'; items: string[] }
-
 export type KnowledgeBasePagePublic = {
   id: number
   title: string
   summary: string
   tags: string[]
-  blocks: KnowledgeBaseBlock[]
+  content: string
   organisation_id: string
   created_by: string
   created_at: string
@@ -25,14 +20,14 @@ export type KnowledgeBasePageCreateInput = {
   title: string
   summary?: string
   tags?: string[]
-  blocks?: KnowledgeBaseBlock[]
+  content?: string
 }
 
 export type KnowledgeBasePageUpdateInput = {
   title?: string
   summary?: string
   tags?: string[]
-  blocks?: KnowledgeBaseBlock[]
+  content?: string
 }
 
 export const kbKeys = {

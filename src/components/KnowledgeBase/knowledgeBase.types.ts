@@ -1,8 +1,3 @@
-export type KnowledgeBaseBlock =
-  | { type: 'paragraph'; text: string; code?: string }
-  | { type: 'section'; title: string; items: string[] }
-  | { type: 'list'; items: string[] }
-
 export type KnowledgeBasePage = {
   id: string
   title: string
@@ -10,5 +5,5 @@ export type KnowledgeBasePage = {
   updated: string
   tags: string[]
   summary: string
-  blocks: KnowledgeBaseBlock[]
+  content: string
 }

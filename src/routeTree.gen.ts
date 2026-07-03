@@ -24,6 +24,7 @@ import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.ind
 import { Route as AppCasesIndexRouteImport } from './routes/_app/cases/index'
 import { Route as AppCaseTemplatesIndexRouteImport } from './routes/_app/case-templates/index'
 import { Route as AppSettingsSectionRouteImport } from './routes/_app/settings.$section'
+import { Route as AppKnowledgeBasePageIdRouteImport } from './routes/_app/knowledge-base/$pageId'
 import { Route as AppCasesCreateRouteImport } from './routes/_app/cases/create'
 import { Route as AppCasesCaseIdRouteImport } from './routes/_app/cases/$caseId'
 import { Route as AppCaseTemplatesTemplateIdRouteImport } from './routes/_app/case-templates/$templateId'
@@ -104,6 +105,11 @@ const AppSettingsSectionRoute = AppSettingsSectionRouteImport.update({
   path: '/$section',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppKnowledgeBasePageIdRoute = AppKnowledgeBasePageIdRouteImport.update({
+  id: '/$pageId',
+  path: '/$pageId',
+  getParentRoute: () => AppKnowledgeBaseRoute,
+} as any)
 const AppCasesCreateRoute = AppCasesCreateRouteImport.update({
   id: '/cases/create',
   path: '/cases/create',
@@ -138,13 +144,14 @@ export interface FileRoutesByFullPath {
   '/connector-jobs': typeof AppConnectorJobsRoute
   '/connectors': typeof AppConnectorsRoute
   '/functions': typeof AppFunctionsRoute
-  '/knowledge-base': typeof AppKnowledgeBaseRoute
+  '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/cases/create': typeof AppCasesCreateRoute
+  '/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/settings/$section': typeof AppSettingsSectionRoute
   '/case-templates/': typeof AppCaseTemplatesIndexRoute
   '/cases/': typeof AppCasesIndexRoute
@@ -158,12 +165,13 @@ export interface FileRoutesByTo {
   '/connector-jobs': typeof AppConnectorJobsRoute
   '/connectors': typeof AppConnectorsRoute
   '/functions': typeof AppFunctionsRoute
-  '/knowledge-base': typeof AppKnowledgeBaseRoute
+  '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
   '/tasks': typeof AppTasksRoute
   '/': typeof AppIndexRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/create': typeof AppCasesCreateRoute
+  '/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/settings/$section': typeof AppSettingsSectionRoute
   '/case-templates': typeof AppCaseTemplatesIndexRoute
   '/cases': typeof AppCasesIndexRoute
@@ -179,7 +187,7 @@ export interface FileRoutesById {
   '/_app/connector-jobs': typeof AppConnectorJobsRoute
   '/_app/connectors': typeof AppConnectorsRoute
   '/_app/functions': typeof AppFunctionsRoute
-  '/_app/knowledge-base': typeof AppKnowledgeBaseRoute
+  '/_app/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/_app/observables': typeof AppObservablesRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRoute
@@ -187,6 +195,7 @@ export interface FileRoutesById {
   '/_app/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/_app/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/_app/cases/create': typeof AppCasesCreateRoute
+  '/_app/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/_app/settings/$section': typeof AppSettingsSectionRoute
   '/_app/case-templates/': typeof AppCaseTemplatesIndexRoute
   '/_app/cases/': typeof AppCasesIndexRoute
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/case-templates/$templateId'
     | '/cases/$caseId'
     | '/cases/create'
+    | '/knowledge-base/$pageId'
     | '/settings/$section'
     | '/case-templates/'
     | '/cases/'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/'
     | '/case-templates/$templateId'
     | '/cases/create'
+    | '/knowledge-base/$pageId'
     | '/settings/$section'
     | '/case-templates'
     | '/cases'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/_app/case-templates/$templateId'
     | '/_app/cases/$caseId'
     | '/_app/cases/create'
+    | '/_app/knowledge-base/$pageId'
     | '/_app/settings/$section'
     | '/_app/case-templates/'
     | '/_app/cases/'
@@ -371,6 +383,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsSectionRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/knowledge-base/$pageId': {
+      id: '/_app/knowledge-base/$pageId'
+      path: '/$pageId'
+      fullPath: '/knowledge-base/$pageId'
+      preLoaderRoute: typeof AppKnowledgeBasePageIdRouteImport
+      parentRoute: typeof AppKnowledgeBaseRoute
+    }
     '/_app/cases/create': {
       id: '/_app/cases/create'
       path: '/cases/create'
@@ -409,6 +428,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppKnowledgeBaseRouteChildren {
+  AppKnowledgeBasePageIdRoute: typeof AppKnowledgeBasePageIdRoute
+}
+
+const AppKnowledgeBaseRouteChildren: AppKnowledgeBaseRouteChildren = {
+  AppKnowledgeBasePageIdRoute: AppKnowledgeBasePageIdRoute,
+}
+
+const AppKnowledgeBaseRouteWithChildren =
+  AppKnowledgeBaseRoute._addFileChildren(AppKnowledgeBaseRouteChildren)
+
 interface AppSettingsRouteChildren {
   AppSettingsSectionRoute: typeof AppSettingsSectionRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
@@ -442,7 +472,7 @@ interface AppRouteChildren {
   AppConnectorJobsRoute: typeof AppConnectorJobsRoute
   AppConnectorsRoute: typeof AppConnectorsRoute
   AppFunctionsRoute: typeof AppFunctionsRoute
-  AppKnowledgeBaseRoute: typeof AppKnowledgeBaseRoute
+  AppKnowledgeBaseRoute: typeof AppKnowledgeBaseRouteWithChildren
   AppObservablesRoute: typeof AppObservablesRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTasksRoute: typeof AppTasksRoute
@@ -459,7 +489,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppConnectorJobsRoute: AppConnectorJobsRoute,
   AppConnectorsRoute: AppConnectorsRoute,
   AppFunctionsRoute: AppFunctionsRoute,
-  AppKnowledgeBaseRoute: AppKnowledgeBaseRoute,
+  AppKnowledgeBaseRoute: AppKnowledgeBaseRouteWithChildren,
   AppObservablesRoute: AppObservablesRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTasksRoute: AppTasksRoute,

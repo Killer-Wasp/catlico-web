@@ -268,6 +268,30 @@ describe('CaseTemplateEditorPage', () => {
     })
   })
 
+  test('saves case template description through the backend summary field', async () => {
+    render(<Harness />)
+
+    expect(
+      await screen.findByDisplayValue('Use for reported credential lures.'),
+    ).toBeDefined()
+    fireEvent.change(screen.getByLabelText('Case Template Description'), {
+      target: { value: 'Short description from the backend.' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save template' })[0])
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith(
+        'case-templates/7',
+        expect.objectContaining({
+          json: expect.objectContaining({
+            summary: 'Short description from the backend.',
+            description: 'Standard phishing playbook.',
+          }),
+        }),
+      ),
+    )
+  })
+
   test('creates a new template through the backend', async () => {
     render(<Harness templateId="new" />)
 

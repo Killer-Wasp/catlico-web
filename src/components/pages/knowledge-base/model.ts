@@ -1,7 +1,4 @@
-import type {
-  KnowledgeBaseBlock,
-  KnowledgeBasePagePublic,
-} from '#/components/KnowledgeBase/knowledgeBaseQueries'
+import type { KnowledgeBasePagePublic } from '#/components/KnowledgeBase/knowledgeBaseQueries'
 
 export type KBPage = {
   id: number
@@ -10,7 +7,7 @@ export type KBPage = {
   updated: string
   tags: string[]
   summary: string
-  blocks: KnowledgeBaseBlock[]
+  content: string
 }
 
 export function formatRelativeTime(iso: string): string {
@@ -35,6 +32,6 @@ export function fromApi(p: KnowledgeBasePagePublic): KBPage {
     updated: formatRelativeTime(p.updated_at ?? p.created_at),
     tags: p.tags,
     summary: p.summary,
-    blocks: p.blocks,
+    content: p.content,
   }
 }

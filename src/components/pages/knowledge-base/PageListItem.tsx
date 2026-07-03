@@ -1,35 +1,31 @@
-import { Box, Button, Text } from '@mantine/core'
+import { Box, Tabs, Text } from '@mantine/core'
 import type { KBPage } from './model'
 
 export function PageListItem({
   page,
   active,
-  onSelect,
 }: {
   page: KBPage
   active: boolean
-  onSelect: () => void
 }) {
   return (
-    <Button
-      variant="subtle"
-      color="gray"
-      fullWidth
-      justify="flex-start"
-      radius={0}
+    <Tabs.Tab
+      value={String(page.id)}
       h="auto"
       px={18}
       py={12}
       ta="left"
-      onClick={onSelect}
       style={(theme) => ({
+        width: '100%',
+        justifyContent: 'flex-start',
+        borderRadius: 0,
         borderBottom: '1px solid var(--line-soft)',
         background: active
           ? `light-dark(${theme.colors.gray[1]}, ${theme.colors.dark[6]})`
           : undefined,
       })}
     >
-      <Box>
+      <Box w="100%" ta="left">
         <Text fw={700} fz={14} c={active ? 'orange.7' : 'var(--text)'}>
           {page.title}
         </Text>
@@ -37,6 +33,6 @@ export function PageListItem({
           {page.author} · updated {page.updated}
         </Text>
       </Box>
-    </Button>
+    </Tabs.Tab>
   )
 }

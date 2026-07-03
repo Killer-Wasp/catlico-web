@@ -9,40 +9,8 @@ export const initialKnowledgeBasePages: KnowledgeBasePage[] = [
     tags: ['runbook', 'phishing'],
     summary:
       'Standard operating procedure for credential-harvesting phishing reported via the abuse mailbox or detected by Proofpoint TAP.',
-    blocks: [
-      {
-        type: 'section',
-        title: '1 · Triage',
-        items: [
-          'Pull the raw .eml via M365 message trace.',
-          'Capture headers, body, attachments and links.',
-          'Confirm the lure is real and in-scope.',
-        ],
-      },
-      {
-        type: 'section',
-        title: '2 · Scope',
-        items: [
-          'Query mail flow for all recipients.',
-          'Correlate proxy/URL telemetry for clickers.',
-          'Identify any credential submissions.',
-        ],
-      },
-      {
-        type: 'section',
-        title: '3 · Contain',
-        items: [
-          'Block sender, domain and landing URLs.',
-          'Reset credentials + revoke sessions for submitters.',
-          'Purge the message from mailboxes.',
-        ],
-      },
-      {
-        type: 'paragraph',
-        text: 'Apply the case template to auto-create these tasks.',
-        code: 'Phishing / credential harvesting',
-      },
-    ],
+    content:
+      '## 1 · Triage\n\n- Pull the raw .eml via M365 message trace.\n- Capture headers, body, attachments and links.\n- Confirm the lure is real and in-scope.\n\n## 2 · Scope\n\n- Query mail flow for all recipients.\n- Correlate proxy/URL telemetry for clickers.\n- Identify any credential submissions.\n\n## 3 · Contain\n\n- Block sender, domain and landing URLs.\n- Reset credentials + revoke sessions for submitters.\n- Purge the message from mailboxes.\n\nApply the case template to auto-create these tasks.\n\n```\nPhishing / credential harvesting\n```',
   },
   {
     id: 'kb-bec',
@@ -52,26 +20,8 @@ export const initialKnowledgeBasePages: KnowledgeBasePage[] = [
     tags: ['runbook', 'bec', 'finance'],
     summary:
       'For confirmed or suspected business email compromise — mailbox rule abuse, payment redirection, executive impersonation.',
-    blocks: [
-      {
-        type: 'section',
-        title: 'Immediate actions',
-        items: [
-          'Audit inbox rules and forwarding on impacted mailboxes.',
-          'Revoke sessions and reset credentials.',
-          'Notify finance to freeze at-risk payments.',
-        ],
-      },
-      {
-        type: 'section',
-        title: 'Evidence to preserve',
-        items: [
-          'Unified audit log for the access window.',
-          'Rule definitions (as added evidence).',
-          'Invoice + payment activity.',
-        ],
-      },
-    ],
+    content:
+      '## Immediate actions\n\n- Audit inbox rules and forwarding on impacted mailboxes.\n- Revoke sessions and reset credentials.\n- Notify finance to freeze at-risk payments.\n\n## Evidence to preserve\n\n- Unified audit log for the access window.\n- Rule definitions (as added evidence).\n- Invoice + payment activity.',
   },
   {
     id: 'kb-tlp',
@@ -81,21 +31,8 @@ export const initialKnowledgeBasePages: KnowledgeBasePage[] = [
     tags: ['policy'],
     summary:
       'Traffic Light Protocol governs who may see an artifact; Permissible Actions Protocol governs what may be done with it.',
-    blocks: [
-      {
-        type: 'list',
-        items: [
-          'WHITE (0) — unrestricted.',
-          'GREEN (1) — community.',
-          'AMBER (2) — limited distribution (default).',
-          'RED (3) — named recipients only.',
-        ],
-      },
-      {
-        type: 'paragraph',
-        text: "Analyzers and responders must respect an observable's PAP — egress is blocked when an action would exceed the permitted level.",
-      },
-    ],
+    content:
+      "- WHITE (0) — unrestricted.\n- GREEN (1) — community.\n- AMBER (2) — limited distribution (default).\n- RED (3) — named recipients only.\n\nAnalyzers and responders must respect an observable's PAP — egress is blocked when an action would exceed the permitted level.",
   },
   {
     id: 'kb-onboard',
@@ -104,18 +41,8 @@ export const initialKnowledgeBasePages: KnowledgeBasePage[] = [
     updated: '1 month ago',
     tags: ['onboarding'],
     summary: '',
-    blocks: [
-      {
-        type: 'list',
-        items: [
-          'Account provisioned with the analyst profile.',
-          'MFA enrolled (phishing-resistant).',
-          'Read the phishing, BEC and malware runbooks.',
-          'Shadow a shift on the triage queue.',
-          'Complete a supervised case end-to-end.',
-        ],
-      },
-    ],
+    content:
+      '- Account provisioned with the analyst profile.\n- MFA enrolled (phishing-resistant).\n- Read the phishing, BEC and malware runbooks.\n- Shadow a shift on the triage queue.\n- Complete a supervised case end-to-end.',
   },
 ]
 
@@ -141,6 +68,6 @@ export function createDraftKnowledgeBasePage(title: string): KnowledgeBasePage {
     updated: 'just now',
     tags: ['draft'],
     summary: 'New page - start writing...',
-    blocks: [{ type: 'paragraph', text: 'New page - start writing...' }],
+    content: 'New page - start writing...',
   }
 }

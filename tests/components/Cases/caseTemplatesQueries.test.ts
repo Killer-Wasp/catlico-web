@@ -165,6 +165,8 @@ describe('case template queries', () => {
     expect(api.patch).toHaveBeenCalledWith('case-templates/7', {
       json: expect.objectContaining({
         display_name: 'Phishing / credential harvesting',
+        summary: 'Use for reported credential lures.',
+        description: 'Standard phishing playbook.',
         tasks: [
           {
             title: 'Triage',

@@ -22,13 +22,20 @@ import {
   vi,
 } from 'vitest'
 
+const navigate = vi.fn()
+let routeParams: Record<string, string | undefined> = {}
+
 vi.mock('@tanstack/react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof TanStackReactRouter>()
-  return { ...actual, useNavigate: () => vi.fn() }
+  return {
+    ...actual,
+    useNavigate: () => navigate,
+    useParams: () => routeParams,
+  }
 })
 
 vi.mock('#/lib/api/client', () => ({
-  api: { get: vi.fn(), patch: vi.fn(), post: vi.fn() },
+  api: { delete: vi.fn(), get: vi.fn(), patch: vi.fn(), post: vi.fn() },
 }))
 
 type JsonResponse = { json: () => Promise<unknown> }
@@ -38,9 +45,7 @@ const pageDto = {
   title: 'Phishing response runbook',
   summary: 'Standard procedure for phishing.',
   tags: ['runbook', 'phishing'],
-  blocks: [
-    { type: 'section' as const, title: 'Triage', items: ['Pull .eml', 'Capture headers'] },
-  ],
+  content: '## Triage\n\n- Pull .eml\n- Capture headers',
   organisation_id: 'origin-soc',
   created_by: 'P. Nguyen',
   created_at: '2026-06-20T00:00:00Z',
@@ -52,7 +57,7 @@ const pageDto2 = {
   title: 'BEC investigation guide',
   summary: 'For confirmed BEC.',
   tags: ['bec'],
-  blocks: [{ type: 'paragraph' as const, text: 'Start here.' }],
+  content: 'Start here.',
   organisation_id: 'origin-soc',
   created_by: 'A. Whitford',
   created_at: '2026-06-19T00:00:00Z',
@@ -103,7 +108,10 @@ function Harness() {
 
 beforeEach(() => {
   localStorage.setItem('catlico.orgId', 'origin-soc')
+  navigate.mockReset()
+  routeParams = {}
   vi.mocked(api.get).mockReset()
+  vi.mocked(api.delete).mockReset()
   vi.mocked(api.patch).mockReset()
   vi.mocked(api.post).mockReset()
   vi.mocked(api.get).mockReturnValue({
@@ -114,13 +122,14 @@ beforeEach(() => {
       ...pageDto,
       title: 'Phishing response runbook (edited)',
       summary: 'Updated summary.',
-      tags: ['runbook', 'phishing', 'updated'],
-      blocks: [{ type: 'section', title: 'Triage', items: ['Pull .eml', 'Capture headers', 'New step'] }],
+      tags: ['runbook', 'updated'],
+      content: '## Triage\n\n- Pull .eml\n- Capture headers',
     }),
   } satisfies JsonResponse as ReturnType<typeof api.patch>)
   vi.mocked(api.post).mockReturnValue({
     json: async () => ({ ...pageDto, id: 3, title: 'New page' }),
   } satisfies JsonResponse as ReturnType<typeof api.post>)
+  vi.mocked(api.delete).mockReturnValue({} as ReturnType<typeof api.delete>)
 })
 
 afterEach(cleanup)
@@ -138,37 +147,120 @@ describe('KnowledgeBasePage', () => {
     expect(api.get).toHaveBeenCalledWith('knowledge-base/')
   })
 
-  test('clicking Edit page opens editable fields pre-filled with page data', async () => {
+  test('renders the page selector as a customized vertical tab list', async () => {
     render(<Harness />)
     await waitForPageList()
 
-    fireEvent.click(screen.getByText('Edit page'))
+    const tabList = screen.getByRole('tablist')
+    expect(tabList.getAttribute('aria-orientation')).toBe('vertical')
 
-    const dialog = await screen.findByRole('dialog')
-    expect(dialog).toBeDefined()
-
-    const titleInput = screen.getByRole('textbox', { name: /title/i }) as HTMLInputElement
-    expect(titleInput.value).toBe('Phishing response runbook')
-
-    const summaryInput = screen.getByRole('textbox', { name: /summary/i }) as HTMLInputElement
-    expect(summaryInput.value).toBe('Standard procedure for phishing.')
-
-    const tagsInput = screen.getByRole('textbox', { name: /tags/i }) as HTMLInputElement
-    expect(tagsInput.value).toBe('runbook, phishing')
+    const selectedTab = screen.getByRole('tab', {
+      name: /Phishing response runbook/,
+    })
+    expect(selectedTab.getAttribute('aria-selected')).toBe('true')
   })
 
-  test('saving the edit form calls PATCH with changed values and closes the modal', async () => {
+  test('selects the page from the numeric page id route parameter', async () => {
+    routeParams = { pageId: '2' }
+
+    render(<Harness />)
+
+    await screen.findByRole('heading', { name: 'BEC investigation guide' })
+    const selectedTab = screen.getByRole('tab', { name: /BEC investigation guide/ })
+    expect(selectedTab.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByText('For confirmed BEC.')).toBeDefined()
+  })
+
+  test('navigates to the numeric page id URL when selecting a page', async () => {
     render(<Harness />)
     await waitForPageList()
 
-    fireEvent.click(screen.getByText('Edit page'))
-    await screen.findByRole('dialog')
+    fireEvent.click(screen.getByText('BEC investigation guide'))
+
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/knowledge-base/$pageId',
+      params: { pageId: '2' },
+    })
+  })
+
+  test('renders the detail title before tags and a smaller dimmed summary', async () => {
+    render(<Harness />)
+    await waitForPageList()
+
+    const title = screen.getByRole('heading', {
+      name: 'Phishing response runbook',
+    })
+    const tag = screen.getByText('runbook')
+    const summary = screen.getByText('Standard procedure for phishing.')
+
+    expect(Boolean(title.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(Boolean(tag.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(summary.className).toContain('mantine-Text-root')
+    expect(summary.getAttribute('data-size')).toBe('sm')
+    expect(summary.getAttribute('data-dimmed')).toBe('true')
+  })
+
+  test('clicking Edit in the action menu replaces the detail view with an inline rich text editor', async () => {
+    const { container } = render(<Harness />)
+    await waitForPageList()
+
+    expect(screen.queryByRole('button', { name: /edit page/i })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /page actions/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /edit/i }))
+
+    await screen.findByRole('button', { name: /save changes/i })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(
+      container.querySelector('[contenteditable="true"].ProseMirror'),
+    ).not.toBeNull()
+
+    const titleInput = screen.getByRole('textbox', { name: /title/i })
+    expect(titleInput.value).toBe('Phishing response runbook')
+
+    const summaryInput = screen.getByRole('textbox', { name: /summary/i })
+    expect(summaryInput.value).toBe('Standard procedure for phishing.')
+
+    expect(screen.getAllByText('runbook').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('phishing').length).toBeGreaterThan(0)
+
+    const tagsInput = screen.getByRole('textbox', { name: /tags/i })
+    expect(tagsInput.value).toBe('')
+  })
+
+  test('clicking Delete in the action menu deletes the selected page and navigates to the next page', async () => {
+    render(<Harness />)
+    await waitForPageList()
+
+    fireEvent.click(screen.getByRole('button', { name: /page actions/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /delete/i }))
+
+    await waitFor(() => {
+      expect(api.delete).toHaveBeenCalledWith('knowledge-base/1')
+    })
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/knowledge-base/$pageId',
+      params: { pageId: '2' },
+    })
+  })
+
+  test('saving the inline edit form calls PATCH with pill tags and returns to detail mode', async () => {
+    render(<Harness />)
+    await waitForPageList()
+
+    fireEvent.click(screen.getByRole('button', { name: /page actions/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /edit/i }))
+    await screen.findByRole('button', { name: /save changes/i })
 
     const titleInput = screen.getByRole('textbox', { name: /title/i })
     fireEvent.change(titleInput, { target: { value: 'Phishing response runbook (edited)' } })
 
     const summaryInput = screen.getByRole('textbox', { name: /summary/i })
     fireEvent.change(summaryInput, { target: { value: 'Updated summary.' } })
+
+    const tagsInput = screen.getByRole('textbox', { name: /tags/i })
+    fireEvent.keyDown(tagsInput, { key: 'Backspace' })
+    fireEvent.change(tagsInput, { target: { value: 'updated' } })
+    fireEvent.keyDown(tagsInput, { key: 'Enter' })
 
     fireEvent.click(screen.getByText('Save changes'))
 
@@ -177,14 +269,14 @@ describe('KnowledgeBasePage', () => {
         json: {
           title: 'Phishing response runbook (edited)',
           summary: 'Updated summary.',
-          tags: ['runbook', 'phishing'],
-          blocks: [{ type: 'section', title: 'Triage', items: ['Pull .eml', 'Capture headers'] }],
+          tags: ['runbook', 'updated'],
+          content: '## Triage\n\n- Pull .eml\n- Capture headers',
         },
       }),
     )
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.queryByRole('button', { name: /save changes/i })).toBeNull()
     })
 
     await waitFor(() => {
@@ -200,8 +292,9 @@ describe('KnowledgeBasePage', () => {
     render(<Harness />)
     await waitForPageList()
 
-    fireEvent.click(screen.getByText('Edit page'))
-    await screen.findByRole('dialog')
+    fireEvent.click(screen.getByRole('button', { name: /page actions/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /edit/i }))
+    await screen.findByRole('button', { name: /save changes/i })
 
     fireEvent.click(screen.getByText('Save changes'))
 
@@ -210,17 +303,18 @@ describe('KnowledgeBasePage', () => {
     })
   })
 
-  test('Cancel button closes the modal without calling the API', async () => {
+  test('Cancel button returns to detail mode without calling the API', async () => {
     render(<Harness />)
     await waitForPageList()
 
-    fireEvent.click(screen.getByText('Edit page'))
-    await screen.findByRole('dialog')
+    fireEvent.click(screen.getByRole('button', { name: /page actions/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /edit/i }))
+    await screen.findByRole('button', { name: /save changes/i })
 
     fireEvent.click(screen.getByText('Cancel'))
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.queryByRole('button', { name: /save changes/i })).toBeNull()
     })
 
     expect(api.patch).not.toHaveBeenCalled()
