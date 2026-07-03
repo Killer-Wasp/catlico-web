@@ -334,4 +334,86 @@ describe('KnowledgeBasePage', () => {
 
     expect(api.patch).not.toHaveBeenCalled()
   })
+
+  test('opens a timeline drawer and previews a version snapshot', async () => {
+    vi.mocked(api.get).mockImplementation((input: string) => {
+      if (String(input) === 'knowledge-base/1/versions') {
+        return {
+          json: async () => [
+            {
+              id: 10,
+              page_id: 1,
+              version_number: 2,
+              action: 'update',
+              snapshot: {
+                title: 'Phishing response runbook',
+                summary: 'Updated procedure.',
+                tags: ['runbook'],
+                content: '## Updated timeline content',
+              },
+              changed_fields: ['summary', 'content'],
+              edited_by: 'user-1',
+              edited_by_email: 'analyst@example.com',
+              edited_at: '2026-06-21T00:00:00Z',
+              reverted_from_version_id: null,
+            },
+          ],
+        } as ReturnType<typeof api.get>
+      }
+      return {
+        json: async () => ({ items: [pageDto, pageDto2], total: 2, skip: 0, limit: 100 }),
+      } as ReturnType<typeof api.get>
+    })
+
+    render(<Harness />)
+    await waitForPageList()
+    fireEvent.click(screen.getByRole('button', { name: /page actions/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /timeline/i }))
+
+    await screen.findByRole('dialog', { name: /timeline/i })
+    expect(await screen.findByText(/Version 2/)).toBeDefined()
+    expect(screen.getAllByText(/analyst@example.com/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: /view version 2/i }))
+    expect(await screen.findByText('Updated procedure.')).toBeDefined()
+    expect(await screen.findByText(/Updated timeline content/)).toBeDefined()
+  })
+
+  test('reverts a version from the timeline drawer', async () => {
+    vi.mocked(api.get).mockImplementation((input: string) => {
+      if (String(input) === 'knowledge-base/1/versions') {
+        return {
+          json: async () => [
+            {
+              id: 10,
+              page_id: 1,
+              version_number: 1,
+              action: 'create',
+              snapshot: pageDto,
+              changed_fields: ['content'],
+              edited_by: 'user-1',
+              edited_by_email: 'analyst@example.com',
+              edited_at: '2026-06-20T00:00:00Z',
+              reverted_from_version_id: null,
+            },
+          ],
+        } as ReturnType<typeof api.get>
+      }
+      return {
+        json: async () => ({ items: [pageDto, pageDto2], total: 2, skip: 0, limit: 100 }),
+      } as ReturnType<typeof api.get>
+    })
+    vi.mocked(api.post).mockReturnValue({
+      json: async () => pageDto,
+    } as ReturnType<typeof api.post>)
+
+    render(<Harness />)
+    await waitForPageList()
+    fireEvent.click(screen.getByRole('button', { name: /page actions/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /timeline/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /revert version 1/i }))
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('knowledge-base/1/versions/10/revert')
+    })
+  })
 })

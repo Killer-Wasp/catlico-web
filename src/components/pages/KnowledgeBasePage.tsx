@@ -1,8 +1,10 @@
 import {
   createKnowledgeBasePage,
   deleteKnowledgeBasePage,
+  fetchKnowledgeBasePageVersions,
   kbKeys,
   knowledgeBaseQueryOptions,
+  revertKnowledgeBasePage,
   updateKnowledgeBasePage,
 } from '#/components/KnowledgeBase/knowledgeBaseQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
@@ -11,6 +13,8 @@ import {
   ActionIcon,
   Box,
   Button,
+  Divider,
+  Drawer,
   Group,
   Menu,
   Paper,
@@ -38,7 +42,7 @@ import { TaskList } from '@tiptap/extension-task-list'
 import { Markdown } from '@tiptap/markdown'
 import { useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { History, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { RichTextField } from './case-template-editor/RichTextField'
 import { fromApi } from './knowledge-base/model'
@@ -190,6 +194,8 @@ export function KnowledgeBasePage() {
   const [editSummary, setEditSummary] = useState('')
   const [editTags, setEditTags] = useState<string[]>([])
   const [editContent, setEditContent] = useState('')
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [previewVersionId, setPreviewVersionId] = useState<number | null>(null)
 
   const openEditor = (page: KBPage) => {
     setEditTitle(page.title)
@@ -256,6 +262,34 @@ export function KnowledgeBasePage() {
       }),
   })
 
+  const versionsQuery = useQuery({
+    queryKey: selectedPage ? kbKeys.versions(selectedPage.id) : [...kbKeys.all, 'versions', 'none'],
+    queryFn: () => {
+      if (!selectedPage) return Promise.resolve([])
+      return fetchKnowledgeBasePageVersions(selectedPage.id)
+    },
+    enabled: timelineOpen && Boolean(selectedPage),
+  })
+
+  const revertMutation = useMutation({
+    mutationFn: async (versionId: number) => {
+      if (!selectedPage) throw new Error('No page selected')
+      return revertKnowledgeBasePage(selectedPage.id, versionId)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kbKeys.all })
+      if (selectedPage) {
+        queryClient.invalidateQueries({ queryKey: kbKeys.versions(selectedPage.id) })
+      }
+      notifications.show({ color: 'teal', message: 'Page reverted' })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: error instanceof Error ? error.message : 'Failed to revert page',
+      }),
+  })
+
   if (isError) {
     return (
       <Box className={classes.page}>
@@ -274,6 +308,9 @@ export function KnowledgeBasePage() {
   }
 
   const isEditingSelectedPage = selectedPage?.id === editingId
+  const previewVersion =
+    versionsQuery.data?.find((version) => version.id === previewVersionId) ??
+    null
 
   return (
     <Box className={classes.page}>
@@ -426,6 +463,15 @@ export function KnowledgeBasePage() {
                       </Menu.Target>
                       <Menu.Dropdown>
                         <Menu.Item
+                          leftSection={<History size={14} />}
+                          onClick={() => {
+                            setPreviewVersionId(null)
+                            setTimelineOpen(true)
+                          }}
+                        >
+                          Timeline
+                        </Menu.Item>
+                        <Menu.Item
                           leftSection={<Pencil size={14} />}
                           onClick={() => openEditor(selectedPage)}
                         >
@@ -472,6 +518,78 @@ export function KnowledgeBasePage() {
         )}
         </Box>
       </Tabs>
+
+      <Drawer
+        opened={timelineOpen}
+        onClose={() => setTimelineOpen(false)}
+        title="Timeline"
+        position="right"
+        size="lg"
+      >
+        <Stack gap="md">
+          {versionsQuery.isPending ? (
+            <Text c="dimmed">Loading timeline...</Text>
+          ) : versionsQuery.data?.length ? (
+            versionsQuery.data.map((version) => (
+              <Paper key={version.id} withBorder p="sm" radius="sm">
+                <Group justify="space-between" align="flex-start">
+                  <Stack gap={2}>
+                    <Text fw={700}>Version {version.version_number}</Text>
+                    <Text size="sm" c="dimmed">
+                      {version.action} by {version.edited_by_email}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Changed: {version.changed_fields.join(', ') || 'no fields'}
+                    </Text>
+                  </Stack>
+                  <Group gap="xs">
+                    <Button
+                      size="xs"
+                      variant="default"
+                      onClick={() => setPreviewVersionId(version.id)}
+                    >
+                      View version {version.version_number}
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="default"
+                      leftSection={<RotateCcw size={14} />}
+                      loading={revertMutation.isPending}
+                      onClick={() => revertMutation.mutate(version.id)}
+                    >
+                      Revert version {version.version_number}
+                    </Button>
+                  </Group>
+                </Group>
+              </Paper>
+            ))
+          ) : (
+            <Text c="dimmed">No timeline entries yet.</Text>
+          )}
+
+          {previewVersion && (
+            <>
+              <Divider />
+              <Stack gap="sm">
+                <Title order={3} fz={18}>
+                  {previewVersion.snapshot.title}
+                </Title>
+                <Group gap={6}>
+                  {previewVersion.snapshot.tags.map((tag) => (
+                    <Tag key={tag} label={tag} />
+                  ))}
+                </Group>
+                {previewVersion.snapshot.summary && (
+                  <Text c="dimmed" size="sm">
+                    {previewVersion.snapshot.summary}
+                  </Text>
+                )}
+                <KnowledgeBaseContent content={previewVersion.snapshot.content} />
+              </Stack>
+            </>
+          )}
+        </Stack>
+      </Drawer>
 
     </Box>
   )
