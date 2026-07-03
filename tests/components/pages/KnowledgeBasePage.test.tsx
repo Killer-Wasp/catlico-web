@@ -195,7 +195,7 @@ describe('KnowledgeBasePage', () => {
   test('shows error notification when PATCH fails', async () => {
     vi.mocked(api.patch).mockReturnValue({
       json: async () => { throw new Error('Server error') },
-    } satisfies JsonResponse as ReturnType<typeof api.patch>)
+    } satisfies JsonResponse as unknown as ReturnType<typeof api.patch>)
 
     render(<Harness />)
     await waitForPageList()

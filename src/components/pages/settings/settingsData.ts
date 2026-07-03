@@ -32,6 +32,24 @@ export const settingsSections: SettingsSection[] = [
   'Audit log',
 ]
 
+// URL-friendly slugs so the active tab can live in the `?tab=` search param.
+// e.g. 'Users & roles' -> 'users-roles', 'API keys' -> 'api-keys'.
+export function sectionToSlug(section: SettingsSection): string {
+  return section
+    .toLowerCase()
+    .replace(/&/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+}
+
+const slugToSectionMap = new Map<string, SettingsSection>(
+  settingsSections.map((section) => [sectionToSlug(section), section]),
+)
+
+export function slugToSection(slug: string): SettingsSection | undefined {
+  return slugToSectionMap.get(slug)
+}
+
 export const resources = [
   [
     'Cases',

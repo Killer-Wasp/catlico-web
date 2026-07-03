@@ -9,7 +9,6 @@ import {
   fireEvent,
   render,
   screen,
-  within,
 } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 

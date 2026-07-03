@@ -9,12 +9,11 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Play } from 'lucide-react'
 import { AnalysisPill, TlpPill, TypePill } from './Pills'
 import {
-  byAdded,
-  flagLabel,
-  includesAnyFlag,
+  includesAnyTag as includesAnyFlag,
   includesAnySubstring,
-  includesOneString,
-} from './tableFns'
+  includesOne as includesOneString,
+} from '#/components/Table/tableFilters'
+import { byAdded, flagLabel } from './tableFns'
 
 export function buildObservableColumns(): ColumnDef<Observable>[] {
   return [

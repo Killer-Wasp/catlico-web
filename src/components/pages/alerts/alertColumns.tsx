@@ -16,12 +16,11 @@ import {
 import type { ColumnDef } from '@tanstack/react-table'
 import { EyeOff, Settings, Sparkles } from 'lucide-react'
 import {
-  byAge,
-  byAlertId,
   includesAnySubstring,
   includesAnyTag,
   includesOne,
-} from './tableFns'
+} from '#/components/Table/tableFilters'
+import { byAge, byAlertId } from './tableFns'
 
 type AlertColumnHandlers = {
   onRunAnalysis: (id: string) => void

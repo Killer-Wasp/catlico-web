@@ -226,7 +226,7 @@ describe('NotificationsPanel', () => {
   test('shows error notification when create fails', async () => {
     vi.mocked(api.post).mockReturnValue({
       json: async () => { throw new Error('Backend unavailable') },
-    } satisfies JsonResponse as ReturnType<typeof api.post>)
+    } satisfies JsonResponse as unknown as ReturnType<typeof api.post>)
 
     render(<Harness />)
     await screen.findByText('webhook')

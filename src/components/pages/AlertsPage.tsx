@@ -16,17 +16,9 @@ import {
 // Reuse the Cases page var scope so both tables share the SOC palette
 // (severity / TLP / MITRE colours, soft borders) defined on `.page`.
 import classes from '#/components/Cases/CasesPage.module.css'
-import type { Token, TokenField } from '#/components/Table/TokenSearch'
-import { TokenSearch } from '#/components/Table/TokenSearch'
-import {
-  Box,
-  Button,
-  Group,
-  Pagination,
-  Paper,
-  Select,
-  Text,
-} from '@mantine/core'
+import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import { Box, Button } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useNavigate } from '@tanstack/react-router'
 import type { SortingState } from '@tanstack/react-table'
@@ -38,18 +30,13 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { SEVERITY_OPTIONS, TLP_OPTIONS } from '#/lib/domain'
-import { ListChecks, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { AlertDetailDrawer } from './alerts/AlertDetailDrawer'
-import { AlertsTable } from './alerts/AlertsTable'
 import { buildAlertColumns } from './alerts/alertColumns'
-import styles from './alerts/styles.module.css'
 
 export function AlertsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  // Reads the loader-warmed cache (see the route's `ensureQueryData`). Local
-  // edits still live in `useState`, seeded from the fetched data.
   const { data } = useSuspenseQuery(alertsQueryOptions())
   const { data: caseTemplatesResult } = useQuery(caseTemplatesQueryOptions())
   const caseTemplates = caseTemplatesResult?.templates ?? []
@@ -62,7 +49,7 @@ export function AlertsPage() {
       'Three grants inside 11 min is not user behaviour — recommend promoting with the phishing template.',
     ],
   })
-  const [pageSize, setPageSize] = useState(10)
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'id', desc: true },
   ])
@@ -154,13 +141,14 @@ export function AlertsPage() {
       rowSelection,
       sorting,
       columnVisibility: { select: selectMode, tags: false, alertNo: false },
-      pagination: { pageIndex: 0, pageSize },
+      pagination,
     },
     getRowId: (row) => row.id,
     enableRowSelection: true,
     enableSorting: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -178,72 +166,41 @@ export function AlertsPage() {
   )
 
   const toOpts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }))
-  const filterFields = useMemo<(TokenField & { columnId: string })[]>(
+  const filterFields = useMemo(
     () => [
       {
         key: 'severity',
         label: 'Severity',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'id',
         options: SEVERITY_OPTIONS,
       },
       {
         key: 'source',
         label: 'Source',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'source',
         options: toOpts(sourceOptions),
       },
       {
         key: 'tlp',
         label: 'TLP',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'tlp',
         options: TLP_OPTIONS,
       },
       {
         key: 'tag',
         label: 'Tag',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'tags',
         options: toOpts(tagOptions),
       },
-      { key: 'alert', label: 'Alert', kind: 'text', columnId: 'alertNo' },
-      { key: 'title', label: 'Title', kind: 'text', columnId: 'title' },
+      { key: 'alert', label: 'Alert', kind: 'text' as const, columnId: 'alertNo' },
+      { key: 'title', label: 'Title', kind: 'text' as const, columnId: 'title' },
     ],
     [sourceOptions, tagOptions],
   )
-
-  const columnFilters = table.getState().columnFilters
-  const tokens = useMemo<Token[]>(() => {
-    const out: Token[] = []
-    for (const f of filterFields) {
-      const vals =
-        (table.getColumn(f.columnId)?.getFilterValue() as
-          | string[]
-          | undefined) ?? []
-      for (const v of vals) {
-        const label =
-          f.kind === 'enum'
-            ? (f.options?.find((o) => o.value === v)?.label ?? v)
-            : v
-        out.push({ field: f.key, value: v, label })
-      }
-    }
-    return out
-  }, [table, columnFilters, filterFields])
-
-  const setTokens = (next: Token[]) => {
-    for (const f of filterFields) {
-      const vals = next.filter((t) => t.field === f.key).map((t) => t.value)
-      table
-        .getColumn(f.columnId)
-        ?.setFilterValue(vals.length ? vals : undefined)
-    }
-  }
-
-  const hasFilters = columnFilters.length > 0
-  const clearFilters = () => table.resetColumnFilters()
 
   const exitSelectMode = () => {
     setSelectMode(false)
@@ -261,7 +218,6 @@ export function AlertsPage() {
       })
       return
     }
-
     bulkPromoteMutation.mutate({
       alertIds: selectedRows.map((row) => row.original.id),
       caseTemplateId: caseTemplates.length > 0 ? caseTemplates[0].apiId : null,
@@ -293,12 +249,6 @@ export function AlertsPage() {
     exitSelectMode()
   }
 
-  const totalFiltered = table.getFilteredRowModel().rows.length
-  const { pageIndex } = table.getState().pagination
-  const pageCount = table.getPageCount()
-  const rangeStart = totalFiltered === 0 ? 0 : pageIndex * pageSize + 1
-  const rangeEnd = Math.min((pageIndex + 1) * pageSize, totalFiltered)
-
   return (
     <Box className={classes.page}>
       <AlertDetailDrawer
@@ -320,155 +270,51 @@ export function AlertsPage() {
         }}
         promotionPending={promoteMutation.isPending}
       />
-      <Paper radius="md" p={0} withBorder>
-        <Group
-          gap={12}
-          px={18}
-          py={14}
-          style={{ borderBottom: '1px solid var(--line-soft)' }}
-        >
-          <Text fz={14} fw={600}>
-            All alerts
-          </Text>
-          <Text
-            component="span"
-            ff="monospace"
-            fz={11}
-            c="var(--muted)"
-            style={(theme) => ({
-              background: `light-dark(${theme.colors.gray[1]}, ${theme.colors.dark[6]})`,
-              border: `1px solid light-dark(${theme.colors.gray[3]}, ${theme.colors.dark[4]})`,
-              padding: '1px 8px',
-              borderRadius: 99,
-            })}
-          >
-            {totalFiltered} alerts
-          </Text>
-          <Group gap="xs" ml="auto">
-            {selectMode && (
-              <>
-                <Button
-                  size="xs"
-                  color="green"
-                  onClick={createCase}
-                  disabled={selectedCount < 1}
-                  loading={bulkPromoteMutation.isPending}
-                >
-                  {selectedCount
-                    ? `Create case (${selectedCount})`
-                    : 'Create case'}
-                </Button>
-                <Button
-                  size="xs"
-                  variant="default"
-                  onClick={ignoreSelected}
-                  disabled={selectedCount < 1}
-                >
-                  {selectedCount
-                    ? `Mark ignored (${selectedCount})`
-                    : 'Mark ignored'}
-                </Button>
-              </>
-            )}
-            {hasFilters && (
-              <Button
-                variant="subtle"
-                color="gray"
-                size="xs"
-                leftSection={<X size={14} />}
-                onClick={clearFilters}
-              >
-                Clear
-              </Button>
-            )}
+      <TablePanel
+        title="All alerts"
+        countNoun="alerts"
+        table={table}
+        filterFields={filterFields}
+        selectable
+        selectMode={selectMode}
+        onToggleSelectMode={() =>
+          selectMode ? exitSelectMode() : setSelectMode(true)
+        }
+        selectActions={
+          <>
             <Button
-              variant="default"
               size="xs"
-              leftSection={!selectMode ? <ListChecks size={14} /> : undefined}
-              onClick={() =>
-                selectMode ? exitSelectMode() : setSelectMode(true)
-              }
-              aria-pressed={selectMode}
+              color="green"
+              onClick={createCase}
+              disabled={selectedCount < 1}
+              loading={bulkPromoteMutation.isPending}
             >
-              {selectMode ? 'Cancel' : 'Select'}
+              {selectedCount ? `Create case (${selectedCount})` : 'Create case'}
             </Button>
-          </Group>
-        </Group>
-
-        <Group
-          px="lg"
-          py="sm"
-          gap="md"
-          wrap="nowrap"
-          align="center"
-          style={{ borderBottom: '1px solid var(--line-soft)' }}
-        >
-          <Text component="span" className={styles.fieldLabel}>
-            filter
-          </Text>
-          <TokenSearch
-            fields={filterFields}
-            tokens={tokens}
-            onChange={setTokens}
-          />
-        </Group>
-
-        <AlertsTable
-          table={table}
-          selectMode={selectMode}
-          onOpenAlert={openAlert}
-        />
-
-        <Group
-          gap={12}
-          px={18}
-          py={12}
-          wrap="wrap"
-          style={{ borderTop: '1px solid var(--line-soft)' }}
-        >
-          <Text component="span" ff="monospace" fz={11} c="dimmed">
-            {rangeStart}–{rangeEnd} of {totalFiltered}
-          </Text>
-          <Group gap="md" wrap="nowrap" ml="auto">
-            <Group gap="xs" wrap="nowrap">
-              <Text component="span" className={styles.fieldLabel}>
-                rows
-              </Text>
-              <Select
-                size="xs"
-                w={76}
-                data={['10', '25', '50']}
-                value={String(pageSize)}
-                onChange={(v) => setPageSize(Number(v ?? '10'))}
-                allowDeselect={false}
-              />
-            </Group>
-            <Pagination.Root
-              total={pageCount}
-              value={pageIndex + 1}
-              onChange={(p) => table.setPageIndex(p - 1)}
-              size="sm"
+            <Button
+              size="xs"
+              variant="default"
+              onClick={ignoreSelected}
+              disabled={selectedCount < 1}
             >
-              <Group gap={5} wrap="nowrap">
-                <Pagination.First />
-                <Pagination.Previous />
-                <Text
-                  component="span"
-                  ff="monospace"
-                  fz={12}
-                  c="var(--muted)"
-                  px={6}
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  {pageIndex + 1} / {pageCount}
-                </Text>
-                <Pagination.Next />
-                <Pagination.Last />
-              </Group>
-            </Pagination.Root>
-          </Group>
-        </Group>
-      </Paper>
+              {selectedCount
+                ? `Mark ignored (${selectedCount})`
+                : 'Mark ignored'}
+            </Button>
+          </>
+        }
+      >
+        <DataTable
+          table={table}
+          minWidth={820}
+          emptyMessage="No alerts match the current filters."
+          onRowClick={(row) =>
+            selectMode
+              ? row.toggleSelected()
+              : openAlert(row.original.id)
+          }
+        />
+      </TablePanel>
     </Box>
   )
 }

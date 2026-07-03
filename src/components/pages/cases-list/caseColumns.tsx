@@ -17,15 +17,13 @@ import {
 import { notifications } from '@mantine/notifications'
 import type { ColumnDef } from '@tanstack/react-table'
 import { ExternalLink, Settings, UserPlus } from 'lucide-react'
-import type { CaseColumnMeta } from './columnMeta'
+import type { TableColumnMeta } from '#/components/Table/columnMeta'
 import {
-  byCaseId,
-  byCreated,
-  byUpdated,
   includesAnySubstring,
   includesAnyTag,
   includesOne,
-} from './tableFns'
+} from '#/components/Table/tableFilters'
+import { byCaseId, byCreated, byUpdated } from './tableFns'
 
 function AssigneeAvatar({ name }: { name: string }) {
   const [initials, color] = avatarFor(name)
@@ -70,7 +68,7 @@ export function buildCaseColumns({
         />
       ),
       enableColumnFilter: false,
-      meta: { ta: 'center' } satisfies CaseColumnMeta,
+      meta: { ta: 'center' } satisfies TableColumnMeta,
     },
     {
       id: 'id',
@@ -133,7 +131,7 @@ export function buildCaseColumns({
       accessorFn: (row) => ({ done: row.tasksDone, total: row.tasksTotal }),
       enableColumnFilter: false,
       enableSorting: false,
-      meta: { visibleFrom: 'md' } satisfies CaseColumnMeta,
+      meta: { visibleFrom: 'md' } satisfies TableColumnMeta,
       cell: (info) => {
         const { done, total: taskTotal } = info.getValue<{
           done: number
@@ -167,7 +165,7 @@ export function buildCaseColumns({
       accessorFn: (row) => row.assignee,
       filterFn: includesOne,
       enableSorting: false,
-      meta: { visibleFrom: 'md', ta: 'center' } satisfies CaseColumnMeta,
+      meta: { visibleFrom: 'md', ta: 'center' } satisfies TableColumnMeta,
       cell: (info) => <AssigneeAvatar name={info.getValue<string>()} />,
     },
     {
@@ -193,7 +191,7 @@ export function buildCaseColumns({
       enableColumnFilter: false,
       enableSorting: true,
       sortingFn: byCreated,
-      meta: { visibleFrom: 'lg' } satisfies CaseColumnMeta,
+      meta: { visibleFrom: 'lg' } satisfies TableColumnMeta,
       cell: (info) => (
         <Text
           ff="monospace"
@@ -228,7 +226,7 @@ export function buildCaseColumns({
       header: '',
       enableColumnFilter: false,
       enableSorting: false,
-      meta: { ta: 'right' } satisfies CaseColumnMeta,
+      meta: { ta: 'right' } satisfies TableColumnMeta,
       cell: ({ row }) => (
         <Menu position="bottom-end" withArrow shadow="md">
           <Menu.Target>

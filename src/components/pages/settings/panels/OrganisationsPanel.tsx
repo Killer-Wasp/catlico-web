@@ -8,7 +8,6 @@ import {
   Paper,
   Select,
   Stack,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -16,7 +15,10 @@ import {
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { useEffect, useMemo, useState } from 'react'
+import { DataTable } from '#/components/Table/DataTable'
 import {
   createOrganisation,
   createOrganisationLink,
@@ -35,7 +37,6 @@ import type {
 import {
   compactDate,
   Panel,
-  TableBox,
   toOrgShortName,
 } from '#/components/pages/settings/settingsUi'
 
@@ -187,6 +188,62 @@ export function OrganisationsPanel() {
 
   const createDisabled = !newName.trim() || !newId.trim()
   const manageDisabled = !managedName.trim() || !managedOrg
+
+  const orgColumns = useMemo<ColumnDef<OrganisationPublic>[]>(
+    () => [
+      {
+        id: 'organisation',
+        header: 'Organisation',
+        cell: ({ row }) => (
+          <>
+            <Text fw={700}>{row.original.name}</Text>
+            <Text fz={12} c="var(--muted)">
+              {row.original.description || 'No description'}
+            </Text>
+          </>
+        ),
+      },
+      {
+        id: 'shortName',
+        header: 'Short name',
+        cell: ({ row }) => <Code>{row.original.id}</Code>,
+      },
+      {
+        id: 'members',
+        header: 'Members',
+        cell: () => <Text ff="monospace">-</Text>,
+      },
+      {
+        id: 'cases',
+        header: 'Cases',
+        cell: () => <Text ff="monospace">-</Text>,
+      },
+      {
+        id: 'created',
+        header: 'Created',
+        cell: ({ row }) => (
+          <Text ff="monospace" c="var(--faint)">
+            {compactDate(row.original.created_at)}
+          </Text>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        meta: { ta: 'right' },
+        cell: ({ row }) => (
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => setManagedOrg(row.original)}
+          >
+            Manage
+          </Button>
+        ),
+      },
+    ],
+    [],
+  )
 
   return (
     <Stack gap="md">
@@ -342,49 +399,7 @@ export function OrganisationsPanel() {
             requires platform administrator access.
           </Text>
         )}
-        <TableBox>
-          <Table verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Organisation</Table.Th>
-                <Table.Th>Short name</Table.Th>
-                <Table.Th>Members</Table.Th>
-                <Table.Th>Cases</Table.Th>
-                <Table.Th>Created</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {organisations.map((org) => (
-                <Table.Tr key={org.id}>
-                  <Table.Td>
-                    <Text fw={700}>{org.name}</Text>
-                    <Text fz={12} c="var(--muted)">
-                      {org.description || 'No description'}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Code>{org.id}</Code>
-                  </Table.Td>
-                  <Table.Td ff="monospace">-</Table.Td>
-                  <Table.Td ff="monospace">-</Table.Td>
-                  <Table.Td ff="monospace" c="var(--faint)">
-                    {compactDate(org.created_at)}
-                  </Table.Td>
-                  <Table.Td>
-                    <Button
-                      size="xs"
-                      variant="default"
-                      onClick={() => setManagedOrg(org)}
-                    >
-                      Manage
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </TableBox>
+        <OrganisationsTable columns={orgColumns} organisations={organisations} />
       </Panel>
 
       <Panel title="Organisation links" count={`${links.length} links`}>
@@ -469,5 +484,29 @@ export function OrganisationsPanel() {
         </Stack>
       </Modal>
     </Stack>
+  )
+}
+
+function OrganisationsTable({
+  columns,
+  organisations,
+}: {
+  columns: ColumnDef<OrganisationPublic>[]
+  organisations: OrganisationPublic[]
+}) {
+  const table = useReactTable({
+    data: organisations,
+    columns,
+    getRowId: (row) => row.id,
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <DataTable
+      table={table}
+      minWidth={760}
+      ariaLabel="Organisations"
+      emptyMessage="No organisations found."
+    />
   )
 }

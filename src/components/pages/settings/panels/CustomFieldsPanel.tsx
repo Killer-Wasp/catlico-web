@@ -7,13 +7,15 @@ import {
   Modal,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
+import { DataTable } from '#/components/Table/DataTable'
 import {
   createCustomField,
   customFieldsQueryOptions,
@@ -27,7 +29,6 @@ import type {
 import {
   LoadingPanel,
   Panel,
-  TableBox,
 } from '#/components/pages/settings/settingsUi'
 
 const FIELD_TYPES = [
@@ -157,6 +158,71 @@ export function CustomFieldsPanel() {
   const [addOpen, setAddOpen] = useState(false)
   const fields = data?.fields ?? []
 
+  const columns = useMemo<ColumnDef<CustomFieldPublic>[]>(
+    () => [
+      {
+        id: 'label',
+        header: 'Label',
+        cell: ({ row }) => (
+          <Text fw={700}>
+            {row.original.display_name || row.original.name}
+          </Text>
+        ),
+      },
+      {
+        id: 'key',
+        header: 'Key',
+        cell: ({ row }) => <Code>{row.original.name}</Code>,
+      },
+      {
+        id: 'type',
+        header: 'Type',
+        cell: ({ row }) => (
+          <Badge variant="default">{row.original.field_type}</Badge>
+        ),
+      },
+      {
+        id: 'mandatory',
+        header: 'Mandatory',
+        cell: ({ row }) => (
+          <Text c={row.original.mandatory ? 'yellow.7' : 'dimmed'}>
+            {row.original.mandatory ? 'required' : 'optional'}
+          </Text>
+        ),
+      },
+      {
+        id: 'multi',
+        header: 'Multi-value',
+        cell: ({ row }) => (row.original.options.length ? 'yes' : 'no'),
+      },
+      {
+        id: 'usedBy',
+        header: 'Used by',
+        cell: ({ row }) => (
+          <Text ff="monospace" c="var(--faint)">
+            {row.original.organisation_id}
+          </Text>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        meta: { ta: 'right' },
+        cell: ({ row }) => (
+          <Button
+            size="xs"
+            variant="default"
+            loading={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate(row.original.id)}
+          >
+            Delete
+          </Button>
+        ),
+      },
+    ],
+    [deleteMutation],
+  )
+
   if (isPending) return <LoadingPanel label="Loading custom fields..." />
 
   return (
@@ -171,63 +237,32 @@ export function CustomFieldsPanel() {
           </Button>
         }
       >
-        <TableBox>
-          <Table verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Label</Table.Th>
-                <Table.Th>Key</Table.Th>
-                <Table.Th>Type</Table.Th>
-                <Table.Th>Mandatory</Table.Th>
-                <Table.Th>Multi-value</Table.Th>
-                <Table.Th>Used by</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {fields.map((field: CustomFieldPublic) => (
-                <Table.Tr key={field.id}>
-                  <Table.Td fw={700}>
-                    {field.display_name || field.name}
-                  </Table.Td>
-                  <Table.Td>
-                    <Code>{field.name}</Code>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="default">{field.field_type}</Badge>
-                  </Table.Td>
-                  <Table.Td c={field.mandatory ? 'yellow.7' : 'dimmed'}>
-                    {field.mandatory ? 'required' : 'optional'}
-                  </Table.Td>
-                  <Table.Td>{field.options.length ? 'yes' : 'no'}</Table.Td>
-                  <Table.Td ff="monospace" c="var(--faint)">
-                    {field.organisation_id}
-                  </Table.Td>
-                  <Table.Td>
-                    <Button
-                      size="xs"
-                      variant="default"
-                      loading={deleteMutation.isPending}
-                      onClick={() => deleteMutation.mutate(field.id)}
-                    >
-                      Delete
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-              {fields.length === 0 && (
-                <Table.Tr>
-                  <Table.Td colSpan={7}>
-                    <Text c="dimmed" ta="center">
-                      No custom fields configured.
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              )}
-            </Table.Tbody>
-          </Table>
-        </TableBox>
+        <CustomFieldsTable columns={columns} fields={fields} />
       </Panel>
     </>
+  )
+}
+
+function CustomFieldsTable({
+  columns,
+  fields,
+}: {
+  columns: ColumnDef<CustomFieldPublic>[]
+  fields: CustomFieldPublic[]
+}) {
+  const table = useReactTable({
+    data: fields,
+    columns,
+    getRowId: (row) => String(row.id),
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <DataTable
+      table={table}
+      minWidth={820}
+      ariaLabel="Custom field definitions"
+      emptyMessage="No custom fields configured."
+    />
   )
 }

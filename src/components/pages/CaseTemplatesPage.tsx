@@ -1,8 +1,4 @@
-import type {
-  CaseTemplate,
-  CaseTemplateFilter,
-} from '#/components/Cases/caseTemplates.types'
-import { filterCaseTemplates } from '#/components/Cases/caseTemplates'
+import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
 import {
   caseTemplateKeys,
   caseTemplatesQueryOptions,
@@ -11,25 +7,29 @@ import {
   importCaseTemplate,
 } from '#/components/Cases/caseTemplatesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
-import {
-  Box,
-  Button,
-  Group,
-  Loader,
-  Paper,
-  Stack,
-  Tabs,
-  Table,
-  Text,
-  Title,
-} from '@mantine/core'
+import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import { ButtonLink } from '#/components/ui/ButtonLink'
+import { SEVERITY_OPTIONS } from '#/lib/domain'
+import { Box, Button, Group, Loader, Stack, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Outlet, useLocation } from '@tanstack/react-router'
-import { ButtonLink } from '#/components/ui/ButtonLink'
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import type {
+  ColumnDef,
+  ColumnFiltersState,
+  OnChangeFn,
+  SortingState,
+} from '@tanstack/react-table'
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import { useMemo, useRef, useState } from 'react'
-import { filterTabs } from './case-templates/constants'
-import { TemplateRow } from './case-templates/TemplateRow'
+import { buildTemplateColumns } from './case-templates-list/templateColumns'
 
 export function CaseTemplatesPage() {
   const { pathname } = useLocation()
@@ -45,18 +45,13 @@ export function CaseTemplatesPage() {
 }
 
 function CaseTemplatesIndex() {
-  const [filter, setFilter] = useState<CaseTemplateFilter>('all')
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const importInputRef = useRef<HTMLInputElement>(null)
   const { data, isPending, isError, refetch, isFetching } = useQuery(
     caseTemplatesQueryOptions(),
   )
   const templates = data?.templates ?? []
-
-  const visibleTemplates = useMemo(
-    () => filterCaseTemplates(templates, filter),
-    [templates, filter],
-  )
 
   const refreshTemplates = () =>
     queryClient.invalidateQueries({ queryKey: caseTemplateKeys.all })
@@ -126,10 +121,87 @@ function CaseTemplatesIndex() {
     }
   }
 
-  const newTemplateLink = {
-    to: '/case-templates/$templateId',
-    params: { templateId: 'new' },
-  } as const
+  const openTemplate = (id: string) =>
+    navigate({ to: '/case-templates/$templateId', params: { templateId: id } })
+
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'updated', desc: true },
+  ])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+
+  const onColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (updater) => {
+    setColumnFilters(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+
+  const columns = useMemo<ColumnDef<CaseTemplate>[]>(
+    () =>
+      buildTemplateColumns({
+        openTemplate,
+        onDuplicate: (t) => duplicateMutation.mutate(t),
+        onDelete: (t) => deleteMutation.mutate(t),
+      }),
+    [],
+  )
+
+  const table = useReactTable({
+    data: templates,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+      pagination,
+      columnVisibility: { tags: false },
+    },
+    getRowId: (row) => row.id,
+    onSortingChange,
+    onColumnFiltersChange,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  const tagOptions = useMemo(
+    () => Array.from(new Set(templates.flatMap((t) => t.tags))).sort(),
+    [templates],
+  )
+  const filterFields = useMemo(
+    () => [
+      {
+        key: 'tag',
+        label: 'Tag',
+        kind: 'enum' as const,
+        columnId: 'tags',
+        options: tagOptions.map((x) => ({ value: x, label: x })),
+      },
+      {
+        key: 'type',
+        label: 'Type',
+        kind: 'enum' as const,
+        columnId: 'type',
+        options: [
+          { value: 'builtin', label: 'Built-in' },
+          { value: 'custom', label: 'Custom' },
+        ],
+      },
+      {
+        key: 'severity',
+        label: 'Severity',
+        kind: 'enum' as const,
+        columnId: 'sev',
+        options: SEVERITY_OPTIONS,
+      },
+      { key: 'name', label: 'Name', kind: 'text' as const, columnId: 'template' },
+    ],
+    [tagOptions],
+  )
 
   return (
     <Box className={classes.page}>
@@ -142,116 +214,55 @@ function CaseTemplatesIndex() {
           void handleImportFile(event.currentTarget.files?.[0])
         }}
       />
-      <Group align="baseline" gap={16} mb={24} wrap="wrap">
-        <Title order={1}>Case templates</Title>
-        <Text component="span" ff="monospace" fz={12} c="var(--faint)">
-          reusable case + task scaffolding · applied at case creation or alert
-          promotion
-        </Text>
-        <Group gap="sm" ml="auto">
-          <Button
-            variant="default"
-            loading={importMutation.isPending}
-            onClick={importTemplate}
-          >
-            Import JSON
-          </Button>
-          <ButtonLink to={newTemplateLink.to} params={newTemplateLink.params}>
-            + New template
-          </ButtonLink>
-        </Group>
-      </Group>
-
-      <Paper radius="md" p="md" mb={20} shadow="xs">
-        <Group gap={16}>
-          <Text ff="monospace" fz={12} c="var(--muted)">
-            filter
-          </Text>
-          <Tabs
-            value={filter}
-            onChange={(value) =>
-              setFilter((value ?? 'all') as CaseTemplateFilter)
-            }
-            variant="pills"
-          >
-            <Tabs.List>
-              {filterTabs.map((tab) => (
-                <Tabs.Tab key={tab.value} value={tab.value}>
-                  {tab.label}
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs>
-          <Text ml="auto" ff="monospace" fz={12} c="var(--faint)">
-            click a template name to edit
-          </Text>
-        </Group>
-      </Paper>
-
-      {isPending ? (
-        <Paper radius="md" p="xl" shadow="xs">
-          <Group justify="center" gap="xs">
+      <TablePanel
+        title="Case templates"
+        countNoun="templates"
+        table={table}
+        filterFields={filterFields}
+        filterPlaceholder="Filter templates — pick a field, then a value"
+        actions={
+          <Group gap="xs">
+            <Button
+              variant="default"
+              size="xs"
+              loading={importMutation.isPending}
+              onClick={importTemplate}
+            >
+              Import JSON
+            </Button>
+            <ButtonLink
+              to="/case-templates/$templateId"
+              params={{ templateId: 'new' }}
+            >
+              + New template
+            </ButtonLink>
+          </Group>
+        }
+      >
+        {isPending ? (
+          <Group justify="center" gap="xs" py="xl">
             <Loader size="sm" />
             <Text c="dimmed">Loading case templates…</Text>
           </Group>
-        </Paper>
-      ) : isError ? (
-        <Paper radius="md" p="xl" shadow="xs">
-          <Stack align="center" gap="sm">
-            <Text c="red.7">
-              Couldn’t load case templates from the backend.
-            </Text>
-            <Button
-              variant="default"
-              loading={isFetching}
-              onClick={() => refetch()}
-            >
+        ) : isError ? (
+          <Stack align="center" gap="sm" py="xl">
+            <Text c="red.7">Couldn’t load case templates from the backend.</Text>
+            <Button variant="default" loading={isFetching} onClick={() => refetch()}>
               Retry
             </Button>
           </Stack>
-        </Paper>
-      ) : visibleTemplates.length ? (
-        <Paper radius="md" shadow="xs" withBorder>
-          <Table.ScrollContainer minWidth={680}>
-            <Table
-              aria-label="Case templates"
-              verticalSpacing="sm"
-              horizontalSpacing="lg"
-              highlightOnHover
-            >
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>
-                    <Text ff="monospace" fz={11} c="var(--faint)" fw={700}>
-                      Template
-                    </Text>
-                  </Table.Th>
-                  <Table.Th>
-                    <Text ff="monospace" fz={11} c="var(--faint)" fw={700}>
-                      Tags
-                    </Text>
-                  </Table.Th>
-                  <Table.Th aria-label="Actions" />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {visibleTemplates.map((template) => (
-                  <TemplateRow
-                    key={template.id}
-                    template={template}
-                    onDuplicate={(item) => duplicateMutation.mutate(item)}
-                    onDelete={(item) => deleteMutation.mutate(item)}
-                  />
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        </Paper>
-      ) : (
-        <Paper radius="md" p="xl" shadow="xs" ta="center">
-          <Text c="dimmed">No case templates found.</Text>
-        </Paper>
-      )}
+        ) : (
+          <DataTable
+            table={table}
+            minWidth={680}
+            ariaLabel="Case templates"
+            emptyMessage="No templates match the current filters."
+            isFetching={isFetching}
+            stopPropagationColumnIds={['template', 'actions']}
+            onRowClick={(row) => openTemplate(row.original.id)}
+          />
+        )}
+      </TablePanel>
     </Box>
   )
 }

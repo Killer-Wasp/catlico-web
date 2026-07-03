@@ -1,9 +1,20 @@
 // @vitest-environment jsdom
-import { SettingsPage } from '#/components/pages/SettingsPage'
+import {
+  SettingsLayout,
+  SettingsSectionPanel,
+} from '#/components/pages/SettingsPage'
 import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  redirect,
+} from '@tanstack/react-router'
 import {
   cleanup,
   fireEvent,
@@ -73,15 +84,52 @@ beforeAll(() => {
   })
 })
 
+// The settings page is route-driven: the tab lives in the URL as
+// `/settings/$section`, so tests exercise it through a memory router that
+// mirrors the real `settings` layout + `$section` child route.
+function makeRouter(initialSection = 'organisation') {
+  const rootRoute = createRootRoute()
+  const settingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'settings',
+    component: SettingsLayout,
+  })
+  const indexRoute = createRoute({
+    getParentRoute: () => settingsRoute,
+    path: '/',
+    beforeLoad: () => {
+      throw redirect({
+        to: '/settings/$section',
+        params: { section: 'organisation' },
+      })
+    },
+  })
+  const sectionRoute = createRoute({
+    getParentRoute: () => settingsRoute,
+    path: '$section',
+    component: SettingsSectionPanel,
+  })
+  const routeTree = rootRoute.addChildren([
+    settingsRoute.addChildren([indexRoute, sectionRoute]),
+  ])
+  return createRouter({
+    routeTree,
+    history: createMemoryHistory({
+      initialEntries: [`/settings/${initialSection}`],
+    }),
+  })
+}
+
 function Harness() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
+  const router = makeRouter()
   return (
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
         <Notifications />
-        <SettingsPage />
+        <RouterProvider router={router} />
       </MantineProvider>
     </QueryClientProvider>
   )
@@ -184,7 +232,9 @@ describe('SettingsPage', () => {
   test('loads organisation profile settings from the backend', async () => {
     render(<Harness />)
 
-    expect(screen.getByRole('heading', { name: 'Settings' })).toBeDefined()
+    expect(
+      await screen.findByRole('heading', { name: 'Settings' }),
+    ).toBeDefined()
     expect(
       screen.getByRole('navigation', { name: /settings sections/i }),
     ).toBeDefined()
@@ -219,7 +269,7 @@ describe('SettingsPage', () => {
   test('renders backend-backed members, roles, custom fields, and connectors', async () => {
     render(<Harness />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Users & roles' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Users & roles' }))
     expect(await screen.findByText('analyst@example.test')).toBeDefined()
     expect(screen.getByText('ANALYST')).toBeDefined()
 
@@ -238,7 +288,7 @@ describe('SettingsPage', () => {
   test('creates, manages, and deletes organisations from the Organisations panel', async () => {
     render(<Harness />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Organisations' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Organisations' }))
     expect(await screen.findByText('Backend SOC')).toBeDefined()
 
     fireEvent.click(screen.getByRole('button', { name: '+ New organisation' }))

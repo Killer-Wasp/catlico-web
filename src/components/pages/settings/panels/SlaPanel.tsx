@@ -1,14 +1,17 @@
-import { Button, Group, Select, Stack, Table, Text, TextInput } from '@mantine/core'
+import { Button, Group, Select, Stack, Text, TextInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
+import { DataTable } from '#/components/Table/DataTable'
 import {
   slaPoliciesQueryOptions,
   settingsKeys,
   upsertSlaPolicies,
 } from '#/components/pages/settings/settingsQueries'
 import type { SlaPolicyUpsertInput } from '#/components/pages/settings/settingsQueries'
-import { LoadingPanel, Panel, TableBox } from '#/components/pages/settings/settingsUi'
+import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
 
 const SEVERITY_LABELS: Record<number, string> = {
   1: 'LOW',
@@ -100,6 +103,69 @@ export function SlaPanel() {
     )
   }
 
+  const columns = useMemo<ColumnDef<EditableRow>[]>(
+    () => [
+      {
+        id: 'severity',
+        header: 'Severity',
+        cell: ({ row }) => (
+          <Text
+            ff="monospace"
+            fw={700}
+            c={SEVERITY_COLORS[row.original.severity] ?? 'gray'}
+          >
+            {SEVERITY_LABELS[row.original.severity] ?? row.original.severity}
+          </Text>
+        ),
+      },
+      {
+        id: 'ack',
+        header: 'Time to acknowledge',
+        cell: ({ row }) => (
+          <TextInput
+            aria-label={`${SEVERITY_LABELS[row.original.severity]} time to acknowledge`}
+            value={row.original.ack}
+            w={100}
+            onChange={(e) =>
+              setRow(row.original.severity, { ack: e.currentTarget.value })
+            }
+          />
+        ),
+      },
+      {
+        id: 'resolve',
+        header: 'Time to resolve',
+        cell: ({ row }) => (
+          <TextInput
+            aria-label={`${SEVERITY_LABELS[row.original.severity]} time to resolve`}
+            value={row.original.resolve}
+            w={100}
+            onChange={(e) =>
+              setRow(row.original.severity, { resolve: e.currentTarget.value })
+            }
+          />
+        ),
+      },
+      {
+        id: 'escalate',
+        header: 'Escalate to',
+        cell: ({ row }) => (
+          <Select
+            data={['On-call lead', 'CISO', 'Queue']}
+            value={row.original.escalate}
+            allowDeselect={false}
+            w={180}
+            aria-label={`${SEVERITY_LABELS[row.original.severity]} escalation`}
+            onChange={(v) =>
+              setRow(row.original.severity, { escalate: v ?? '' })
+            }
+          />
+        ),
+      },
+    ],
+    [],
+  )
+
   if (isPending) return <LoadingPanel label="Loading SLA policies..." />
 
   if (isError) {
@@ -117,64 +183,36 @@ export function SlaPanel() {
 
   return (
     <Panel title="SLA policies" count="per severity">
-      <TableBox>
-        <Table verticalSpacing="sm">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Severity</Table.Th>
-              <Table.Th>Time to acknowledge</Table.Th>
-              <Table.Th>Time to resolve</Table.Th>
-              <Table.Th>Escalate to</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((row) => (
-              <Table.Tr key={row.severity}>
-                <Table.Td>
-                  <Text
-                    ff="monospace"
-                    fw={700}
-                    c={SEVERITY_COLORS[row.severity] ?? 'gray'}
-                  >
-                    {SEVERITY_LABELS[row.severity] ?? row.severity}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <TextInput
-                    aria-label={`${SEVERITY_LABELS[row.severity]} time to acknowledge`}
-                    value={row.ack}
-                    w={100}
-                    onChange={(e) => setRow(row.severity, { ack: e.currentTarget.value })}
-                  />
-                </Table.Td>
-                <Table.Td>
-                  <TextInput
-                    aria-label={`${SEVERITY_LABELS[row.severity]} time to resolve`}
-                    value={row.resolve}
-                    w={100}
-                    onChange={(e) => setRow(row.severity, { resolve: e.currentTarget.value })}
-                  />
-                </Table.Td>
-                <Table.Td>
-                  <Select
-                    data={['On-call lead', 'CISO', 'Queue']}
-                    value={row.escalate}
-                    allowDeselect={false}
-                    w={180}
-                    aria-label={`${SEVERITY_LABELS[row.severity]} escalation`}
-                    onChange={(v) => setRow(row.severity, { escalate: v ?? '' })}
-                  />
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </TableBox>
+      <SlaTable columns={columns} rows={rows} />
       <Group justify="flex-end" p={18} pt={0}>
         <Button color="orange" loading={saveMutation.isPending} onClick={handleSave}>
           Save SLA policies
         </Button>
       </Group>
     </Panel>
+  )
+}
+
+function SlaTable({
+  columns,
+  rows,
+}: {
+  columns: ColumnDef<EditableRow>[]
+  rows: EditableRow[]
+}) {
+  const table = useReactTable({
+    data: rows,
+    columns,
+    getRowId: (row) => String(row.severity),
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <DataTable
+      table={table}
+      minWidth={640}
+      ariaLabel="SLA policies"
+      emptyMessage="No SLA policies configured."
+    />
   )
 }

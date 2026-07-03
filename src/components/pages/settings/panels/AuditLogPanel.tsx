@@ -1,19 +1,56 @@
-import { Button, Code, Table, Text } from '@mantine/core'
+import { Button, Code, Text } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
-import {
-  auditsQueryOptions,
-} from '#/components/pages/settings/settingsQueries'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { useMemo } from 'react'
+import { DataTable } from '#/components/Table/DataTable'
+import { auditsQueryOptions } from '#/components/pages/settings/settingsQueries'
 import type { AuditPublic } from '#/components/pages/settings/settingsQueries'
 import {
   compactDate,
   LoadingPanel,
   Panel,
-  TableBox,
 } from '#/components/pages/settings/settingsUi'
 
 export function AuditLogPanel() {
   const { data, isPending } = useQuery(auditsQueryOptions())
   const items = data?.items ?? []
+
+  const columns = useMemo<ColumnDef<AuditPublic>[]>(
+    () => [
+      {
+        id: 'time',
+        header: 'Time',
+        cell: ({ row }) => (
+          <Text ff="monospace" c="var(--faint)">
+            {compactDate(row.original.created_at)}
+          </Text>
+        ),
+      },
+      { id: 'actor', header: 'Actor', accessorFn: (row) => row.actor },
+      {
+        id: 'action',
+        header: 'Action',
+        cell: ({ row }) => <Code>{row.original.action}</Code>,
+      },
+      { id: 'entity', header: 'Entity', accessorFn: (row) => row.object_type },
+      {
+        id: 'object',
+        header: 'Object',
+        cell: ({ row }) => (
+          <Text ff="monospace" c="var(--faint)">
+            {row.original.object_id}
+          </Text>
+        ),
+      },
+      {
+        id: 'org',
+        header: 'Org',
+        cell: ({ row }) => <Code>{row.original.context_id ?? '—'}</Code>,
+      },
+    ],
+    [],
+  )
 
   if (isPending) return <LoadingPanel label="Loading audit log..." />
 
@@ -48,49 +85,31 @@ export function AuditLogPanel() {
         </Button>
       }
     >
-      <TableBox>
-        <Table verticalSpacing="sm">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Time</Table.Th>
-              <Table.Th>Actor</Table.Th>
-              <Table.Th>Action</Table.Th>
-              <Table.Th>Entity</Table.Th>
-              <Table.Th>Object</Table.Th>
-              <Table.Th>Org</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {items.map((item: AuditPublic) => (
-              <Table.Tr key={item.id}>
-                <Table.Td ff="monospace" c="var(--faint)">
-                  {compactDate(item.created_at)}
-                </Table.Td>
-                <Table.Td>{item.actor}</Table.Td>
-                <Table.Td>
-                  <Code>{item.action}</Code>
-                </Table.Td>
-                <Table.Td>{item.object_type}</Table.Td>
-                <Table.Td ff="monospace" c="var(--faint)">
-                  {item.object_id}
-                </Table.Td>
-                <Table.Td>
-                  <Code>{item.context_id ?? '—'}</Code>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-            {items.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={6}>
-                  <Text c="dimmed" ta="center">
-                    No audit events found.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </TableBox>
+      <AuditTable columns={columns} items={items} />
     </Panel>
+  )
+}
+
+function AuditTable({
+  columns,
+  items,
+}: {
+  columns: ColumnDef<AuditPublic>[]
+  items: AuditPublic[]
+}) {
+  const table = useReactTable({
+    data: items,
+    columns,
+    getRowId: (row) => String(row.id),
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <DataTable
+      table={table}
+      minWidth={900}
+      ariaLabel="Audit log"
+      emptyMessage="No audit events found."
+    />
   )
 }

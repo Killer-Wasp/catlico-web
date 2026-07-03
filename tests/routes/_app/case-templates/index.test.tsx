@@ -42,6 +42,7 @@ vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => options,
   Outlet: () => <div>Template editor outlet</div>,
   useLocation: () => ({ pathname: routerState.pathname }),
+  useNavigate: () => () => {},
   Link: ({
     to,
     params,

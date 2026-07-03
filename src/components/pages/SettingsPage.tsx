@@ -1,6 +1,6 @@
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Box, Group, Tabs, Text, Title } from '@mantine/core'
-import { useState } from 'react'
+import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
 import { AuditLogPanel } from './settings/panels/AuditLogPanel'
 import { ConnectorsPanel } from './settings/panels/ConnectorsPanel'
@@ -14,7 +14,11 @@ import { ProfilesPanel } from './settings/panels/ProfilesPanel'
 import { SlaPanel } from './settings/panels/SlaPanel'
 import { TaxonomiesPanel } from './settings/panels/TaxonomiesPanel'
 import { UsersPanel } from './settings/panels/UsersPanel'
-import { settingsSections } from './settings/settingsData'
+import {
+  sectionToSlug,
+  settingsSections,
+  slugToSection,
+} from './settings/settingsData'
 import type { SettingsSection } from './settings/settingsData'
 import { useStamp } from './settings/settingsUi'
 
@@ -34,9 +38,19 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   return <OrgProfilePanel />
 }
 
-export function SettingsPage() {
-  const [activeSection, setActiveSection] =
-    useState<SettingsSection>('Organisation')
+// Rendered by the `/settings/$section` child route into the layout's Outlet.
+export function SettingsSectionPanel() {
+  const { section } = useParams({ strict: false })
+  return (
+    <SectionPanel section={(section && slugToSection(section)) || 'Organisation'} />
+  )
+}
+
+export function SettingsLayout() {
+  const { section } = useParams({ strict: false })
+  const activeSection: SettingsSection =
+    (section && slugToSection(section)) || 'Organisation'
+  const navigate = useNavigate()
   const stamp = useStamp()
 
   return (
@@ -53,7 +67,11 @@ export function SettingsPage() {
         orientation="vertical"
         value={activeSection}
         onChange={(value) => {
-          if (value) setActiveSection(value as SettingsSection)
+          if (value)
+            navigate({
+              to: '/settings/$section',
+              params: { section: sectionToSlug(value as SettingsSection) },
+            })
         }}
         styles={{ tabLabel: { textAlign: 'left' } }}
       >
@@ -74,7 +92,7 @@ export function SettingsPage() {
 
         <Box miw={0} style={{ flex: 1 }}>
           <Tabs.Panel value={activeSection} pl="md">
-            <SectionPanel section={activeSection} />
+            <Outlet />
           </Tabs.Panel>
         </Box>
       </Tabs>

@@ -28,13 +28,18 @@ export function FunctionEditor({
   setDraft,
   onBack,
   onSave,
+  onDelete,
   saving,
+  deleting,
 }: {
   draft: FunctionAutomation
   setDraft: DraftUpdater
   onBack: () => void
   onSave: () => void
+  /** Delete this function; only offered when editing an existing one. */
+  onDelete?: () => void
   saving: boolean
+  deleting?: boolean
 }) {
   const title = draft.id ? 'Edit function' : 'New function'
   const stamp = draft.id
@@ -64,6 +69,16 @@ export function FunctionEditor({
         stamp={stamp}
         actions={
           <>
+            {draft.id && onDelete ? (
+              <Button
+                variant="light"
+                color="red"
+                loading={deleting}
+                onClick={onDelete}
+              >
+                Delete
+              </Button>
+            ) : null}
             <Button variant="default" onClick={onBack}>
               Cancel
             </Button>

@@ -6,13 +6,14 @@ import {
   Group,
   Modal,
   Stack,
-  Table,
-  Text,
   TextInput,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
+import { DataTable } from '#/components/Table/DataTable'
 import {
   createObservableType,
   deleteObservableType,
@@ -23,7 +24,6 @@ import type { ObservableTypePublic } from '#/components/pages/settings/settingsQ
 import {
   LoadingPanel,
   Panel,
-  TableBox,
 } from '#/components/pages/settings/settingsUi'
 
 function AddTypeModal({
@@ -112,6 +112,39 @@ export function ObservableTypesPanel() {
       }),
   })
 
+  const columns = useMemo<ColumnDef<ObservableTypePublic>[]>(
+    () => [
+      {
+        id: 'type',
+        header: 'Type',
+        cell: ({ row }) => <Badge variant="default">{row.original.name}</Badge>,
+      },
+      {
+        id: 'kind',
+        header: 'Kind',
+        cell: ({ row }) => (
+          <Code>{row.original.is_attachment ? 'attachment' : 'value'}</Code>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        meta: { ta: 'right' },
+        cell: ({ row }) => (
+          <Button
+            size="xs"
+            variant="default"
+            loading={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate(row.original.name)}
+          >
+            Delete
+          </Button>
+        ),
+      },
+    ],
+    [deleteMutation],
+  )
+
   if (isPending) return <LoadingPanel label="Loading observable types..." />
 
   return (
@@ -126,51 +159,32 @@ export function ObservableTypesPanel() {
           </Button>
         }
       >
-        <TableBox>
-          <Table verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Type</Table.Th>
-                <Table.Th>Kind</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {types.map((type: ObservableTypePublic) => (
-                <Table.Tr key={type.name}>
-                  <Table.Td>
-                    <Badge variant="default">{type.name}</Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Code>
-                      {type.is_attachment ? 'attachment' : 'value'}
-                    </Code>
-                  </Table.Td>
-                  <Table.Td>
-                    <Button
-                      size="xs"
-                      variant="default"
-                      loading={deleteMutation.isPending}
-                      onClick={() => deleteMutation.mutate(type.name)}
-                    >
-                      Delete
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-              {types.length === 0 && (
-                <Table.Tr>
-                  <Table.Td colSpan={3}>
-                    <Text c="dimmed" ta="center">
-                      No observable types configured.
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              )}
-            </Table.Tbody>
-          </Table>
-        </TableBox>
+        <ObservableTypesTable columns={columns} types={types} />
       </Panel>
     </>
+  )
+}
+
+function ObservableTypesTable({
+  columns,
+  types,
+}: {
+  columns: ColumnDef<ObservableTypePublic>[]
+  types: ObservableTypePublic[]
+}) {
+  const table = useReactTable({
+    data: types,
+    columns,
+    getRowId: (row) => row.name,
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <DataTable
+      table={table}
+      minWidth={520}
+      ariaLabel="Observable types"
+      emptyMessage="No observable types configured."
+    />
   )
 }

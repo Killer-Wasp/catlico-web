@@ -432,7 +432,7 @@ export type ApiKeyCreateInput = {
 }
 
 export async function fetchApiKeys(
-  orgId = activeOrgId(),
+  _orgId = activeOrgId(),
 ): Promise<ApiKeyPublic[]> {
   return api.get('api-keys/').json<ApiKeyPublic[]>()
 }

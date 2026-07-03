@@ -13,11 +13,10 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Check, EllipsisVertical, ExternalLink, Play } from 'lucide-react'
 import { Assignee, DuePill, TaskStatusBadge } from './Components'
 import {
-  byCaseId,
-  byDueDate,
   includesAnySubstring,
   includesOne,
-} from './tableFns'
+} from '#/components/Table/tableFilters'
+import { byCaseId, byDueDate } from './tableFns'
 
 export function buildTaskColumns({
   onOpenCase,

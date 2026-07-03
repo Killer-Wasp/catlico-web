@@ -1,7 +1,6 @@
 import classes from '#/components/Cases/CasesPage.module.css'
 import { getCaseRouteId } from '#/components/Cases/caseDetails'
-import type { Token, TokenField } from '#/components/Table/TokenSearch'
-import { TokenSearch } from '#/components/Table/TokenSearch'
+import type { TokenField } from '#/components/Table/TokenSearch'
 import type { Task, TaskStatus } from '#/components/Tasks/tasks.types'
 import { TASK_STATUS_LABEL, advanceTaskStatus } from '#/components/Tasks/tasks'
 import {
@@ -10,7 +9,9 @@ import {
   tasksQueryOptions,
   updateTaskStatus,
 } from '#/components/Tasks/tasksQueries'
-import { Box, Group, Pagination, Paper, Select, Text } from '@mantine/core'
+import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import { Box } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef, SortingState } from '@tanstack/react-table'
@@ -24,9 +25,7 @@ import {
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { STATUS_OPTIONS } from './tasks/constants'
-import styles from './tasks/styles.module.css'
 import { buildTaskColumns } from './tasks/taskColumns'
-import { TasksTable } from './tasks/TasksTable'
 
 export function TasksPage() {
   const navigate = useNavigate()
@@ -35,12 +34,11 @@ export function TasksPage() {
     tasksQueryOptions(DEFAULT_TASK_FILTERS),
   )
   const tasks = data?.tasks ?? []
-  const [pageSize, setPageSize] = useState(10)
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'caseId', desc: false },
   ])
 
-  // Clicking a task row opens its parent case on the Tasks tab.
   const openTaskCase = (caseId: string) => {
     navigate({
       to: '/cases/$caseId/$tab',
@@ -120,12 +118,13 @@ export function TasksPage() {
     columns,
     state: {
       sorting,
+      pagination,
       columnVisibility: { kind: false },
-      pagination: { pageIndex: 0, pageSize },
     },
     getRowId: (row) => row.id,
     enableSorting: true,
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -151,173 +150,55 @@ export function TasksPage() {
       {
         key: 'status',
         label: 'Status',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'status',
         options: STATUS_OPTIONS,
       },
       {
         key: 'assignee',
         label: 'Assignee',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'assignee',
         options: toOpts(assigneeOptions),
       },
       {
         key: 'kind',
         label: 'Kind',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'kind',
         options: toOpts(kindOptions),
       },
-      { key: 'case', label: 'Case', kind: 'text', columnId: 'caseId' },
-      { key: 'title', label: 'Title', kind: 'text', columnId: 'title' },
+      { key: 'case', label: 'Case', kind: 'text' as const, columnId: 'caseId' },
+      { key: 'title', label: 'Title', kind: 'text' as const, columnId: 'title' },
     ],
     [assigneeOptions, kindOptions],
   )
 
-  const columnFilters = table.getState().columnFilters
-  const tokens = useMemo<Token[]>(() => {
-    const out: Token[] = []
-    for (const f of filterFields) {
-      const vals =
-        (table.getColumn(f.columnId)?.getFilterValue() as
-          | string[]
-          | undefined) ?? []
-      for (const v of vals) {
-        const label =
-          f.kind === 'enum'
-            ? (f.options?.find((o) => o.value === v)?.label ?? v)
-            : v
-        out.push({ field: f.key, value: v, label })
-      }
-    }
-    return out
-  }, [table, columnFilters, filterFields])
-
-  const setTokens = (next: Token[]) => {
-    for (const f of filterFields) {
-      const vals = next.filter((t) => t.field === f.key).map((t) => t.value)
-      table
-        .getColumn(f.columnId)
-        ?.setFilterValue(vals.length ? vals : undefined)
-    }
-  }
-
-  const totalFiltered = table.getFilteredRowModel().rows.length
-  const { pageIndex } = table.getState().pagination
-  const pageCount = Math.max(1, table.getPageCount())
-  const rangeStart = totalFiltered === 0 ? 0 : pageIndex * pageSize + 1
-  const rangeEnd = Math.min((pageIndex + 1) * pageSize, totalFiltered)
-
   return (
     <Box className={classes.page}>
-      <Paper radius="lg" p={0} withBorder>
-        <Group
-          gap={12}
-          px={18}
-          py={14}
-          style={{ borderBottom: '1px solid var(--line-soft)' }}
-        >
-          <Text fz={15} fw={700}>
-            Task queue
-          </Text>
-          <Text
-            component="span"
-            ff="monospace"
-            fz={11}
-            c="var(--muted)"
-            style={(theme) => ({
-              background: `light-dark(${theme.colors.gray[1]}, ${theme.colors.dark[6]})`,
-              border: `1px solid light-dark(${theme.colors.gray[3]}, ${theme.colors.dark[4]})`,
-              padding: '1px 10px',
-              borderRadius: 99,
-            })}
-          >
-            {totalFiltered} tasks
-          </Text>
-          <Text
-            component="span"
-            ff="monospace"
-            fz={11}
-            c="dimmed"
-            ml="auto"
-            visibleFrom="sm"
-          >
-            tick to complete - click status to advance
-          </Text>
-        </Group>
-
-        <Group
-          px="lg"
-          py="sm"
-          gap="md"
-          wrap="nowrap"
-          align="center"
-          style={{ borderBottom: '1px solid var(--line-soft)' }}
-        >
-          <Text component="span" className={styles.fieldLabel}>
-            filter
-          </Text>
-          <TokenSearch
-            fields={filterFields}
-            tokens={tokens}
-            onChange={setTokens}
-            placeholder="Filter tasks — pick a field, then a value"
-          />
-        </Group>
-
-        <TasksTable
+      <TablePanel
+        title="Task queue"
+        countNoun="tasks"
+        table={table}
+        filterFields={filterFields}
+        filterPlaceholder="Filter tasks — pick a field, then a value"
+      >
+        <DataTable
           table={table}
+          minWidth={1120}
+          verticalSpacing="md"
+          emptyMessage="No tasks match the current filters."
           isPending={isPending}
           isError={isError}
           isFetching={isFetching}
           onRetry={() => refetch()}
-          onOpenCase={openTaskCase}
+          loadingMessage="Loading tasks…"
+          errorMessage="Couldn’t load tasks from the backend."
+          selectColumnId="complete"
+          stopPropagationColumnIds={['complete', 'actions']}
+          onRowClick={(row) => openTaskCase(row.original.caseId)}
         />
-
-        <Group
-          gap={12}
-          px={18}
-          py={12}
-          wrap="wrap"
-          style={{ borderTop: '1px solid var(--line-soft)' }}
-        >
-          <Text component="span" ff="monospace" fz={11} c="dimmed">
-            {rangeStart}-{rangeEnd} of {totalFiltered}
-          </Text>
-          <Group gap="md" wrap="nowrap" ml="auto">
-            <Group gap="xs" wrap="nowrap">
-              <Text component="span" className={styles.fieldLabel}>
-                rows
-              </Text>
-              <Select
-                size="xs"
-                w={76}
-                data={['10', '25', '50']}
-                value={String(pageSize)}
-                onChange={(v) => setPageSize(Number(v ?? '10'))}
-                allowDeselect={false}
-              />
-            </Group>
-            <Pagination.Root
-              total={pageCount}
-              value={pageIndex + 1}
-              onChange={(p) => table.setPageIndex(p - 1)}
-              size="sm"
-            >
-              <Group gap={6} wrap="nowrap">
-                <Pagination.First />
-                <Pagination.Previous />
-                <Text component="span" ff="monospace" fz={13} px={6}>
-                  {pageIndex + 1} / {pageCount}
-                </Text>
-                <Pagination.Next />
-                <Pagination.Last />
-              </Group>
-            </Pagination.Root>
-          </Group>
-        </Group>
-      </Paper>
+      </TablePanel>
     </Box>
   )
 }

@@ -1,7 +1,10 @@
-import { Button, Code, Group, Modal, Select, Stack, Table, Text, TextInput } from '@mantine/core'
+import { Button, Code, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
+import { DataTable } from '#/components/Table/DataTable'
 import {
   createOrganisationMember,
   organisationMembersQueryOptions,
@@ -16,7 +19,6 @@ import {
   LoadingPanel,
   Panel,
   RoleBadge,
-  TableBox,
 } from '#/components/pages/settings/settingsUi'
 
 function InviteMemberModal({
@@ -172,6 +174,56 @@ export function UsersPanel() {
   const [editingMember, setEditingMember] =
     useState<OrganisationMemberPublic | null>(null)
 
+  const columns = useMemo<ColumnDef<OrganisationMemberPublic>[]>(
+    () => [
+      {
+        id: 'user',
+        header: 'User',
+        cell: ({ row }) => (
+          <Text fw={700}>{row.original.email.split('@')[0]}</Text>
+        ),
+      },
+      {
+        id: 'email',
+        header: 'Email',
+        cell: ({ row }) => <Code>{row.original.email}</Code>,
+      },
+      {
+        id: 'role',
+        header: 'Role',
+        cell: ({ row }) => (
+          <RoleBadge
+            role={roleById.get(row.original.role_id) ?? row.original.role_id}
+          />
+        ),
+      },
+      {
+        id: 'lastActive',
+        header: 'Last active',
+        cell: ({ row }) => (
+          <Text ff="monospace" c="var(--faint)">
+            {compactDate(row.original.created_at)}
+          </Text>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        meta: { ta: 'right' },
+        cell: ({ row }) => (
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => setEditingMember(row.original)}
+          >
+            Edit
+          </Button>
+        ),
+      },
+    ],
+    [roleById],
+  )
+
   if (isPending) return <LoadingPanel label="Loading members..." />
 
   return (
@@ -196,57 +248,32 @@ export function UsersPanel() {
           </Button>
         }
       >
-        <TableBox>
-          <Table verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>User</Table.Th>
-                <Table.Th>Email</Table.Th>
-                <Table.Th>Role</Table.Th>
-                <Table.Th>Last active</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {members.map((member) => {
-                const role = roleById.get(member.role_id) ?? member.role_id
-                return (
-                  <Table.Tr key={member.id}>
-                    <Table.Td fw={700}>{member.email.split('@')[0]}</Table.Td>
-                    <Table.Td>
-                      <Code>{member.email}</Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <RoleBadge role={role} />
-                    </Table.Td>
-                    <Table.Td ff="monospace" c="var(--faint)">
-                      {compactDate(member.created_at)}
-                    </Table.Td>
-                    <Table.Td>
-                      <Button
-                        size="xs"
-                        variant="default"
-                        onClick={() => setEditingMember(member)}
-                      >
-                        Edit
-                      </Button>
-                    </Table.Td>
-                  </Table.Tr>
-                )
-              })}
-              {members.length === 0 && (
-                <Table.Tr>
-                  <Table.Td colSpan={5}>
-                    <Text c="dimmed" ta="center">
-                      No members returned by the backend.
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              )}
-            </Table.Tbody>
-          </Table>
-        </TableBox>
+        <MembersTable columns={columns} members={members} />
       </Panel>
     </>
+  )
+}
+
+function MembersTable({
+  columns,
+  members,
+}: {
+  columns: ColumnDef<OrganisationMemberPublic>[]
+  members: OrganisationMemberPublic[]
+}) {
+  const table = useReactTable({
+    data: members,
+    columns,
+    getRowId: (row) => row.id,
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <DataTable
+      table={table}
+      minWidth={720}
+      ariaLabel="Members"
+      emptyMessage="No members returned by the backend."
+    />
   )
 }

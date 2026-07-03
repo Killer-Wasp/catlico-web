@@ -1,4 +1,4 @@
-import { SettingsPage } from '#/components/pages/SettingsPage'
+import { SettingsLayout } from '#/components/pages/SettingsPage'
 import { connectorsQueryOptions } from '#/components/Connectors/connectors'
 import {
   customFieldsQueryOptions,
@@ -15,5 +15,5 @@ export const Route = createFileRoute('/_app/settings')({
       context.queryClient.ensureQueryData(customFieldsQueryOptions()),
       context.queryClient.ensureQueryData(connectorsQueryOptions()),
     ]),
-  component: SettingsPage,
+  component: SettingsLayout,
 })

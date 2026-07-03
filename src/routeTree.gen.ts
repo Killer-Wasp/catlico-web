@@ -20,8 +20,10 @@ import { Route as AppFunctionsRouteImport } from './routes/_app/functions'
 import { Route as AppConnectorsRouteImport } from './routes/_app/connectors'
 import { Route as AppConnectorJobsRouteImport } from './routes/_app/connector-jobs'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
 import { Route as AppCasesIndexRouteImport } from './routes/_app/cases/index'
 import { Route as AppCaseTemplatesIndexRouteImport } from './routes/_app/case-templates/index'
+import { Route as AppSettingsSectionRouteImport } from './routes/_app/settings.$section'
 import { Route as AppCasesCreateRouteImport } from './routes/_app/cases/create'
 import { Route as AppCasesCaseIdRouteImport } from './routes/_app/cases/$caseId'
 import { Route as AppCaseTemplatesTemplateIdRouteImport } from './routes/_app/case-templates/$templateId'
@@ -82,6 +84,11 @@ const AppAlertsRoute = AppAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppCasesIndexRoute = AppCasesIndexRouteImport.update({
   id: '/cases/',
   path: '/cases/',
@@ -91,6 +98,11 @@ const AppCaseTemplatesIndexRoute = AppCaseTemplatesIndexRouteImport.update({
   id: '/case-templates/',
   path: '/case-templates/',
   getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsSectionRoute = AppSettingsSectionRouteImport.update({
+  id: '/$section',
+  path: '/$section',
+  getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppCasesCreateRoute = AppCasesCreateRouteImport.update({
   id: '/cases/create',
@@ -128,13 +140,15 @@ export interface FileRoutesByFullPath {
   '/functions': typeof AppFunctionsRoute
   '/knowledge-base': typeof AppKnowledgeBaseRoute
   '/observables': typeof AppObservablesRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/cases/create': typeof AppCasesCreateRoute
+  '/settings/$section': typeof AppSettingsSectionRoute
   '/case-templates/': typeof AppCaseTemplatesIndexRoute
   '/cases/': typeof AppCasesIndexRoute
+  '/settings/': typeof AppSettingsIndexRoute
   '/cases/$caseId/$tab': typeof AppCasesCaseIdTabRoute
   '/cases/$caseId/': typeof AppCasesCaseIdIndexRoute
 }
@@ -146,13 +160,14 @@ export interface FileRoutesByTo {
   '/functions': typeof AppFunctionsRoute
   '/knowledge-base': typeof AppKnowledgeBaseRoute
   '/observables': typeof AppObservablesRoute
-  '/settings': typeof AppSettingsRoute
   '/tasks': typeof AppTasksRoute
   '/': typeof AppIndexRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/create': typeof AppCasesCreateRoute
+  '/settings/$section': typeof AppSettingsSectionRoute
   '/case-templates': typeof AppCaseTemplatesIndexRoute
   '/cases': typeof AppCasesIndexRoute
+  '/settings': typeof AppSettingsIndexRoute
   '/cases/$caseId/$tab': typeof AppCasesCaseIdTabRoute
   '/cases/$caseId': typeof AppCasesCaseIdIndexRoute
 }
@@ -166,14 +181,16 @@ export interface FileRoutesById {
   '/_app/functions': typeof AppFunctionsRoute
   '/_app/knowledge-base': typeof AppKnowledgeBaseRoute
   '/_app/observables': typeof AppObservablesRoute
-  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRoute
   '/_app/': typeof AppIndexRoute
   '/_app/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/_app/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/_app/cases/create': typeof AppCasesCreateRoute
+  '/_app/settings/$section': typeof AppSettingsSectionRoute
   '/_app/case-templates/': typeof AppCaseTemplatesIndexRoute
   '/_app/cases/': typeof AppCasesIndexRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/cases/$caseId/$tab': typeof AppCasesCaseIdTabRoute
   '/_app/cases/$caseId/': typeof AppCasesCaseIdIndexRoute
 }
@@ -193,8 +210,10 @@ export interface FileRouteTypes {
     | '/case-templates/$templateId'
     | '/cases/$caseId'
     | '/cases/create'
+    | '/settings/$section'
     | '/case-templates/'
     | '/cases/'
+    | '/settings/'
     | '/cases/$caseId/$tab'
     | '/cases/$caseId/'
   fileRoutesByTo: FileRoutesByTo
@@ -206,13 +225,14 @@ export interface FileRouteTypes {
     | '/functions'
     | '/knowledge-base'
     | '/observables'
-    | '/settings'
     | '/tasks'
     | '/'
     | '/case-templates/$templateId'
     | '/cases/create'
+    | '/settings/$section'
     | '/case-templates'
     | '/cases'
+    | '/settings'
     | '/cases/$caseId/$tab'
     | '/cases/$caseId'
   id:
@@ -231,8 +251,10 @@ export interface FileRouteTypes {
     | '/_app/case-templates/$templateId'
     | '/_app/cases/$caseId'
     | '/_app/cases/create'
+    | '/_app/settings/$section'
     | '/_app/case-templates/'
     | '/_app/cases/'
+    | '/_app/settings/'
     | '/_app/cases/$caseId/$tab'
     | '/_app/cases/$caseId/'
   fileRoutesById: FileRoutesById
@@ -321,6 +343,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAlertsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/cases/': {
       id: '/_app/cases/'
       path: '/cases'
@@ -334,6 +363,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/case-templates/'
       preLoaderRoute: typeof AppCaseTemplatesIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/settings/$section': {
+      id: '/_app/settings/$section'
+      path: '/$section'
+      fullPath: '/settings/$section'
+      preLoaderRoute: typeof AppSettingsSectionRouteImport
+      parentRoute: typeof AppSettingsRoute
     }
     '/_app/cases/create': {
       id: '/_app/cases/create'
@@ -373,6 +409,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsSectionRoute: typeof AppSettingsSectionRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsSectionRoute: AppSettingsSectionRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppCasesCaseIdRouteChildren {
   AppCasesCaseIdTabRoute: typeof AppCasesCaseIdTabRoute
   AppCasesCaseIdIndexRoute: typeof AppCasesCaseIdIndexRoute
@@ -394,7 +444,7 @@ interface AppRouteChildren {
   AppFunctionsRoute: typeof AppFunctionsRoute
   AppKnowledgeBaseRoute: typeof AppKnowledgeBaseRoute
   AppObservablesRoute: typeof AppObservablesRoute
-  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTasksRoute: typeof AppTasksRoute
   AppIndexRoute: typeof AppIndexRoute
   AppCaseTemplatesTemplateIdRoute: typeof AppCaseTemplatesTemplateIdRoute
@@ -411,7 +461,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppFunctionsRoute: AppFunctionsRoute,
   AppKnowledgeBaseRoute: AppKnowledgeBaseRoute,
   AppObservablesRoute: AppObservablesRoute,
-  AppSettingsRoute: AppSettingsRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTasksRoute: AppTasksRoute,
   AppIndexRoute: AppIndexRoute,
   AppCaseTemplatesTemplateIdRoute: AppCaseTemplatesTemplateIdRoute,

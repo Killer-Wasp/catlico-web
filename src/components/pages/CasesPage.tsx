@@ -6,17 +6,9 @@ import {
 } from '#/components/Cases/casesQueries'
 import type { CaseListFilters } from '#/components/Cases/casesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
-import type { Token, TokenField } from '#/components/Table/TokenSearch'
-import { TokenSearch } from '#/components/Table/TokenSearch'
-import {
-  Box,
-  Button,
-  Group,
-  Pagination,
-  Paper,
-  Select,
-  Text,
-} from '@mantine/core'
+import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import { Button, Box } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import type {
@@ -26,13 +18,10 @@ import type {
   SortingState,
 } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { ListChecks, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { SEVERITY_OPTIONS } from '#/lib/domain'
 import { buildCaseColumns } from './cases-list/caseColumns'
-import { CasesTable } from './cases-list/CasesTable'
 import { SORT_FIELD, STATUS_OPTIONS } from './cases-list/constants'
-import styles from './cases-list/styles.module.css'
 
 export function CasesPage() {
   const navigate = useNavigate()
@@ -141,230 +130,82 @@ export function CasesPage() {
     getCoreRowModel: getCoreRowModel(),
   })
 
-  // Token-search schema. Each field maps to a TanStack column; OR within a
-  // field (array filter), AND across fields. `columnId` is internal wiring.
   const toOpts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }))
-  const filterFields = useMemo<(TokenField & { columnId: string })[]>(
+  const filterFields = useMemo(
     () => [
       {
         key: 'status',
         label: 'Status',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'status',
         options: STATUS_OPTIONS,
       },
       {
         key: 'severity',
         label: 'Severity',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'id',
         options: SEVERITY_OPTIONS,
       },
       {
         key: 'assignee',
         label: 'Assignee',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'assignee',
         options: toOpts(assigneeOptions),
       },
       {
         key: 'tag',
         label: 'Tag',
-        kind: 'enum',
+        kind: 'enum' as const,
         columnId: 'tags',
         options: toOpts(tagOptions),
       },
-      { key: 'case', label: 'Case', kind: 'text', columnId: 'caseNo' },
-      { key: 'title', label: 'Title', kind: 'text', columnId: 'title' },
+      { key: 'case', label: 'Case', kind: 'text' as const, columnId: 'caseNo' },
+      { key: 'title', label: 'Title', kind: 'text' as const, columnId: 'title' },
     ],
     [assigneeOptions, tagOptions],
   )
-
-  const totalFiltered = total
-  const { pageIndex } = pagination
-  const pageCount = table.getPageCount()
-  const rangeStart = totalFiltered === 0 ? 0 : pageIndex * pageSize + 1
-  const rangeEnd = Math.min((pageIndex + 1) * pageSize, totalFiltered)
-
-  const hasFilters = columnFilters.length > 0
-  const clearFilters = () => table.resetColumnFilters()
 
   const exitSelectMode = () => {
     setSelectMode(false)
     table.resetRowSelection()
   }
 
-  // Derive tokens from the column filters (the single source of truth, so the
-  // "Clear" button and tokens stay in sync), and push edits back to them.
-  const tokens = useMemo<Token[]>(() => {
-    const out: Token[] = []
-    for (const f of filterFields) {
-      const vals =
-        (table.getColumn(f.columnId)?.getFilterValue() as
-          | string[]
-          | undefined) ?? []
-      for (const v of vals) {
-        const label =
-          f.kind === 'enum'
-            ? (f.options?.find((o) => o.value === v)?.label ?? v)
-            : v
-        out.push({ field: f.key, value: v, label })
-      }
-    }
-    return out
-  }, [table, columnFilters, filterFields])
-
-  const setTokens = (next: Token[]) => {
-    for (const f of filterFields) {
-      const vals = next.filter((t) => t.field === f.key).map((t) => t.value)
-      table
-        .getColumn(f.columnId)
-        ?.setFilterValue(vals.length ? vals : undefined)
-    }
-  }
-
   return (
     <Box className={classes.page}>
-      <Paper radius="md" p={0} withBorder>
-        <Group
-          gap={12}
-          px={18}
-          py={14}
-          style={{ borderBottom: '1px solid var(--line-soft)' }}
-        >
-          <Text fz={14} fw={600}>
-            Open &amp; recent cases
-          </Text>
-          <Text
-            component="span"
-            ff="monospace"
-            fz={11}
-            c="var(--muted)"
-            style={(theme) => ({
-              background: `light-dark(${theme.colors.gray[1]}, ${theme.colors.dark[6]})`,
-              border: `1px solid light-dark(${theme.colors.gray[3]}, ${theme.colors.dark[4]})`,
-              padding: '1px 8px',
-              borderRadius: 99,
-            })}
-          >
-            {totalFiltered} cases
-          </Text>
-          <Group gap="xs" ml="auto">
-            {hasFilters && (
-              <Button
-                variant="subtle"
-                color="gray"
-                size="xs"
-                leftSection={<X size={14} />}
-                onClick={clearFilters}
-              >
-                Clear
-              </Button>
-            )}
-            <Button
-              size="xs"
-              onClick={() => navigate({ to: '/cases/create' })}
-              disabled={selectMode}
-            >
-              + New case
-            </Button>
-          </Group>
-        </Group>
-
-        <Group
-          px="lg"
-          py="sm"
-          gap="md"
-          wrap="nowrap"
-          align="center"
-          style={{ borderBottom: '1px solid var(--line-soft)' }}
-        >
-          <Text component="span" className={styles.fieldLabel}>
-            filter
-          </Text>
-          <TokenSearch
-            fields={filterFields}
-            tokens={tokens}
-            onChange={setTokens}
-          />
+      <TablePanel
+        title="Open & recent cases"
+        countNoun="cases"
+        count={total}
+        table={table}
+        filterFields={filterFields}
+        filterPlaceholder="Filter cases — pick a field, then a value"
+        selectable
+        selectMode={selectMode}
+        onToggleSelectMode={() =>
+          selectMode ? exitSelectMode() : setSelectMode(true)
+        }
+        actions={
           <Button
-            variant="default"
             size="xs"
-            leftSection={!selectMode ? <ListChecks size={14} /> : undefined}
-            onClick={() =>
-              selectMode ? exitSelectMode() : setSelectMode(true)
-            }
-            aria-pressed={selectMode}
+            onClick={() => navigate({ to: '/cases/create' })}
+            disabled={selectMode}
           >
-            {selectMode
-              ? `Cancel${
-                  table.getSelectedRowModel().rows.length
-                    ? ` (${table.getSelectedRowModel().rows.length})`
-                    : ''
-                }`
-              : 'Select'}
+            + New case
           </Button>
-        </Group>
-
-        <CasesTable
+        }
+      >
+        <DataTable
           table={table}
-          selectMode={selectMode}
+          minWidth={680}
+          emptyMessage="No cases match the current filters."
           isFetching={isFetching}
-          onOpenCase={openCase}
+          onRowClick={(row) =>
+            selectMode ? row.toggleSelected() : openCase(row.original.id)
+          }
         />
-
-        <Group
-          gap={12}
-          px={18}
-          py={12}
-          wrap="wrap"
-          style={{ borderTop: '1px solid var(--line-soft)' }}
-        >
-          <Text component="span" ff="monospace" fz={11} c="dimmed">
-            {rangeStart}-{rangeEnd} of {totalFiltered}
-          </Text>
-          <Group gap="md" wrap="nowrap" ml="auto">
-            <Group gap="xs" wrap="nowrap">
-              <Text component="span" className={styles.fieldLabel}>
-                rows
-              </Text>
-              <Select
-                size="xs"
-                w={76}
-                data={['10', '25', '50']}
-                value={String(pageSize)}
-                onChange={(v) =>
-                  setPagination({ pageIndex: 0, pageSize: Number(v ?? '10') })
-                }
-                allowDeselect={false}
-              />
-            </Group>
-            <Pagination.Root
-              total={pageCount}
-              value={pageIndex + 1}
-              onChange={(p) => table.setPageIndex(p - 1)}
-              size="sm"
-            >
-              <Group gap={5} wrap="nowrap">
-                <Pagination.First />
-                <Pagination.Previous />
-                <Text
-                  component="span"
-                  ff="monospace"
-                  fz={12}
-                  c="var(--muted)"
-                  px={6}
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  {pageIndex + 1} / {pageCount}
-                </Text>
-                <Pagination.Next />
-                <Pagination.Last />
-              </Group>
-            </Pagination.Root>
-          </Group>
-        </Group>
-      </Paper>
+      </TablePanel>
     </Box>
   )
 }

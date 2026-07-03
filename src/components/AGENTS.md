@@ -18,7 +18,7 @@ Everything a single route/page owns lives under `src/components/pages/`:
 src/components/
   pages/
     AlertsPage.tsx
-    alerts/            AlertsTable.tsx, AlertDetailDrawer.tsx, alertColumns.tsx,
+    alerts/            AlertDetailDrawer.tsx, alertColumns.tsx,
                        tableFns.ts, styles.module.css
     CasesPage.tsx          cases-list/…
     CaseDetailPage.tsx     case-detail/…
@@ -44,7 +44,14 @@ src/components/
   `pages/case-detail/`, the settings panels + their config drawer live in
   `pages/settings/`.
 - Genuinely shared UI components live in their own top-level folder
-  (`Severity/`, `StatusBadge/`, `Table/`, `Tag/`, `ui/`).
+  (`Severity/`, `StatusBadge/`, `Table/`, `Tag/`, `ui/`). The list-page table
+  shell is one reusable component: `Table/` provides `TablePanel` (Paper frame +
+  header/count/actions slots), `DataTable` (generic `<T>` thead/tbody + sort +
+  loading/error/empty states), `TableFilterBar` + `TablePagination`,
+  `useTableTokens` (token↔column-filter bridge), `tableFilters.ts` (shared
+  `includesOne`/`includesAnyTag`/`includesAnySubstring` filter fns), `columnMeta.ts`
+  (the `ColumnMeta` augmentation), and `TokenSearch`. A new list page supplies only
+  its `buildXColumns` factory, data wiring, and page-specific header actions.
 - A page's building blocks import reusable modules by absolute path
   (`#/components/<Domain>/…`) and their own siblings by relative path
   (`./Foo`). Page entry files import their subfolder relatively (`./alerts/…`).

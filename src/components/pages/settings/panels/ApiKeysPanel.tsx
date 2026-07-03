@@ -1,14 +1,18 @@
-import { Button, Code, Modal, Stack, Table, Text, TextInput } from '@mantine/core'
+import { Button, Code, Modal, Stack, Text, TextInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
+import { DataTable } from '#/components/Table/DataTable'
+import type { ApiKeyPublic } from '#/components/pages/settings/settingsQueries'
 import {
   apiKeysQueryOptions,
   createApiKey,
   revokeApiKey,
   settingsKeys,
 } from '#/components/pages/settings/settingsQueries'
-import { compactDate, LoadingPanel, Panel, TableBox } from '#/components/pages/settings/settingsUi'
+import { compactDate, LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
 
 export function ApiKeysPanel() {
   const queryClient = useQueryClient()
@@ -46,6 +50,58 @@ export function ApiKeysPanel() {
       }),
   })
 
+  const columns = useMemo<ColumnDef<ApiKeyPublic>[]>(
+    () => [
+      { id: 'name', header: 'Label', accessorFn: (row) => row.name },
+      {
+        id: 'key',
+        header: 'Key',
+        cell: ({ row }) => (
+          <Code>
+            {row.original.prefix}...{row.original.last_four}
+          </Code>
+        ),
+      },
+      {
+        id: 'scope',
+        header: 'Scope',
+        cell: ({ row }) => (
+          <Text ff="monospace" fz={11}>
+            {row.original.scopes.join(', ') || '-'}
+          </Text>
+        ),
+      },
+      {
+        id: 'lastUsed',
+        header: 'Last used',
+        cell: ({ row }) => (
+          <Text ff="monospace" c="var(--faint)">
+            {compactDate(row.original.last_used_at)}
+          </Text>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        meta: { ta: 'right' },
+        cell: ({ row }) => (
+          <Button
+            size="xs"
+            variant="default"
+            loading={
+              revokeMutation.isPending &&
+              revokeMutation.variables === row.original.id
+            }
+            onClick={() => revokeMutation.mutate(row.original.id)}
+          >
+            Revoke
+          </Button>
+        ),
+      },
+    ],
+    [revokeMutation],
+  )
+
   if (isPending) return <LoadingPanel label="Loading API keys..." />
 
   if (isError) {
@@ -61,8 +117,6 @@ export function ApiKeysPanel() {
     )
   }
 
-  const keyList = keys ?? []
-
   return (
     <>
       <Panel
@@ -73,51 +127,7 @@ export function ApiKeysPanel() {
           </Button>
         }
       >
-        {keyList.length ? (
-          <TableBox>
-            <Table verticalSpacing="sm">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Label</Table.Th>
-                  <Table.Th>Key</Table.Th>
-                  <Table.Th>Scope</Table.Th>
-                  <Table.Th>Last used</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {keyList.map((key) => (
-                  <Table.Tr key={key.id}>
-                    <Table.Td>{key.name}</Table.Td>
-                    <Table.Td>
-                      <Code>{key.prefix}...{key.last_four}</Code>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text ff="monospace" fz={11}>
-                        {(key.scopes ?? []).join(', ') || '-'}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td ff="monospace" c="var(--faint)">
-                      {compactDate(key.last_used_at)}
-                    </Table.Td>
-                    <Table.Td>
-                      <Button
-                        size="xs"
-                        variant="default"
-                        loading={revokeMutation.isPending && revokeMutation.variables === key.id}
-                        onClick={() => revokeMutation.mutate(key.id)}
-                      >
-                        Revoke
-                      </Button>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </TableBox>
-        ) : (
-          <Text c="dimmed" ta="center" py="xl">No API keys created yet.</Text>
-        )}
+        <ApiKeysTable columns={columns} keys={keys} />
       </Panel>
 
       <Modal
@@ -150,5 +160,30 @@ export function ApiKeysPanel() {
         )}
       </Modal>
     </>
+  )
+}
+
+// Kept as a child so the table hook stays above the parent's early returns.
+function ApiKeysTable({
+  columns,
+  keys,
+}: {
+  columns: ColumnDef<ApiKeyPublic>[]
+  keys: ApiKeyPublic[]
+}) {
+  const table = useReactTable({
+    data: keys,
+    columns,
+    getRowId: (row) => row.id,
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <DataTable
+      table={table}
+      minWidth={640}
+      ariaLabel="API keys"
+      emptyMessage="No API keys created yet."
+    />
   )
 }

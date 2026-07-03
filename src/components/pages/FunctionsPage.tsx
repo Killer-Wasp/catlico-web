@@ -95,6 +95,10 @@ export function FunctionsPage() {
         draft={draft}
         setDraft={(update) => setDraft((c) => (c ? update(c) : c))}
         onBack={() => setDraft(null)}
+        onDelete={
+          draft.id ? () => deleteMutation.mutate(draft.id) : undefined
+        }
+        deleting={deleteMutation.isPending}
         onSave={() => {
           if (!draft.name.trim()) {
             notifications.show({
