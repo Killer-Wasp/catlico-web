@@ -59,6 +59,7 @@ export function newDraft(): DraftTemplate {
     slug: '',
     name: '',
     builtin: false,
+    author: '',
     updated: 'just now',
     description: '',
     prefix: '',

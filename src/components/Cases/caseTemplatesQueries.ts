@@ -24,6 +24,7 @@ export type CaseTemplatePublic = {
   pap: number | null
   summary: string | null
   organisation_id: string
+  created_by: string
   tasks: CaseTemplateTaskPublic[]
   tags: string[]
   created_at: string
@@ -104,6 +105,7 @@ export function toCaseTemplate(dto: CaseTemplatePublic): CaseTemplate {
     slug: dto.name,
     name: dto.display_name || dto.name,
     builtin: false,
+    author: dto.created_by,
     updated: compactDateTime(dto.updated_at ?? dto.created_at),
     description: dto.description,
     prefix: dto.title_prefix,

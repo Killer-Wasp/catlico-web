@@ -35,7 +35,7 @@ export function ConnectorJobsPage() {
   const { data: jobs = [], isLoading } = useQuery(analyzerJobsQueryOptions())
   const [activeTab, setActiveTab] = useState<ConnectorJobTab>('all')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState('6')
+  const [pageSize, setPageSize] = useState('10')
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
 
   const detailQuery = useQuery(analyzerJobDetailQueryOptions(selectedJobId))
@@ -233,9 +233,9 @@ export function ConnectorJobsPage() {
               <Select
                 size="xs"
                 w={76}
-                data={['6', '10', '25']}
+                data={['10', '20', '30']}
                 value={pageSize}
-                onChange={(value) => setPageSize(value ?? '6')}
+                onChange={(value) => setPageSize(value ?? '10')}
                 allowDeselect={false}
               />
             </Group>

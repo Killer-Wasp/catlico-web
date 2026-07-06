@@ -153,6 +153,19 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('case observables tab', () => {
+  test('places the add observable action above the table', () => {
+    const { container } = render(<Harness />)
+
+    const addButton = screen.getByRole('button', { name: /add observable/i })
+    const table = container.querySelector('table')
+
+    expect(table).not.toBeNull()
+    expect(
+      addButton.compareDocumentPosition(table!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
   test('opens an observable detail drawer when an observable row is clicked', async () => {
     render(<Harness />)
 

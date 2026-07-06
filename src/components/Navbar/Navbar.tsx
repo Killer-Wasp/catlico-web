@@ -27,7 +27,7 @@ import {
   countConnectorJobsByTab,
 } from '#/components/Connectors/connectorJobs'
 import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
-import { filterTasksByStatus, initialTasks } from '#/components/Tasks/tasks'
+import { filterTasksByStatus } from '#/components/Tasks/tasks'
 import { tasksQueryOptions } from '#/components/Tasks/tasksQueries'
 
 type NavItem = {
@@ -47,15 +47,11 @@ type NavSection = {
 type NavbarCounts = {
   alerts?: number
   cases?: number
-  tasks: number
+  tasks?: number
   observables?: number
   connectors?: number
   connectorJobs?: number
   caseTemplates: number
-}
-
-const fixtureCounts = {
-  tasks: filterTasksByStatus(initialTasks, 'open').length,
 }
 
 function sectionsForCounts(counts: NavbarCounts): NavSection[] {
@@ -196,8 +192,9 @@ export function Navbar() {
     ? countConnectorJobsByTab(connectorJobs)
     : undefined
   const sections = sectionsForCounts({
-    ...fixtureCounts,
-    tasks: filterTasksByStatus(taskQueue?.tasks ?? initialTasks, 'open').length,
+    tasks: taskQueue
+      ? filterTasksByStatus(taskQueue.tasks, 'open').length
+      : undefined,
     alerts: alerts?.length,
     cases: cases?.total,
     observables: observables?.length,

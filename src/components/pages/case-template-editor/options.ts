@@ -14,14 +14,6 @@ export const trafficOptions = [
   { value: '3', label: 'RED' },
 ]
 
-export const assigneeOptions = [
-  { value: '', label: 'Unassigned' },
-  { value: 'J. Tanaka', label: 'J. Tanaka' },
-  { value: 'P. Nguyen', label: 'P. Nguyen' },
-  { value: 'A. Whitford', label: 'A. Whitford' },
-  { value: 'S. Iyer', label: 'S. Iyer' },
-]
-
 export const customFieldTypes: CustomFieldType[] = [
   'string',
   'integer',

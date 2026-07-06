@@ -45,6 +45,7 @@ const templateDto = {
   pap: 2,
   summary: 'Use for reported credential lures.',
   organisation_id: 'org-1',
+  created_by: 'user-9',
   tasks: [
     {
       id: 'task-template-1',
@@ -86,6 +87,7 @@ describe('case template queries', () => {
           slug: 'phishing-playbook',
           name: 'Phishing / credential harvesting',
           builtin: false,
+          author: 'user-9',
           updated: expect.any(String),
           description: 'Standard phishing playbook.',
           prefix: '[Phishing] ',
@@ -221,6 +223,7 @@ function resultTemplate() {
     slug: 'phishing-playbook',
     name: 'Phishing / credential harvesting',
     builtin: false,
+    author: 'user-9',
     updated: '10:21',
     description: 'Standard phishing playbook.',
     prefix: '[Phishing] ',

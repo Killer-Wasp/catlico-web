@@ -7,3 +7,33 @@
   letter-spacing: 1px;
   color: var(--mantine-color-dimmed);
 }
+
+.attachmentsDropZone {
+  border: 2px dashed transparent;
+  border-radius: var(--mantine-radius-sm);
+  transition: border 0.15s;
+}
+
+.attachmentsDropZoneActive {
+  border-color: var(--mantine-color-orange-5);
+}
+
+.attachmentsUploadHeader {
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: var(--mantine-spacing-md);
+}
+
+.attachmentsFileInput {
+  display: none;
+}
+
+.attachmentRow {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.attachmentKind {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+}

@@ -247,13 +247,6 @@ describe('ObservablesPage', () => {
     render(<Harness />)
 
     expect(await screen.findByText('login-originenergy.support')).toBeDefined()
-    expect(screen.getByRole('heading', { name: 'Observables' })).toBeDefined()
-    expect(
-      screen.getByRole('button', { name: 'Run analyzers on selected' }),
-    ).toHaveProperty('disabled', true)
-    expect(
-      screen.getByRole('button', { name: 'Export selected to MISP' }),
-    ).toHaveProperty('disabled', true)
     expect(
       screen.getByRole('button', { name: '+ Add observable' }),
     ).toBeDefined()
@@ -268,13 +261,24 @@ describe('ObservablesPage', () => {
     ).toBeDefined()
     expect(screen.getAllByText('TLP:AMBER').length).toBeGreaterThan(0)
     expect(screen.getByText('Note VT 12/93')).toBeDefined()
-    expect(screen.getByText('1-6 of 8')).toBeDefined()
+    expect(screen.getByText('1-8 of 8')).toBeDefined()
+
+    // Bulk actions live in select mode and start disabled with nothing selected.
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    expect(
+      screen.getByRole('button', { name: 'Run analyzers on selected' }),
+    ).toHaveProperty('disabled', true)
+    expect(
+      screen.getByRole('button', { name: 'Export selected to MISP' }),
+    ).toHaveProperty('disabled', true)
   })
 
   test('enables bulk actions when an observable is selected', async () => {
     render(<Harness />)
 
     expect(await screen.findByText('login-originenergy.support')).toBeDefined()
+    // Row checkboxes only appear after entering select mode.
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
     fireEvent.click(
       screen.getByRole('checkbox', {
         name: 'Select observable login-originenergy.support',

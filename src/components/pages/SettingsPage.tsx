@@ -6,6 +6,7 @@ import { AuditLogPanel } from './settings/panels/AuditLogPanel'
 import { ConnectorsPanel } from './settings/panels/ConnectorsPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
 import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
+import { MyAccountPanel } from './settings/panels/MyAccountPanel'
 import { NotificationsPanel } from './settings/panels/NotificationsPanel'
 import { ObservableTypesPanel } from './settings/panels/ObservableTypesPanel'
 import { OrganisationsPanel } from './settings/panels/OrganisationsPanel'
@@ -23,6 +24,7 @@ import type { SettingsSection } from './settings/settingsData'
 import { useStamp } from './settings/settingsUi'
 
 function SectionPanel({ section }: { section: SettingsSection }) {
+  if (section === 'My account') return <MyAccountPanel />
   if (section === 'Organisations') return <OrganisationsPanel />
   if (section === 'Users & roles') return <UsersPanel />
   if (section === 'Profiles & permissions') return <ProfilesPanel />

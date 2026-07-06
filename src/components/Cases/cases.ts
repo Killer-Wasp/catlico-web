@@ -1,17 +1,7 @@
 // Avatar helpers for the Cases views — initials + a stable colour per analyst.
 
-// Analyst → [initials, avatar background]. Colours sampled from the
-// prototype so avatars stay recognisable per person.
-export const AV: Record<string, [string, string]> = {
-  'J. Tanaka': ['JT', '#A8642F'],
-  'P. Nguyen': ['PN', '#7D6A55'],
-  'A. Whitford': ['AW', '#0E9F76'],
-  'S. Iyer': ['SI', '#7A5C44'],
-  Unassigned: ['—', '#54463A'],
-}
-
-// Palette for assignees not in the static AV map (e.g. backend users keyed by
-// email) — colour is picked deterministically so a person keeps the same one.
+// Palette for assignee avatars (keyed by backend users' display name or email) —
+// colour is picked deterministically so a person keeps the same one.
 const AVATAR_COLORS = [
   '#A8642F',
   '#7D6A55',
@@ -35,4 +25,4 @@ function deriveAvatar(name: string): [string, string] {
 }
 
 export const avatarFor = (name: string): [string, string] =>
-  AV[name] ?? deriveAvatar(name)
+  !name || name === 'Unassigned' ? ['—', '#54463A'] : deriveAvatar(name)

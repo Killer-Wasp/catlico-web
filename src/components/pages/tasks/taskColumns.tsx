@@ -29,21 +29,27 @@ export function buildTaskColumns({
 }): ColumnDef<Task>[] {
   return [
     {
-      id: 'complete',
-      header: '',
+      id: 'select',
+      header: ({ table }) => (
+        <Checkbox
+          size="xs"
+          checked={table.getIsAllRowsSelected()}
+          indeterminate={table.getIsSomeRowsSelected()}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+          aria-label="Select all tasks"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          size="xs"
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+          aria-label={`Select ${row.original.title}`}
+        />
+      ),
       enableColumnFilter: false,
       enableSorting: false,
       meta: { ta: 'center' },
-      cell: ({ row }) => (
-        <Checkbox
-          size="sm"
-          checked={row.original.status === 'completed'}
-          disabled={row.original.status === 'cancelled'}
-          onChange={() => onComplete(row.original)}
-          onClick={(event) => event.stopPropagation()}
-          aria-label={`Complete ${row.original.title}`}
-        />
-      ),
     },
     {
       id: 'caseId',
@@ -112,6 +118,7 @@ export function buildTaskColumns({
       header: 'Assignee',
       accessorFn: (row) => row.assignee ?? 'Unassigned',
       filterFn: includesOne,
+      meta: { ta: 'center' },
       cell: ({ row }) => <Assignee name={row.original.assignee} />,
     },
     {
@@ -120,6 +127,7 @@ export function buildTaskColumns({
       accessorFn: (row) => row.due,
       enableColumnFilter: false,
       sortingFn: byDueDate,
+      meta: { ta: 'center' },
       cell: ({ row }) => <DuePill task={row.original} />,
     },
     {
@@ -127,6 +135,7 @@ export function buildTaskColumns({
       header: 'Status',
       accessorFn: (row) => row.status,
       filterFn: includesOne,
+      meta: { ta: 'center' },
       cell: ({ row }) => (
         <TaskStatusBadge
           status={row.original.status}

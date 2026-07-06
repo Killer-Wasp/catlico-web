@@ -4,13 +4,13 @@ import classes from './Table.module.css'
 
 type TablePaginationProps<T extends RowData> = {
   table: Table<T>
-  /** Available page-size options. Default: ['10','25','50']. */
+  /** Available page-size options. Default: ['10','20','30']. */
   pageSizeOptions?: string[]
 }
 
 export function TablePagination<T extends RowData>({
   table,
-  pageSizeOptions = ['10', '25', '50'],
+  pageSizeOptions = ['10', '20', '30'],
 }: TablePaginationProps<T>) {
   const { pageIndex, pageSize } = table.getState().pagination
   const pageCount = Math.max(1, table.getPageCount())

@@ -1,4 +1,4 @@
-import { AV } from '#/components/Cases/cases'
+import { useAssigneeStringOptions } from '#/components/Assign/assigneeOptions'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
 import type { NewCaseCustomField } from '#/components/Cases/caseTemplates.types'
 import {
@@ -54,6 +54,7 @@ export function CreateCasePage() {
   const [description, setDescription] = useState('')
   const [templateId, setTemplateId] = useState('')
   const [assignee, setAssignee] = useState('Unassigned')
+  const assigneeOptions = useAssigneeStringOptions(assignee)
   const [businessUnit, setBusinessUnit] = useState('Corporate IT')
   const [severity, setSeverity] = useState<SeverityChoice>(2)
   const [tlp, setTlp] = useState<TrafficLight>(2)
@@ -278,7 +279,7 @@ export function CreateCasePage() {
 
               <Select
                 label={<FieldLabel>Assignee</FieldLabel>}
-                data={Object.keys(AV)}
+                data={assigneeOptions}
                 value={assignee}
                 onChange={(next) => setAssignee(next ?? 'Unassigned')}
                 allowDeselect={false}

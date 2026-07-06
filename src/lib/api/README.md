@@ -17,8 +17,8 @@ src/routes/.../-<Feature>Page.tsx      ← read with useSuspenseQuery
 
 2. **`<feature>Queries.ts`** — copy `alertsQueries.ts`:
    - a hierarchical **key factory** (`thingKeys`) — never hand-write key arrays;
-   - **fetchers** returning typed data (mock today, `apiFetch<T>(...)` once the
-     API lands — signatures don't change);
+   - **fetchers** returning typed data via `api.<method>(...)` against the
+     backend, mapping DTOs to the UI types;
    - **`queryOptions(...)`** units binding a key to a fetcher.
 
 3. **Prefetch in the route loader** so the cache is warm before render:

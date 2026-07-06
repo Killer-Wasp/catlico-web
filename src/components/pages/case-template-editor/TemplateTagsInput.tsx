@@ -1,4 +1,4 @@
-import { caseTemplatesList } from '#/components/Cases/caseTemplates'
+import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
 import {
   CheckIcon,
   Combobox,
@@ -7,11 +7,8 @@ import {
   PillsInput,
   useCombobox,
 } from '@mantine/core'
-import { useState } from 'react'
-
-const tagSuggestions = [
-  ...new Set(caseTemplatesList.flatMap((template) => template.tags)),
-].sort()
+import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 
 export function TemplateTagsInput({
   value,
@@ -20,6 +17,19 @@ export function TemplateTagsInput({
   value: string[]
   onChange: (tags: string[]) => void
 }) {
+  const { data: templatesResult } = useQuery(caseTemplatesQueryOptions())
+  // Suggest the distinct tags already in use across the org's templates.
+  const tagSuggestions = useMemo(
+    () =>
+      [
+        ...new Set(
+          (templatesResult?.templates ?? []).flatMap(
+            (template) => template.tags,
+          ),
+        ),
+      ].sort(),
+    [templatesResult],
+  )
   const combobox = useCombobox({
     onDropdownClose: () => combobox.resetSelectedOption(),
     onDropdownOpen: () => combobox.updateSelectedOptionIndex('active'),

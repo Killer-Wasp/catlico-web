@@ -21,6 +21,7 @@ import {
   TextInput,
 } from '@mantine/core'
 import { useQueryClient } from '@tanstack/react-query'
+import { useAssigneeStringOptions } from '#/components/Assign/assigneeOptions'
 import { ArrowLeft, Flag, Paperclip, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { CaseDrawerSection } from './CaseDrawerSection'
@@ -34,7 +35,6 @@ import {
   TASK_EDGE_COLOR,
   TASK_STATUS,
   TASK_STATUS_OPTIONS,
-  TEAM_OPTIONS,
 } from './taskHelpers'
 
 export function TaskDetailPanel({
@@ -51,6 +51,7 @@ export function TaskDetailPanel({
   onBack: () => void
 }) {
   const queryClient = useQueryClient()
+  const assigneeOptions = useAssigneeStringOptions(task.assignee)
   const [editingDescription, setEditingDescription] = useState(false)
   const [savingDescription, setSavingDescription] = useState(false)
 
@@ -156,7 +157,7 @@ export function TaskDetailPanel({
               Assignee
             </Text>
             <Select
-              data={TEAM_OPTIONS}
+              data={assigneeOptions}
               value={task.assignee}
               onChange={() => actionNotice('Assignee changed')}
               allowDeselect={false}

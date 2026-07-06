@@ -29,6 +29,8 @@ export type CaseTemplate = {
   slug?: string
   name: string
   builtin: boolean
+  // Raw `created_by` user id from the API; resolved to a display name in the UI.
+  author: string
   updated: string
   description: string
   prefix: string

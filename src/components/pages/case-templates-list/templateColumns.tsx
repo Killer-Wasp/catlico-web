@@ -1,8 +1,11 @@
 import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
 import { severityTemplateLabel } from '#/components/Cases/caseTemplates'
+import { avatarFor } from '#/components/Cases/cases'
 import { Tag } from '#/components/Tag/Tag'
+import { UserAvatar } from '#/components/Users/UserAvatar'
 import {
   ActionIcon,
+  Avatar,
   Badge,
   Box,
   Group,
@@ -24,14 +27,47 @@ import {
 const byApiId: SortingFn<CaseTemplate> = (a, b) =>
   (a.original.apiId ?? 0) - (b.original.apiId ?? 0)
 
+// Minimal user identity the Author avatar needs — matches `UserAvatar`'s props.
+export type TemplateAuthor = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  has_avatar: boolean
+}
+
+export type ResolvedAuthor = { name: string; user: TemplateAuthor | null }
+
+function AuthorCell({ name, user }: ResolvedAuthor) {
+  const [initials, color] = avatarFor(name)
+  return (
+    <Group gap={8} wrap="nowrap">
+      {user ? (
+        <UserAvatar user={user} size={24} />
+      ) : (
+        <Avatar variant="filled" color={color} size={24} radius="xl">
+          {initials}
+        </Avatar>
+      )}
+      <Text fz={13} style={{ whiteSpace: 'nowrap' }}>
+        {name}
+      </Text>
+    </Group>
+  )
+}
+
 export function buildTemplateColumns({
   openTemplate,
   onDuplicate,
   onDelete,
+  resolveAuthor,
 }: {
   openTemplate: (id: string) => void
   onDuplicate: (template: CaseTemplate) => void
   onDelete: (template: CaseTemplate) => void
+  // Resolves a template's raw `author` (created_by user id) to a display name
+  // and, when the author is a known org member, their avatar-ready user.
+  resolveAuthor: (author: string) => ResolvedAuthor
 }): ColumnDef<CaseTemplate>[] {
   return [
     {
@@ -109,6 +145,15 @@ export function buildTemplateColumns({
           {info.getValue<number>()}
         </Text>
       ),
+    },
+    {
+      id: 'author',
+      header: 'Author',
+      accessorFn: (row) => resolveAuthor(row.author).name,
+      filterFn: includesAnySubstring,
+      enableSorting: true,
+      meta: { visibleFrom: 'md' } satisfies TableColumnMeta,
+      cell: (info) => <AuthorCell {...resolveAuthor(info.row.original.author)} />,
     },
     {
       id: 'tags',

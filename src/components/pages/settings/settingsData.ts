@@ -1,4 +1,5 @@
 export type SettingsSection =
+  | 'My account'
   | 'Organisation'
   | 'Organisations'
   | 'Users & roles'
@@ -17,6 +18,7 @@ export type Role = 'admin' | 'analyst' | 'readonly'
 export type IntegrationState = 'CONNECTED' | 'AUTH ERROR'
 
 export const settingsSections: SettingsSection[] = [
+  'My account',
   'Organisation',
   'Organisations',
   'Users & roles',
@@ -97,41 +99,4 @@ export const verbs = [
   'import',
   'run',
   'bulk',
-] as const
-
-export const notificationRules = [
-  ['New critical alert', 'Page the on-call analyst via Grafana OnCall', true],
-  [
-    'SLA breach imminent',
-    'Notify case assignee 30 minutes before breach',
-    true,
-  ],
-  ['Case assigned to me', 'In-app and email notification', true],
-  [
-    'Daily SOC digest',
-    'Summary of alerts, cases and MTTR at 08:00 AEST',
-    false,
-  ],
-  ['Cortex job failed', 'Notify the analyst who launched the job', true],
-  ['MISP sync errors', 'Notify the intelligence team channel', false],
-] as const
-
-export const notifiers = [
-  ['Slack', '#soc-alerts', true],
-  ['Email', 'soc-oncall@originenergy.com.au', true],
-  ['Webhook', 'https://hooks.origin.internal/catlico', false],
-  ['Kafka', 'topic: catlico.events', true],
-] as const
-
-export const slaPolicies = [
-  ['CRITICAL', '15m', '4h', 'On-call lead'],
-  ['HIGH', '30m', '8h', 'On-call lead'],
-  ['MEDIUM', '2h', '2d', 'Queue'],
-  ['LOW', '1d', '5d', 'Queue'],
-] as const
-
-export const apiKeys = [
-  ['splunk-forwarder', 'thp_**********3f9a', 'WRITE:ALERTS', '4m ago'],
-  ['misp-sync', 'thp_**********81cc', 'READ/WRITE:OBS', '12m ago'],
-  ['grafana-readonly', 'thp_**********b042', 'READ:METRICS', '1h ago'],
 ] as const

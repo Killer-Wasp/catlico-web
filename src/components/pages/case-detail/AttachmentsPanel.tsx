@@ -5,11 +5,21 @@ import {
   downloadCaseAttachment,
   uploadCaseAttachment,
 } from '#/components/Cases/casesQueries'
-import { Box, Button, Group, Paper, Stack, Text } from '@mantine/core'
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Group,
+  Menu,
+  Paper,
+  Stack,
+  Text,
+} from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Download, Trash2, Upload } from 'lucide-react'
+import { Download, EllipsisVertical, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { actionNotice } from './constants'
+import styles from './styles.module.css'
 
 export function AttachmentsPanel({
   attachments,
@@ -51,7 +61,7 @@ export function AttachmentsPanel({
     for (const f of Array.from(files)) uploadMutation.mutate(f)
   }
 
-  // paste handler on the upload area
+  // paste handler on the attachment area
   useEffect(() => {
     const el = dropZoneRef.current
     if (!el) return
@@ -66,63 +76,11 @@ export function AttachmentsPanel({
 
   return (
     <Stack gap={0} p="lg">
-      {attachments.map((file) => (
-        <Group
-          key={file.linkId}
-          gap="sm"
-          wrap="nowrap"
-          py={12}
-          style={{ borderBottom: '1px solid var(--line-soft)' }}
-        >
-          <Paper
-            withBorder
-            radius="sm"
-            bg="gray.0"
-            w={40}
-            h={40}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Text ff="monospace" fz={10} fw={700} c="dimmed">
-              {file.kind}
-            </Text>
-          </Paper>
-          <Box flex={1} miw={0}>
-            <Text fw={600} truncate>
-              {file.name}
-            </Text>
-            <Text ff="monospace" fz={12} c="dimmed" truncate>
-              {file.size} &middot; sha256 {file.sha256} &middot; {file.author}{' '}
-              &middot; {file.time}
-            </Text>
-          </Box>
-          <Button
-            variant="default"
-            size="xs"
-            leftSection={<Download size={14} />}
-            onClick={() => handleDownload(file)}
-          >
-            Download
-          </Button>
-          <Button
-            variant="default"
-            size="xs"
-            leftSection={<Trash2 size={14} />}
-            loading={deleteMutation.isPending}
-            onClick={() => deleteMutation.mutate(file.linkId)}
-          >
-            Delete
-          </Button>
-        </Group>
-      ))}
-
       <Box
         ref={dropZoneRef}
-        pt="md"
+        className={`${styles.attachmentsDropZone} ${
+          dragOver ? styles.attachmentsDropZoneActive : ''
+        }`}
         onDragOver={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -139,15 +97,16 @@ export function AttachmentsPanel({
           setDragOver(false)
           if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files)
         }}
-        style={{
-          border: dragOver
-            ? '2px dashed var(--mantine-color-orange-5)'
-            : '2px dashed transparent',
-          borderRadius: 'var(--mantine-radius-sm)',
-          transition: 'border 0.15s',
-        }}
       >
-        <Group gap="md">
+        <Group
+          className={styles.attachmentsUploadHeader}
+          gap="md"
+          justify="space-between"
+          wrap="nowrap"
+        >
+          <Text ff="monospace" fz={12} c="dimmed">
+            drag &amp; drop or paste &middot; hashed on upload (SHA-256)
+          </Text>
           <Button
             variant="default"
             leftSection={<Upload size={16} />}
@@ -160,17 +119,74 @@ export function AttachmentsPanel({
             ref={fileInputRef}
             aria-label="Case attachment file picker"
             type="file"
-            style={{ display: 'none' }}
+            className={styles.attachmentsFileInput}
             onChange={(event) => {
               const f = event.currentTarget.files?.[0]
               if (f) uploadMutation.mutate(f)
               event.currentTarget.value = ''
             }}
           />
-          <Text ff="monospace" fz={12} c="dimmed">
-            drag &amp; drop or paste &middot; hashed on upload (SHA-256)
-          </Text>
         </Group>
+
+        {attachments.map((file) => (
+          <Group
+            key={file.linkId}
+            className={styles.attachmentRow}
+            gap="sm"
+            wrap="nowrap"
+            py={12}
+          >
+            <Paper
+              withBorder
+              radius="sm"
+              bg="gray.0"
+              w={40}
+              h={40}
+              className={styles.attachmentKind}
+            >
+              <Text ff="monospace" fz={10} fw={700} c="dimmed">
+                {file.kind}
+              </Text>
+            </Paper>
+            <Box flex={1} miw={0}>
+              <Text fw={600} truncate>
+                {file.name}
+              </Text>
+              <Text ff="monospace" fz={12} c="dimmed" truncate>
+                {file.size} &middot; sha256 {file.sha256} &middot; {file.author}{' '}
+                &middot; {file.time}
+              </Text>
+            </Box>
+            <Menu position="bottom-end" withinPortal withArrow shadow="md">
+              <Menu.Target>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  aria-label={`Attachment actions for ${file.name}`}
+                  loading={deleteMutation.isPending}
+                >
+                  <EllipsisVertical size={16} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<Download size={14} />}
+                  onClick={() => handleDownload(file)}
+                >
+                  Download
+                </Menu.Item>
+                <Menu.Item
+                  color="red"
+                  disabled={deleteMutation.isPending}
+                  leftSection={<Trash2 size={14} />}
+                  onClick={() => deleteMutation.mutate(file.linkId)}
+                >
+                  Remove
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+        ))}
       </Box>
     </Stack>
   )

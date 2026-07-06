@@ -21,14 +21,6 @@ export const TASK_EDGE_COLOR: Record<CaseDetailTask['status'], string> = {
   cancel: 'var(--mantine-color-gray-5)',
 }
 
-export const TEAM_OPTIONS = [
-  'Unassigned',
-  'J. Tanaka',
-  'P. Nguyen',
-  'A. Whitford',
-  'S. Iyer',
-]
-
 // "2026-06-12T10:00" → "Fri 10:00 am" — the relative weekday + time shown
 // on each task's due badge.
 export function formatDue(due: string) {

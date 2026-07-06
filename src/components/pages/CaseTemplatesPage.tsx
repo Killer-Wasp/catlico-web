@@ -7,7 +7,11 @@ import {
   importCaseTemplate,
 } from '#/components/Cases/caseTemplatesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
+import { organisationMembersQueryOptions } from '#/components/pages/settings/settingsQueries'
+import { userDisplayName } from '#/components/Users/usersQueries'
 import { DataTable } from '#/components/Table/DataTable'
+import { getActiveOrgId } from '#/lib/auth/session'
+import type { ResolvedAuthor } from './case-templates-list/templateColumns'
 import { TablePanel } from '#/components/Table/TablePanel'
 import { ButtonLink } from '#/components/ui/ButtonLink'
 import { SEVERITY_OPTIONS } from '#/lib/domain'
@@ -28,7 +32,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { buildTemplateColumns } from './case-templates-list/templateColumns'
 
 export function CaseTemplatesPage() {
@@ -52,6 +56,33 @@ function CaseTemplatesIndex() {
     caseTemplatesQueryOptions(),
   )
   const templates = data?.templates ?? []
+
+  const orgId = getActiveOrgId()
+  const { data: members } = useQuery({
+    ...organisationMembersQueryOptions(orgId ?? ''),
+    enabled: Boolean(orgId),
+  })
+  const memberById = useMemo(
+    () => new Map((members ?? []).map((m) => [m.user_id, m])),
+    [members],
+  )
+  const resolveAuthor = useCallback(
+    (author: string): ResolvedAuthor => {
+      const member = memberById.get(author)
+      if (!member) return { name: 'Unknown', user: null }
+      return {
+        name: userDisplayName(member),
+        user: {
+          id: member.user_id,
+          email: member.email,
+          first_name: member.first_name,
+          last_name: member.last_name,
+          has_avatar: member.has_avatar,
+        },
+      }
+    },
+    [memberById],
+  )
 
   const refreshTemplates = () =>
     queryClient.invalidateQueries({ queryKey: caseTemplateKeys.all })
@@ -145,8 +176,9 @@ function CaseTemplatesIndex() {
         openTemplate,
         onDuplicate: (t) => duplicateMutation.mutate(t),
         onDelete: (t) => deleteMutation.mutate(t),
+        resolveAuthor,
       }),
-    [],
+    [resolveAuthor],
   )
 
   const table = useReactTable({
@@ -198,7 +230,12 @@ function CaseTemplatesIndex() {
         columnId: 'sev',
         options: SEVERITY_OPTIONS,
       },
-      { key: 'name', label: 'Name', kind: 'text' as const, columnId: 'template' },
+      {
+        key: 'name',
+        label: 'Name',
+        kind: 'text' as const,
+        columnId: 'template',
+      },
     ],
     [tagOptions],
   )
@@ -233,6 +270,7 @@ function CaseTemplatesIndex() {
             <ButtonLink
               to="/case-templates/$templateId"
               params={{ templateId: 'new' }}
+              size="xs"
             >
               + New template
             </ButtonLink>
@@ -246,15 +284,21 @@ function CaseTemplatesIndex() {
           </Group>
         ) : isError ? (
           <Stack align="center" gap="sm" py="xl">
-            <Text c="red.7">Couldn’t load case templates from the backend.</Text>
-            <Button variant="default" loading={isFetching} onClick={() => refetch()}>
+            <Text c="red.7">
+              Couldn’t load case templates from the backend.
+            </Text>
+            <Button
+              variant="default"
+              loading={isFetching}
+              onClick={() => refetch()}
+            >
               Retry
             </Button>
           </Stack>
         ) : (
           <DataTable
             table={table}
-            minWidth={680}
+            minWidth={760}
             ariaLabel="Case templates"
             emptyMessage="No templates match the current filters."
             isFetching={isFetching}

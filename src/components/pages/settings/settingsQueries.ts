@@ -20,6 +20,9 @@ export type OrganisationMemberPublic = {
   organisation_id: string
   role_id: string
   email: string
+  first_name: string | null
+  last_name: string | null
+  has_avatar: boolean
   created_at: string
 }
 
@@ -291,10 +294,16 @@ export const organisationsQueryOptions = () =>
     retry: false,
   })
 
-export const organisationMembersQueryOptions = (orgId = activeOrgId()) =>
+// Defensive default: read the active org without throwing so a component that
+// renders before an org is selected simply gets a disabled (empty) query rather
+// than crashing. Mutations still use `activeOrgId()` and throw when it's absent.
+export const organisationMembersQueryOptions = (
+  orgId = getActiveOrgId(),
+) =>
   queryOptions({
-    queryKey: settingsKeys.members(orgId),
-    queryFn: () => fetchOrganisationMembers(orgId),
+    queryKey: settingsKeys.members(orgId ?? ''),
+    queryFn: () => fetchOrganisationMembers(orgId ?? ''),
+    enabled: Boolean(orgId),
   })
 
 export const rolesQueryOptions = () =>

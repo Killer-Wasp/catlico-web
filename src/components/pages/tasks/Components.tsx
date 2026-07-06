@@ -4,8 +4,12 @@ import {
   TASK_STATUS_LABEL,
   avatarFor,
 } from '#/components/Tasks/tasks'
-import { Avatar, Badge, Group, Text } from '@mantine/core'
+import { Avatar, Badge, Text, Tooltip } from '@mantine/core'
 import { Clock3 } from 'lucide-react'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+
+dayjs.extend(relativeTime)
 
 export function Assignee({ name }: { name?: string }) {
   if (!name) {
@@ -17,19 +21,23 @@ export function Assignee({ name }: { name?: string }) {
   }
   const [initials, color] = avatarFor(name)
   return (
-    <Group gap={10} wrap="nowrap">
-      <Avatar color={color} size={28} radius="xl">
+    <Tooltip label={name} withArrow>
+      <Avatar
+        color={color}
+        size={28}
+        radius="xl"
+        mx="auto"
+        aria-label={name}
+      >
         {initials}
       </Avatar>
-      <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap' }}>
-        {name}
-      </Text>
-    </Group>
+    </Tooltip>
   )
 }
 
 export function DuePill({ task }: { task: Task }) {
   const urgent = task.urgent || task.overdue
+  const label = task.dueAt ? dayjs(task.dueAt).fromNow() : task.due
   return (
     <Badge
       variant="light"
@@ -45,7 +53,7 @@ export function DuePill({ task }: { task: Task }) {
         },
       }}
     >
-      {task.due}
+      {label}
     </Badge>
   )
 }

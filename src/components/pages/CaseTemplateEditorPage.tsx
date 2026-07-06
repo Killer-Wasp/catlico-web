@@ -25,10 +25,10 @@ import {
 } from './case-template-editor/draft'
 import type { DraftTemplate } from './case-template-editor/draft'
 import {
-  assigneeOptions,
   severityOptions,
   trafficOptions,
 } from './case-template-editor/options'
+import { useAssigneeSelectOptions } from '#/components/Assign/assigneeOptions'
 import { Panel } from './case-template-editor/Panel'
 import { RichTextField } from './case-template-editor/RichTextField'
 import { TemplateSelect } from './case-template-editor/TemplateSelect'
@@ -71,6 +71,7 @@ export function CaseTemplateEditorPage({ templateId }: { templateId: string }) {
     refetch,
   } = useQuery(caseTemplateQueryOptions(templateId))
   const [draft, setDraft] = useState<DraftTemplate>(() => newDraft())
+  const assigneeOptions = useAssigneeSelectOptions(draft.assignee)
   const [taskModal, setTaskModal] = useState<TaskModalState>(null)
   const navigate = useNavigate()
   const queryClient = useQueryClient()

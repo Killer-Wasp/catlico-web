@@ -14,7 +14,6 @@ import { TLP } from '#/lib/domain'
 import type { Tlp } from '#/lib/domain'
 import {
   Badge,
-  Box,
   Button,
   Checkbox,
   Group,
@@ -171,6 +170,16 @@ export function ObservablesPanel({
           </Button>
         </Stack>
       </Modal>
+      <Group justify="flex-end">
+        <Button
+          variant="default"
+          leftSection={<Plus size={16} />}
+          onClick={() => setAddingObservable(true)}
+        >
+          Add observable
+        </Button>
+      </Group>
+
       <Table verticalSpacing="sm" horizontalSpacing={0} highlightOnHover>
         <Table.Thead>
           <Table.Tr>
@@ -255,16 +264,6 @@ export function ObservablesPanel({
           ))}
         </Table.Tbody>
       </Table>
-
-      <Box>
-        <Button
-          variant="default"
-          leftSection={<Plus size={16} />}
-          onClick={() => setAddingObservable(true)}
-        >
-          Add observable
-        </Button>
-      </Box>
     </Stack>
   )
 }

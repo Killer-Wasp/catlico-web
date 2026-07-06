@@ -1,4 +1,4 @@
-import { assigneeOptions } from './options'
+import { useAssigneeSelectOptions } from '#/components/Assign/assigneeOptions'
 import { RichTextField } from './RichTextField'
 import type { DraftTask } from './draft'
 import {
@@ -161,6 +161,7 @@ export function TaskFormModal({
   onMove: (direction: -1 | 1) => void
 }) {
   const [task, setTask] = useState<DraftTask>(initialTask)
+  const assigneeOptions = useAssigneeSelectOptions(task.assignee)
   const update = (patch: Partial<DraftTask>) =>
     setTask((current) => ({ ...current, ...patch }))
 

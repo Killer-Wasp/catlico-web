@@ -7,7 +7,7 @@ import { observableTypeLabels } from '#/components/Observables/observables'
 import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
-import { Box, Button, Group, Text } from '@mantine/core'
+import { Box, Button } from '@mantine/core'
 import type { SortingState } from '@tanstack/react-table'
 import {
   getCoreRowModel,
@@ -34,11 +34,12 @@ export function ObservablesPage() {
     Partial<Record<string, ObservableFlag[]>>
   >({})
   const [rowSelection, setRowSelection] = useState({})
+  const [selectMode, setSelectMode] = useState(false)
   const [activeObservable, setActiveObservable] = useState<Observable | null>(
     null,
   )
   const [sorting, setSorting] = useState<SortingState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 6 })
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const observables = useMemo(
     () =>
       fetchedObservables.map((observable) => {
@@ -72,6 +73,7 @@ export function ObservablesPage() {
       rowSelection,
       sorting,
       pagination,
+      columnVisibility: { select: selectMode },
     },
     getRowId: (row) => row.id,
     enableRowSelection: true,
@@ -149,26 +151,16 @@ export function ObservablesPage() {
 
   const selectedCount = table.getSelectedRowModel().rows.length
 
+  const toggleSelectMode = () => {
+    setSelectMode((current) => {
+      // Leaving select mode clears any pending selection.
+      if (current) setRowSelection({})
+      return !current
+    })
+  }
+
   return (
     <Box className={classes.page}>
-      <Group align="center" mb="lg" wrap="wrap">
-        <Group gap={14} align="baseline">
-          <Text
-            component="h1"
-            ff="'Space Grotesk', var(--mantine-font-family)"
-            fz={30}
-            fw={700}
-            m={0}
-            c="dark.9"
-          >
-            Observables
-          </Text>
-          <Text component="span" ff="monospace" fz={12} c="dimmed">
-            Wed, 17 June 2026, 05:10 pm AEST
-          </Text>
-        </Group>
-      </Group>
-
       <TablePanel
         title="All observables"
         titleHeadingOrder={2}
@@ -177,8 +169,10 @@ export function ObservablesPage() {
         table={table}
         filterFields={filterFields}
         filterPlaceholder="Filter observables — pick a field, then a value"
-        pageSizeOptions={['6', '10', '25']}
-        filterRowActions={
+        selectable
+        selectMode={selectMode}
+        onToggleSelectMode={toggleSelectMode}
+        selectActions={
           <>
             <Button variant="default" size="xs" disabled={selectedCount === 0}>
               Run analyzers on selected
@@ -188,7 +182,9 @@ export function ObservablesPage() {
             </Button>
           </>
         }
-        actions={<Button size="xs">+ Add observable</Button>}
+        actions={
+          selectMode ? undefined : <Button size="xs">+ Add observable</Button>
+        }
       >
         <DataTable
           table={table}

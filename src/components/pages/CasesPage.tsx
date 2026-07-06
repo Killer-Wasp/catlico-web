@@ -2,14 +2,20 @@ import { getCaseRouteId } from '#/components/Cases/caseDetails'
 import type { Case } from '#/components/Cases/cases.types'
 import {
   caseFacetsQueryOptions,
+  caseKeys,
   casesQueryOptions,
+  updateCaseAssignee,
 } from '#/components/Cases/casesQueries'
 import type { CaseListFilters } from '#/components/Cases/casesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
+import { AssignMenu } from '#/components/Table/AssignMenu'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
+import type { UserPublic } from '#/components/Users/usersQueries'
+import { userDisplayName } from '#/components/Users/usersQueries'
 import { Button, Box } from '@mantine/core'
-import { useQuery } from '@tanstack/react-query'
+import { notifications } from '@mantine/notifications'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import type {
   ColumnDef,
@@ -25,6 +31,7 @@ import { SORT_FIELD, STATUS_OPTIONS } from './cases-list/constants'
 
 export function CasesPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
@@ -172,6 +179,37 @@ export function CasesPage() {
     table.resetRowSelection()
   }
 
+  const selectedCases = table.getSelectedRowModel().rows
+  const assignMutation = useMutation({
+    mutationFn: async ({ ids, user }: { ids: string[]; user: UserPublic }) => {
+      await Promise.all(ids.map((id) => updateCaseAssignee(id, user.id)))
+      return user
+    },
+    onSuccess: (user, { ids }) => {
+      queryClient.invalidateQueries({ queryKey: caseKeys.lists() })
+      const name = userDisplayName(user)
+      notifications.show({
+        message:
+          ids.length === 1
+            ? `${ids[0]} assigned to ${name}`
+            : `${ids.length} cases assigned to ${name}`,
+      })
+      exitSelectMode()
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to assign cases',
+      }),
+  })
+
+  const assignSelectedTo = (user: UserPublic) =>
+    assignMutation.mutate({
+      ids: selectedCases.map((row) => row.original.id),
+      user,
+    })
+
   return (
     <Box className={classes.page}>
       <TablePanel
@@ -187,13 +225,17 @@ export function CasesPage() {
           selectMode ? exitSelectMode() : setSelectMode(true)
         }
         actions={
-          <Button
-            size="xs"
-            onClick={() => navigate({ to: '/cases/create' })}
-            disabled={selectMode}
-          >
-            + New case
-          </Button>
+          selectMode ? (
+            <AssignMenu
+              onAssign={assignSelectedTo}
+              disabled={selectedCases.length === 0}
+              loading={assignMutation.isPending}
+            />
+          ) : (
+            <Button size="xs" onClick={() => navigate({ to: '/cases/create' })}>
+              + New case
+            </Button>
+          )
         }
       >
         <DataTable

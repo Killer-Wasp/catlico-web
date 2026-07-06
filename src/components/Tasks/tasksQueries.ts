@@ -146,3 +146,21 @@ export async function updateTaskStatus({
 
   return toTask(dto)
 }
+
+export async function assignTask({
+  caseId,
+  taskId,
+  assigneeId,
+}: {
+  caseId: number
+  taskId: number
+  assigneeId: string | null
+}): Promise<Task> {
+  const dto = await api
+    .patch(`cases/${caseId}/tasks/${taskId}`, {
+      json: { assignee_id: assigneeId },
+    })
+    .json<TaskPublic>()
+
+  return toTask(dto)
+}

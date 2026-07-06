@@ -1,14 +1,18 @@
 import classes from '#/components/Cases/CasesPage.module.css'
 import { getCaseRouteId } from '#/components/Cases/caseDetails'
+import { AssignMenu } from '#/components/Table/AssignMenu'
 import type { TokenField } from '#/components/Table/TokenSearch'
 import type { Task, TaskStatus } from '#/components/Tasks/tasks.types'
 import { TASK_STATUS_LABEL, advanceTaskStatus } from '#/components/Tasks/tasks'
 import {
   DEFAULT_TASK_FILTERS,
+  assignTask,
   taskKeys,
   tasksQueryOptions,
   updateTaskStatus,
 } from '#/components/Tasks/tasksQueries'
+import type { UserPublic } from '#/components/Users/usersQueries'
+import { userDisplayName } from '#/components/Users/usersQueries'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
 import { Box } from '@mantine/core'
@@ -34,6 +38,8 @@ export function TasksPage() {
     tasksQueryOptions(DEFAULT_TASK_FILTERS),
   )
   const tasks = data?.tasks ?? []
+  const [selectMode, setSelectMode] = useState(false)
+  const [rowSelection, setRowSelection] = useState({})
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'caseId', desc: false },
@@ -117,12 +123,15 @@ export function TasksPage() {
     data: tasks,
     columns,
     state: {
+      rowSelection,
       sorting,
       pagination,
-      columnVisibility: { kind: false },
+      columnVisibility: { kind: false, select: selectMode },
     },
     getRowId: (row) => row.id,
     enableSorting: true,
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
@@ -174,6 +183,53 @@ export function TasksPage() {
     [assigneeOptions, kindOptions],
   )
 
+  const exitSelectMode = () => {
+    setSelectMode(false)
+    table.resetRowSelection()
+  }
+
+  const selectedTasks = table.getSelectedRowModel().rows
+  const assignMutation = useMutation({
+    mutationFn: async ({ rows, user }: { rows: Task[]; user: UserPublic }) => {
+      await Promise.all(
+        rows.map((task) => {
+          if (task.apiId == null || task.caseApiId == null)
+            throw new Error('Task is not linked to the API yet')
+          return assignTask({
+            caseId: task.caseApiId,
+            taskId: task.apiId,
+            assigneeId: user.id,
+          })
+        }),
+      )
+      return user
+    },
+    onSuccess: (user, { rows }) => {
+      invalidateTasks()
+      const name = userDisplayName(user)
+      notifications.show({
+        color: 'green',
+        message:
+          rows.length === 1
+            ? `${rows[0].title} assigned to ${name}`
+            : `${rows.length} tasks assigned to ${name}`,
+      })
+      exitSelectMode()
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to assign tasks',
+      }),
+  })
+
+  const assignSelectedTo = (user: UserPublic) =>
+    assignMutation.mutate({
+      rows: selectedTasks.map((row) => row.original),
+      user,
+    })
+
   return (
     <Box className={classes.page}>
       <TablePanel
@@ -182,6 +238,20 @@ export function TasksPage() {
         table={table}
         filterFields={filterFields}
         filterPlaceholder="Filter tasks — pick a field, then a value"
+        selectable
+        selectMode={selectMode}
+        onToggleSelectMode={() =>
+          selectMode ? exitSelectMode() : setSelectMode(true)
+        }
+        actions={
+          selectMode ? (
+            <AssignMenu
+              onAssign={assignSelectedTo}
+              disabled={selectedTasks.length === 0}
+              loading={assignMutation.isPending}
+            />
+          ) : undefined
+        }
       >
         <DataTable
           table={table}
@@ -194,9 +264,12 @@ export function TasksPage() {
           onRetry={() => refetch()}
           loadingMessage="Loading tasks…"
           errorMessage="Couldn’t load tasks from the backend."
-          selectColumnId="complete"
-          stopPropagationColumnIds={['complete', 'actions']}
-          onRowClick={(row) => openTaskCase(row.original.caseId)}
+          stopPropagationColumnIds={['actions']}
+          onRowClick={(row) =>
+            selectMode
+              ? row.toggleSelected()
+              : openTaskCase(row.original.caseId)
+          }
         />
       </TablePanel>
     </Box>

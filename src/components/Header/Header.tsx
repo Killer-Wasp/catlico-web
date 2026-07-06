@@ -1,4 +1,9 @@
+import { UserAvatar } from '#/components/Users/UserAvatar'
+import { userDisplayName } from '#/components/Users/usersQueries'
 import { logout } from '#/lib/auth/session'
+import { currentUserQueryOptions } from '#/lib/auth/userQueries'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import {
   ActionIcon,
   Avatar,
@@ -16,7 +21,7 @@ import {
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core'
-import { Bell, LogOut, Moon, Search, Sun } from 'lucide-react'
+import { Bell, LogOut, Moon, Search, Sun, UserCog } from 'lucide-react'
 import { useState } from 'react'
 import classes from './Header.module.css'
 
@@ -28,46 +33,7 @@ type NotificationItem = {
   critical?: boolean
 }
 
-const initialNotifications: NotificationItem[] = [
-  {
-    title: 'SLA breach imminent',
-    detail: 'Case #1842 acknowledges in 28 minutes',
-    time: '2m',
-    unread: true,
-    critical: true,
-  },
-  {
-    title: 'Critical alert ingested',
-    detail: 'AL-9123 · ransomware staging on FILESRV-AU02',
-    time: '14m',
-    unread: true,
-    critical: true,
-  },
-  {
-    title: 'Cortex job finished',
-    detail: 'VirusTotal on login-originenergy.support — 12/93 hits',
-    time: '31m',
-    unread: true,
-  },
-  {
-    title: 'You were mentioned',
-    detail: 'P. Nguyen in #1842: “@jtanaka audit log pulled, see task 2”',
-    time: '48m',
-    unread: false,
-  },
-  {
-    title: 'Case assigned to you',
-    detail: '#1834 credential phish — retail billing team',
-    time: '4h',
-    unread: false,
-  },
-  {
-    title: 'MISP sync completed',
-    detail: 'Event 4417 updated · 4 attributes pushed',
-    time: '5h',
-    unread: false,
-  },
-]
+const initialNotifications: NotificationItem[] = []
 
 function ThemeToggle() {
   const { setColorScheme } = useMantineColorScheme()
@@ -92,6 +58,8 @@ function ThemeToggle() {
 export function Header() {
   const [notifications, setNotifications] = useState(initialNotifications)
   const unreadCount = notifications.filter((item) => item.unread).length
+  const { data: currentUser } = useQuery(currentUserQueryOptions())
+  const navigate = useNavigate()
 
   const markRead = (index: number) =>
     setNotifications((prev) =>
@@ -158,6 +126,11 @@ export function Header() {
               </Group>
               <Divider />
               <Stack gap={0}>
+                {notifications.length === 0 && (
+                  <Text px="md" py="lg" c="dimmed" ta="center">
+                    No notifications
+                  </Text>
+                )}
                 {notifications.map((item, index) => (
                   <UnstyledButton
                     key={`${item.title}-${item.time}`}
@@ -219,13 +192,34 @@ export function Header() {
               aria-label="Open account menu"
               style={{ borderRadius: 'var(--mantine-radius-md)' }}
             >
-              <Avatar radius="md" size={34} color="orange" variant="filled">
-                JT
-              </Avatar>
+              {currentUser ? (
+                <UserAvatar user={currentUser} size={34} />
+              ) : (
+                <Avatar radius="xl" size={34} color="orange" variant="filled" />
+              )}
             </UnstyledButton>
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Label>Account</Menu.Label>
+            <Menu.Label>
+              {currentUser ? userDisplayName(currentUser) : 'Account'}
+            </Menu.Label>
+            {currentUser && (
+              <Text px="sm" pb={6} fz={11} c="dimmed">
+                {currentUser.email}
+              </Text>
+            )}
+            <Menu.Divider />
+            <Menu.Item
+              leftSection={<UserCog size={16} />}
+              onClick={() =>
+                navigate({
+                  to: '/settings/$section',
+                  params: { section: 'my-account' },
+                })
+              }
+            >
+              Account settings
+            </Menu.Item>
             <Menu.Item
               color="red"
               leftSection={<LogOut size={16} />}

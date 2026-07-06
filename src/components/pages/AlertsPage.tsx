@@ -44,11 +44,9 @@ export function AlertsPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null)
-  const [alertComments, setAlertComments] = useState<Record<string, string[]>>({
-    'AL-9119': [
-      'Three grants inside 11 min is not user behaviour — recommend promoting with the phishing template.',
-    ],
-  })
+  const [alertComments, setAlertComments] = useState<Record<string, string[]>>(
+    {},
+  )
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'id', desc: true },
