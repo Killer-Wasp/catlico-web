@@ -9,7 +9,6 @@ import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
 import { MyAccountPanel } from './settings/panels/MyAccountPanel'
 import { NotificationsPanel } from './settings/panels/NotificationsPanel'
 import { ObservableTypesPanel } from './settings/panels/ObservableTypesPanel'
-import { OrganisationsPanel } from './settings/panels/OrganisationsPanel'
 import { OrgProfilePanel } from './settings/panels/OrgProfilePanel'
 import { ProfilesPanel } from './settings/panels/ProfilesPanel'
 import { SlaPanel } from './settings/panels/SlaPanel'
@@ -25,7 +24,6 @@ import { useStamp } from './settings/settingsUi'
 
 function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'My account') return <MyAccountPanel />
-  if (section === 'Organisations') return <OrganisationsPanel />
   if (section === 'Users & roles') return <UsersPanel />
   if (section === 'Profiles & permissions') return <ProfilesPanel />
   if (section === 'Custom fields') return <CustomFieldsPanel />

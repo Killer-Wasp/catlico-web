@@ -1,7 +1,6 @@
 export type SettingsSection =
   | 'My account'
   | 'Organisation'
-  | 'Organisations'
   | 'Users & roles'
   | 'Profiles & permissions'
   | 'Custom fields'
@@ -20,7 +19,6 @@ export type IntegrationState = 'CONNECTED' | 'AUTH ERROR'
 export const settingsSections: SettingsSection[] = [
   'My account',
   'Organisation',
-  'Organisations',
   'Users & roles',
   'Profiles & permissions',
   'Custom fields',

@@ -8,6 +8,10 @@
   color: var(--mantine-color-dimmed);
 }
 
+.summaryFieldValue {
+  font-weight: 650;
+}
+
 .attachmentsDropZone {
   border: 2px dashed transparent;
   border-radius: var(--mantine-radius-sm);

@@ -2,6 +2,7 @@ import { notifications } from '@mantine/notifications'
 
 export const CASE_TABS = [
   'details',
+  'custom-fields',
   'tasks',
   'observables',
   'comments',

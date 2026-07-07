@@ -4,18 +4,21 @@ import type {
   ObservableFlag,
 } from '#/components/Observables/observables.types'
 import { observableTypeLabels } from '#/components/Observables/observables'
-import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
+import {
+  observableFacetsQueryOptions,
+  observablesQueryOptions,
+} from '#/components/Observables/observablesQueries'
+import type {
+  ObservableListFilters,
+  ObservableSort,
+} from '#/components/Observables/observablesQueries'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
+import type { Token, TokenField } from '#/components/Table/TokenSearch'
+import type { FilterClause } from '#/lib/filters'
 import { Box, Button } from '@mantine/core'
-import type { SortingState } from '@tanstack/react-table'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
+import type { OnChangeFn, SortingState } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { ObservableDetailDrawer } from './observables/ObservableDetailDrawer'
@@ -23,13 +26,12 @@ import { buildObservableColumns } from './observables/observableColumns'
 import { TYPE_ORDER } from './observables/constants'
 import { addFlag, toggleFlag } from './observables/tableFns'
 
+// Sortable columns whose id is a valid backend sort key.
+const OBSERVABLE_SORTS = new Set<ObservableSort>(['value', 'added'])
+
 export { ObservableDetailDrawer } from './observables/ObservableDetailDrawer'
 
 export function ObservablesPage() {
-  const { data, isPending, isError, refetch, isFetching } = useQuery(
-    observablesQueryOptions(),
-  )
-  const fetchedObservables = data ?? []
   const [flagOverrides, setFlagOverrides] = useState<
     Partial<Record<string, ObservableFlag[]>>
   >({})
@@ -40,6 +42,46 @@ export function ObservablesPage() {
   )
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+  const [tokens, setTokens] = useState<Token[]>([])
+  const pageSize = pagination.pageSize
+
+  const filters = useMemo<ObservableListFilters>(() => {
+    const sort = sorting.at(0)
+    const sortKey =
+      sort && OBSERVABLE_SORTS.has(sort.id as ObservableSort)
+        ? (sort.id as ObservableSort)
+        : ''
+    const out: ObservableListFilters = {
+      sort: sortKey,
+      order: sort ? (sort.desc ? 'desc' : 'asc') : 'desc',
+      skip: pagination.pageIndex * pagination.pageSize,
+      limit: pagination.pageSize,
+    }
+    const clauses: FilterClause[] = tokens.map((t) => ({
+      key: t.field,
+      op: t.op ?? 'eq',
+      value: t.value,
+    }))
+    if (clauses.length) out.clauses = clauses
+    return out
+  }, [tokens, sorting, pagination])
+
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
+    observablesQueryOptions(filters),
+  )
+  const fetchedObservables = data?.observables ?? []
+  const total = data?.total ?? 0
+  const { data: facets } = useQuery(observableFacetsQueryOptions())
+
+  const onTokensChange = (next: Token[]) => {
+    setTokens(next)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+
   const observables = useMemo(
     () =>
       fetchedObservables.map((observable) => {
@@ -76,40 +118,30 @@ export function ObservablesPage() {
       columnVisibility: { select: selectMode },
     },
     getRowId: (row) => row.id,
+    manualFiltering: true,
+    manualSorting: true,
+    manualPagination: true,
+    rowCount: total,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
     enableRowSelection: true,
     enableSorting: true,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    autoResetPageIndex: true,
   })
 
-  const counts = useMemo(() => {
-    return {
-      all: observables.length,
-      ioc: observables.filter((observable) => observable.flags.includes('ioc'))
-        .length,
-    }
-  }, [observables])
-
-  const sourceOptions = useMemo(
-    () => Array.from(new Set(observables.map((o) => o.source))).sort(),
-    [observables],
-  )
+  const sourceOptions = useMemo(() => facets?.sources ?? [], [facets])
 
   const toOpts = (values: string[]) =>
     values.map((value) => ({ value, label: value }))
-  const filterFields = useMemo(
+  const filterFields = useMemo<TokenField[]>(
     () => [
       {
         key: 'type',
         label: 'Type',
-        kind: 'enum' as const,
-        columnId: 'type',
+        kind: 'enum',
+        operators: ['eq'],
         options: TYPE_ORDER.map((type) => ({
           value: type,
           label: observableTypeLabels[type],
@@ -118,8 +150,8 @@ export function ObservablesPage() {
       {
         key: 'tlp',
         label: 'TLP',
-        kind: 'enum' as const,
-        columnId: 'tlp',
+        kind: 'enum',
+        operators: ['eq'],
         options: [
           { value: '0', label: 'white' },
           { value: '1', label: 'green' },
@@ -130,8 +162,8 @@ export function ObservablesPage() {
       {
         key: 'flag',
         label: 'Flag',
-        kind: 'enum' as const,
-        columnId: 'flags',
+        kind: 'enum',
+        operators: ['eq'],
         options: [
           { value: 'ioc', label: 'IOC' },
           { value: 'sighted', label: 'Sighted' },
@@ -140,11 +172,11 @@ export function ObservablesPage() {
       {
         key: 'source',
         label: 'Source',
-        kind: 'enum' as const,
-        columnId: 'source',
+        kind: 'enum',
+        operators: ['eq'],
         options: toOpts(sourceOptions),
       },
-      { key: 'value', label: 'Value', kind: 'text' as const, columnId: 'value' },
+      { key: 'value', label: 'Value', kind: 'text', operators: ['eq', 'co'] },
     ],
     [sourceOptions],
   )
@@ -165,10 +197,14 @@ export function ObservablesPage() {
         title="All observables"
         titleHeadingOrder={2}
         countNoun="observables"
-        countLabel={`${counts.all} observables · ${counts.ioc} IOC`}
+        count={total}
         table={table}
         filterFields={filterFields}
         filterPlaceholder="Filter observables — pick a field, then a value"
+        tokens={tokens}
+        onTokensChange={onTokensChange}
+        hasActiveFilters={tokens.length > 0}
+        onClearFilters={() => onTokensChange([])}
         selectable
         selectMode={selectMode}
         onToggleSelectMode={toggleSelectMode}

@@ -399,7 +399,10 @@ export function OrganisationsPanel() {
             requires platform administrator access.
           </Text>
         )}
-        <OrganisationsTable columns={orgColumns} organisations={organisations} />
+        <OrganisationsTable
+          columns={orgColumns}
+          organisations={organisations}
+        />
       </Panel>
 
       <Panel title="Organisation links" count={`${links.length} links`}>
@@ -466,10 +469,7 @@ export function OrganisationsPanel() {
             searchable
           />
           <Group justify="flex-end">
-            <Button
-              variant="default"
-              onClick={() => setLinkModalOpen(false)}
-            >
+            <Button variant="default" onClick={() => setLinkModalOpen(false)}>
               Cancel
             </Button>
             <Button

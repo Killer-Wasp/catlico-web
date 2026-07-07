@@ -1,27 +1,39 @@
 import {
   createDraftKnowledgeBasePage,
   getKnowledgeBasePage,
-  initialKnowledgeBasePages,
 } from '#/components/KnowledgeBase/knowledgeBase'
+import type { KnowledgeBasePage } from '#/components/KnowledgeBase/knowledgeBase.types'
 import { describe, expect, test } from 'vitest'
 
 describe('knowledge base data helpers', () => {
-  test('keeps the prototype page list in order', () => {
-    expect(initialKnowledgeBasePages.map((page) => page.title)).toEqual([
-      'Phishing response runbook',
-      'BEC investigation guide',
-      'TLP & PAP handling policy',
-      'Analyst onboarding checklist',
-    ])
-  })
+  const pages: KnowledgeBasePage[] = [
+    {
+      id: 'kb-phish',
+      title: 'Phishing response runbook',
+      author: 'P. Nguyen',
+      updated: '2 days ago',
+      tags: ['runbook', 'phishing'],
+      summary: 'Phishing response steps.',
+      content: '## Triage',
+    },
+    {
+      id: 'kb-bec',
+      title: 'BEC investigation guide',
+      author: 'A. Whitford',
+      updated: '1 week ago',
+      tags: ['runbook', 'bec'],
+      summary: 'BEC investigation steps.',
+      content: '## Immediate actions',
+    },
+  ]
 
   test('finds a selected page or falls back to the first page', () => {
-    expect(
-      getKnowledgeBasePage(initialKnowledgeBasePages, 'kb-bec').title,
-    ).toBe('BEC investigation guide')
-    expect(
-      getKnowledgeBasePage(initialKnowledgeBasePages, 'missing').title,
-    ).toBe('Phishing response runbook')
+    expect(getKnowledgeBasePage(pages, 'kb-bec').title).toBe(
+      'BEC investigation guide',
+    )
+    expect(getKnowledgeBasePage(pages, 'missing').title).toBe(
+      'Phishing response runbook',
+    )
   })
 
   test('creates a draft page with normalised id and starter content', () => {

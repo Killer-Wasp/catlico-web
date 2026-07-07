@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { OrganisationsPage } from '#/components/pages/OrganisationsPage'
 import {
   SettingsLayout,
   SettingsSectionPanel,
@@ -130,6 +131,23 @@ function Harness() {
       <MantineProvider>
         <Notifications />
         <RouterProvider router={router} />
+      </MantineProvider>
+    </QueryClientProvider>
+  )
+}
+
+// Organisations moved out of Settings onto its own superadmin-only page
+// (/organisations). The panel is unchanged, so it's exercised directly here —
+// it uses React Query but no router hooks.
+function OrgHarness() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <Notifications />
+        <OrganisationsPage />
       </MantineProvider>
     </QueryClientProvider>
   )
@@ -285,10 +303,9 @@ describe('SettingsPage', () => {
     expect(await screen.findByText('MISP Backend')).toBeDefined()
   })
 
-  test('creates, manages, and deletes organisations from the Organisations panel', async () => {
-    render(<Harness />)
+  test('creates, manages, and deletes organisations from the Organisations page', async () => {
+    render(<OrgHarness />)
 
-    fireEvent.click(await screen.findByRole('tab', { name: 'Organisations' }))
     expect(await screen.findByText('Backend SOC')).toBeDefined()
 
     fireEvent.click(screen.getByRole('button', { name: '+ New organisation' }))

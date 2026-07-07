@@ -127,9 +127,14 @@ describe('TasksPage', () => {
 
     expect(await screen.findByText('Revoke refresh tokens')).toBeDefined()
     expect(screen.getByPlaceholderText(/Filter tasks/i)).toBeDefined()
-    expect(api.get).toHaveBeenCalledWith('task-queue', {
-      searchParams: { limit: '200', skip: '0' },
-    })
+    // Server-side now: the list is fetched with a paginated searchParams window.
+    const listCall = vi
+      .mocked(api.get)
+      .mock.calls.find((c) => c[0] === 'task-queue')
+    expect(listCall).toBeDefined()
+    const sp = (listCall![1] as { searchParams: URLSearchParams }).searchParams
+    expect(sp.get('limit')).toBe('10')
+    expect(sp.get('skip')).toBe('0')
 
     fireEvent.click(screen.getByRole('button', { name: /task actions/i }))
     fireEvent.click(

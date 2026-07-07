@@ -8,7 +8,7 @@ import {
   updateCaseDescription,
 } from '#/components/Cases/casesQueries'
 import { SEV } from '#/lib/domain'
-import { Box, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core'
+import { Box, Group, Stack, Text } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import styles from './styles.module.css'
 import { TrafficBadge } from './CaseSummaryCard'
@@ -50,30 +50,6 @@ export function DetailsPanel({
           {caseDetail.summary}
         </Text>
       )}
-
-      <Box>
-        <Text className={styles.fieldLabel} mb="sm">
-          Custom fields
-        </Text>
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-          {caseDetail.customFields.map(([label, value]) => (
-            <Box key={label}>
-              <Text className={styles.fieldLabel} mb={4}>
-                {label}
-                {label === 'Data classification' ? (
-                  <Text component="span" c="red">
-                    {' '}
-                    *
-                  </Text>
-                ) : null}
-              </Text>
-              <Paper bg="gray.0" withBorder radius="sm" px="sm" py={8}>
-                <Text>{value}</Text>
-              </Paper>
-            </Box>
-          ))}
-        </SimpleGrid>
-      </Box>
 
       <Box>
         <Text className={styles.fieldLabel} mb="sm">

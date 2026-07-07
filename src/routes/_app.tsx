@@ -1,4 +1,5 @@
 import { AppShell } from '@mantine/core'
+import { useLocalStorage } from '@mantine/hooks'
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { Navbar } from '#/components/Navbar/Navbar'
 import { Header } from '#/components/Header/Header'
@@ -24,10 +25,23 @@ export const Route = createFileRoute('/_app')({
 })
 
 function AppLayout() {
+  // Persist the collapsed preference so a refresh keeps the nav as the user
+  // left it. `_app` is client-only (ssr: false), so localStorage is safe here.
+  const [collapsed, setCollapsed] = useLocalStorage({
+    key: 'catlico-navbar-collapsed',
+    defaultValue: false,
+  })
+
   return (
-    <AppShell navbar={{ width: 275, breakpoint: 'sm' }} padding={0}>
+    <AppShell
+      navbar={{ width: collapsed ? 80 : 275, breakpoint: 'sm' }}
+      padding={0}
+    >
       <AppShell.Navbar>
-        <Navbar />
+        <Navbar
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((value) => !value)}
+        />
       </AppShell.Navbar>
 
       <AppShell.Main bg="gray.0">

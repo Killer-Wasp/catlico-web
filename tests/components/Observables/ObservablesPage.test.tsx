@@ -230,13 +230,48 @@ function Harness() {
   )
 }
 
+// Server-side filtering is simulated here: the mock applies the `type` clause
+// the UI tests exercise (category → raw observable_type), so the page renders
+// the filtered page the "backend" would have returned.
+const TYPE_RAWS: Record<string, string[]> = {
+  domain: ['domain'],
+  url: ['url'],
+  mail: ['mail', 'email'],
+  ip: ['ip', 'ipv4', 'ipv6'],
+  hash: ['hash'],
+  file: ['file', 'filename'],
+}
+const KNOWN_RAWS = new Set(Object.values(TYPE_RAWS).flat())
+
 beforeEach(() => {
   vi.mocked(api.get).mockReset()
-  vi.mocked(api.get).mockImplementation((input) => {
-    const json = String(input).includes('/enrichments')
-      ? async () => enrichmentOverview
-      : async () => page(observableItems)
-    return { json } satisfies JsonResponse as ReturnType<typeof api.get>
+  vi.mocked(api.get).mockImplementation((input, options) => {
+    const url = String(input)
+    if (url.includes('/enrichments')) {
+      return {
+        json: async () => enrichmentOverview,
+      } satisfies JsonResponse as ReturnType<typeof api.get>
+    }
+    if (url === 'observables/filters') {
+      return {
+        json: async () => ({ sources: ['#1842', '#1841', 'feed'] }),
+      } satisfies JsonResponse as ReturnType<typeof api.get>
+    }
+    const sp = (options as { searchParams?: URLSearchParams } | undefined)
+      ?.searchParams
+    let items = observableItems
+    for (const term of sp?.getAll('filter') ?? []) {
+      const [key, , value] = term.split('~')
+      if (key === 'type') {
+        const raws = TYPE_RAWS[value]
+        items = raws
+          ? items.filter((o) => raws.includes(o.observable_type))
+          : items.filter((o) => !KNOWN_RAWS.has(o.observable_type))
+      }
+    }
+    return {
+      json: async () => page(items),
+    } satisfies JsonResponse as ReturnType<typeof api.get>
   })
 })
 
@@ -253,7 +288,7 @@ describe('ObservablesPage', () => {
     expect(
       screen.getByRole('heading', { name: 'All observables' }),
     ).toBeDefined()
-    expect(screen.getByText('8 observables · 6 IOC')).toBeDefined()
+    expect(screen.getByText('8 observables')).toBeDefined()
     expect(
       screen.getByPlaceholderText(
         'Filter observables — pick a field, then a value',
@@ -262,6 +297,16 @@ describe('ObservablesPage', () => {
     expect(screen.getAllByText('TLP:AMBER').length).toBeGreaterThan(0)
     expect(screen.getByText('Note VT 12/93')).toBeDefined()
     expect(screen.getByText('1-8 of 8')).toBeDefined()
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Observable login-originenergy.support actions',
+      }),
+    )
+    fireEvent.click(await screen.findByRole('menuitem', { name: /analyze/i }))
+    expect(
+      await screen.findByText('Analyzer queued for login-originenergy.support'),
+    ).toBeDefined()
 
     // Bulk actions live in select mode and start disabled with nothing selected.
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
@@ -305,9 +350,12 @@ describe('ObservablesPage', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Type' }))
     fireEvent.click(screen.getByRole('option', { name: 'Ip' }))
 
+    // Filtering is server-side now: wait for the refetched page to render.
+    await waitFor(() =>
+      expect(screen.queryByText('login-originenergy.support')).toBeNull(),
+    )
     expect(screen.getByText('203.0.113.47')).toBeDefined()
     expect(screen.getByText('198.51.100.22')).toBeDefined()
-    expect(screen.queryByText('login-originenergy.support')).toBeNull()
     expect(screen.getByText('1-2 of 2')).toBeDefined()
   })
 
@@ -347,7 +395,6 @@ describe('ObservablesPage', () => {
 
     fireEvent.click(within(modal).getByRole('button', { name: 'Toggle IOC' }))
     expect(within(modal).getByText('yes')).toBeDefined()
-    expect(screen.getByText('8 observables · 7 IOC')).toBeDefined()
 
     fireEvent.click(within(modal).getByRole('button', { name: 'Mark sighted' }))
     expect(within(modal).getAllByText('yes').length).toBeGreaterThanOrEqual(2)

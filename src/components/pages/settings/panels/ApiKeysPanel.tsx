@@ -12,11 +12,21 @@ import {
   revokeApiKey,
   settingsKeys,
 } from '#/components/pages/settings/settingsQueries'
-import { compactDate, LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
+import {
+  compactDate,
+  LoadingPanel,
+  Panel,
+} from '#/components/pages/settings/settingsUi'
 
 export function ApiKeysPanel() {
   const queryClient = useQueryClient()
-  const { data: keys, isPending, isError, refetch, isFetching } = useQuery(apiKeysQueryOptions())
+  const {
+    data: keys,
+    isPending,
+    isError,
+    refetch,
+    isFetching,
+  } = useQuery(apiKeysQueryOptions())
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newKey, setNewKey] = useState('')
@@ -28,12 +38,16 @@ export function ApiKeysPanel() {
       setNewKey(created.key)
       setShowCreate(false)
       setNewName('')
-      notifications.show({ color: 'green', message: 'API key generated - save it now' })
+      notifications.show({
+        color: 'green',
+        message: 'API key generated - save it now',
+      })
     },
     onError: (error) =>
       notifications.show({
         color: 'red',
-        message: error instanceof Error ? error.message : 'Failed to create API key',
+        message:
+          error instanceof Error ? error.message : 'Failed to create API key',
       }),
   })
 
@@ -46,7 +60,8 @@ export function ApiKeysPanel() {
     onError: (error) =>
       notifications.show({
         color: 'red',
-        message: error instanceof Error ? error.message : 'Failed to revoke API key',
+        message:
+          error instanceof Error ? error.message : 'Failed to revoke API key',
       }),
   })
 
@@ -109,7 +124,11 @@ export function ApiKeysPanel() {
       <Panel title="API keys">
         <Stack align="center" p="xl">
           <Text c="red.7">Couldn't load API keys.</Text>
-          <Button variant="default" loading={isFetching} onClick={() => refetch()}>
+          <Button
+            variant="default"
+            loading={isFetching}
+            onClick={() => refetch()}
+          >
             Retry
           </Button>
         </Stack>
@@ -122,7 +141,14 @@ export function ApiKeysPanel() {
       <Panel
         title="API keys"
         action={
-          <Button variant="default" onClick={() => { setNewName(''); setNewKey(''); setShowCreate(true) }}>
+          <Button
+            variant="default"
+            onClick={() => {
+              setNewName('')
+              setNewKey('')
+              setShowCreate(true)
+            }}
+          >
             + Generate key
           </Button>
         }

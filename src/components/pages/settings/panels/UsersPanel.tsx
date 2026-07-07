@@ -1,4 +1,13 @@
-import { Button, Code, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core'
+import {
+  Button,
+  Code,
+  Group,
+  Modal,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+} from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -35,7 +44,8 @@ function InviteMemberModal({
   const [roleId, setRoleId] = useState(roleIds[0]?.value ?? '')
 
   const mutation = useMutation({
-    mutationFn: () => createOrganisationMember({ user_id: userId.trim(), role_id: roleId }),
+    mutationFn: () =>
+      createOrganisationMember({ user_id: userId.trim(), role_id: roleId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       notifications.show({ color: 'green', message: 'Member added' })
@@ -45,7 +55,8 @@ function InviteMemberModal({
     onError: (error) =>
       notifications.show({
         color: 'red',
-        message: error instanceof Error ? error.message : 'Unable to add member',
+        message:
+          error instanceof Error ? error.message : 'Unable to add member',
       }),
   })
 
@@ -108,7 +119,8 @@ function EditMemberModal({
     onError: (error) =>
       notifications.show({
         color: 'red',
-        message: error instanceof Error ? error.message : 'Unable to update member',
+        message:
+          error instanceof Error ? error.message : 'Unable to update member',
       }),
   })
 
@@ -122,12 +134,17 @@ function EditMemberModal({
     onError: (error) =>
       notifications.show({
         color: 'red',
-        message: error instanceof Error ? error.message : 'Unable to remove member',
+        message:
+          error instanceof Error ? error.message : 'Unable to remove member',
       }),
   })
 
   return (
-    <Modal opened={opened} onClose={onClose} title={`Edit ${member?.email ?? 'member'}`}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={`Edit ${member?.email ?? 'member'}`}
+    >
       <Stack gap="md">
         <Select
           label="Role"

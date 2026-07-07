@@ -57,24 +57,6 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
-  // ButtonLink is built with createLink; the mock resolves the href and renders
-  // the wrapped component (a Mantine Button rendered as an anchor).
-  createLink:
-    (Component: React.ComponentType<Record<string, unknown>>) =>
-    ({
-      to,
-      params,
-      children,
-      ...props
-    }: {
-      to: string
-      params?: Record<string, string>
-      children?: React.ReactNode
-    }) => (
-      <Component href={resolveHref(to, params)} {...props}>
-        {children}
-      </Component>
-    ),
 }))
 
 type JsonResponse = {

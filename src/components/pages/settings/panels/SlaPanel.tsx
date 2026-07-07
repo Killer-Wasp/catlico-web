@@ -46,16 +46,22 @@ function compactToSeconds(v: string): number {
   if (!m) return 0
   const n = Number(m[1])
   switch (m[2].toLowerCase()) {
-    case 'm': return n * 60
-    case 'h': return n * 3600
-    case 'd': return n * 86400
-    default: return 0
+    case 'm':
+      return n * 60
+    case 'h':
+      return n * 3600
+    case 'd':
+      return n * 86400
+    default:
+      return 0
   }
 }
 
 export function SlaPanel() {
   const queryClient = useQueryClient()
-  const { data, isPending, isError, refetch, isFetching } = useQuery(slaPoliciesQueryOptions())
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
+    slaPoliciesQueryOptions(),
+  )
   const [rows, setRows] = useState<EditableRow[]>([])
 
   const policies = data?.items ?? []
@@ -82,7 +88,10 @@ export function SlaPanel() {
     onError: (error) =>
       notifications.show({
         color: 'red',
-        message: error instanceof Error ? error.message : 'Failed to save SLA policies',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to save SLA policies',
       }),
   })
 
@@ -173,7 +182,11 @@ export function SlaPanel() {
       <Panel title="SLA policies">
         <Stack align="center" p="xl">
           <Text c="red.7">Couldn't load SLA policies.</Text>
-          <Button variant="default" loading={isFetching} onClick={() => refetch()}>
+          <Button
+            variant="default"
+            loading={isFetching}
+            onClick={() => refetch()}
+          >
             Retry
           </Button>
         </Stack>
@@ -185,7 +198,11 @@ export function SlaPanel() {
     <Panel title="SLA policies" count="per severity">
       <SlaTable columns={columns} rows={rows} />
       <Group justify="flex-end" p={18} pt={0}>
-        <Button color="orange" loading={saveMutation.isPending} onClick={handleSave}>
+        <Button
+          color="orange"
+          loading={saveMutation.isPending}
+          onClick={handleSave}
+        >
           Save SLA policies
         </Button>
       </Group>

@@ -21,7 +21,7 @@ import {
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core'
-import { Bell, LogOut, Moon, Search, Sun, UserCog } from 'lucide-react'
+import { Bell, Building2, LogOut, Moon, Search, Sun, UserCog } from 'lucide-react'
 import { useState } from 'react'
 import classes from './Header.module.css'
 
@@ -209,6 +209,14 @@ export function Header() {
               </Text>
             )}
             <Menu.Divider />
+            {currentUser?.is_superadmin && (
+              <Menu.Item
+                leftSection={<Building2 size={16} />}
+                onClick={() => navigate({ to: '/organisations' })}
+              >
+                Organisations
+              </Menu.Item>
+            )}
             <Menu.Item
               leftSection={<UserCog size={16} />}
               onClick={() =>

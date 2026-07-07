@@ -2,15 +2,58 @@ import {
   advanceTaskStatus,
   allocateNextTaskId,
   filterTasksByStatus,
-  initialTasks,
 } from '#/components/Tasks/tasks'
+import type { Task } from '#/components/Tasks/tasks.types'
 import { describe, expect, test } from 'vitest'
 
 describe('tasks data helpers', () => {
-  test('filters open tasks without completed or cancelled work', () => {
-    const openTasks = filterTasksByStatus(initialTasks, 'open')
+  const tasks: Task[] = [
+    {
+      id: 'T-1842-1',
+      title: 'Contain OAuth app',
+      description: 'OAuth consent grant',
+      kind: 'Contain',
+      caseId: '#1842',
+      caseSeverity: 'high',
+      due: 'today',
+      status: 'inprogress',
+    },
+    {
+      id: 'T-1842-2',
+      title: 'Publish situation summary',
+      description: 'OAuth consent grant',
+      kind: 'Comms',
+      caseId: '#1842',
+      caseSeverity: 'high',
+      due: 'tomorrow',
+      status: 'waiting',
+    },
+    {
+      id: 'T-1841-1',
+      title: 'Close ransomware case',
+      description: 'Ransomware activity',
+      kind: 'Closeout',
+      caseId: '#1841',
+      caseSeverity: 'critical',
+      due: 'tomorrow',
+      status: 'completed',
+    },
+    {
+      id: 'T-1840-1',
+      title: 'Cancel duplicate task',
+      description: 'Duplicate case',
+      kind: 'Planning',
+      caseId: '#1840',
+      caseSeverity: 'high',
+      due: 'later',
+      status: 'cancelled',
+    },
+  ]
 
-    expect(openTasks).toHaveLength(17)
+  test('filters open tasks without completed or cancelled work', () => {
+    const openTasks = filterTasksByStatus(tasks, 'open')
+
+    expect(openTasks).toHaveLength(2)
     expect(openTasks.every((task) => task.status !== 'completed')).toBe(true)
     expect(openTasks.every((task) => task.status !== 'cancelled')).toBe(true)
   })
@@ -24,11 +67,11 @@ describe('tasks data helpers', () => {
 
   test('uses case-scoped task ids instead of generated uuid-style ids', () => {
     expect(
-      initialTasks.every((task) =>
+      tasks.every((task) =>
         task.id.startsWith(`T-${task.caseId.replace('#', '')}-`),
       ),
     ).toBe(true)
-    expect(initialTasks.map((task) => task.id)).not.toContain('task-001')
+    expect(tasks.map((task) => task.id)).not.toContain('task-001')
   })
 
   test('allocates the next task id without reusing deleted sequence numbers', () => {

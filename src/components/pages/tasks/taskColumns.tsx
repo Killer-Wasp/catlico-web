@@ -12,6 +12,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table'
 import { Check, EllipsisVertical, ExternalLink, Play } from 'lucide-react'
 import { Assignee, DuePill, TaskStatusBadge } from './Components'
+import type { TableColumnMeta } from '#/components/Table/columnMeta'
 import {
   includesAnySubstring,
   includesOne,
@@ -57,6 +58,7 @@ export function buildTaskColumns({
       accessorFn: (row) => row.caseId,
       filterFn: includesAnySubstring,
       sortingFn: byCaseId,
+      meta: { nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => (
         <Severity
           id={row.original.caseId}
@@ -65,10 +67,28 @@ export function buildTaskColumns({
       ),
     },
     {
+      id: 'status',
+      header: 'Status',
+      accessorFn: (row) => row.status,
+      filterFn: includesOne,
+      meta: {
+        compact: true,
+        ta: 'center',
+        nowrap: true,
+      } satisfies TableColumnMeta,
+      cell: ({ row }) => (
+        <TaskStatusBadge
+          status={row.original.status}
+          onAdvance={() => onAdvance(row.original)}
+        />
+      ),
+    },
+    {
       id: 'title',
       header: 'Task',
       accessorFn: (row) => row.title,
       filterFn: includesAnySubstring,
+      meta: { grow: true } satisfies TableColumnMeta,
       cell: ({ row }) => {
         const task = row.original
         return (
@@ -118,7 +138,11 @@ export function buildTaskColumns({
       header: 'Assignee',
       accessorFn: (row) => row.assignee ?? 'Unassigned',
       filterFn: includesOne,
-      meta: { ta: 'center' },
+      meta: {
+        compact: true,
+        ta: 'center',
+        nowrap: true,
+      } satisfies TableColumnMeta,
       cell: ({ row }) => <Assignee name={row.original.assignee} />,
     },
     {
@@ -127,28 +151,19 @@ export function buildTaskColumns({
       accessorFn: (row) => row.due,
       enableColumnFilter: false,
       sortingFn: byDueDate,
-      meta: { ta: 'center' },
+      meta: {
+        compact: true,
+        ta: 'center',
+        nowrap: true,
+      } satisfies TableColumnMeta,
       cell: ({ row }) => <DuePill task={row.original} />,
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      accessorFn: (row) => row.status,
-      filterFn: includesOne,
-      meta: { ta: 'center' },
-      cell: ({ row }) => (
-        <TaskStatusBadge
-          status={row.original.status}
-          onAdvance={() => onAdvance(row.original)}
-        />
-      ),
     },
     {
       id: 'actions',
       header: '',
       enableColumnFilter: false,
       enableSorting: false,
-      meta: { ta: 'right' },
+      meta: { ta: 'right', nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => {
         const task = row.original
         const canAdvance =

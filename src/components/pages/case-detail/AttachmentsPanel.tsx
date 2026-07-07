@@ -18,6 +18,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Download, EllipsisVertical, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { CasePanelHeader } from './CasePanelHeader'
 import { actionNotice } from './constants'
 import styles from './styles.module.css'
 
@@ -75,7 +76,9 @@ export function AttachmentsPanel({
   }, [caseId])
 
   return (
-    <Stack gap={0} p="lg">
+    <Stack gap="md" p="lg">
+      <CasePanelHeader label="Attachments" />
+
       <Box
         ref={dropZoneRef}
         className={`${styles.attachmentsDropZone} ${

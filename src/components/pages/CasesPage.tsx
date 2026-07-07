@@ -1,4 +1,9 @@
 import { getCaseRouteId } from '#/components/Cases/caseDetails'
+import {
+  clausesToTokens,
+  filterParamsToClauses,
+  tokensToFilterParams,
+} from '#/components/Cases/caseFilterSearch'
 import type { Case } from '#/components/Cases/cases.types'
 import {
   caseFacetsQueryOptions,
@@ -6,30 +11,37 @@ import {
   casesQueryOptions,
   updateCaseAssignee,
 } from '#/components/Cases/casesQueries'
-import type { CaseListFilters } from '#/components/Cases/casesQueries'
+import type {
+  CaseListFilters,
+  FilterClause,
+} from '#/components/Cases/casesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { AssignMenu } from '#/components/Table/AssignMenu'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
+import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import type { UserPublic } from '#/components/Users/usersQueries'
 import { userDisplayName } from '#/components/Users/usersQueries'
 import { Button, Box } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import type {
-  ColumnDef,
-  ColumnFiltersState,
-  OnChangeFn,
-  SortingState,
-} from '@tanstack/react-table'
+import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import { SEVERITY_OPTIONS } from '#/lib/domain'
 import { buildCaseColumns } from './cases-list/caseColumns'
 import { SORT_FIELD, STATUS_OPTIONS } from './cases-list/constants'
 
-export function CasesPage() {
+type CasesPageProps = {
+  filterParams?: string[]
+  onFilterParamsChange?: (filterParams: string[] | undefined) => void
+}
+
+export function CasesPage({
+  filterParams,
+  onFilterParamsChange,
+}: CasesPageProps = {}) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -38,16 +50,20 @@ export function CasesPage() {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'id', desc: true },
   ])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [localFilterParams, setLocalFilterParams] = useState<
+    string[] | undefined
+  >(filterParams)
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const pageSize = pagination.pageSize
+  const activeFilterParams = filterParams ?? localFilterParams
+  const clauses = useMemo(
+    () => filterParamsToClauses(activeFilterParams),
+    [activeFilterParams],
+  )
 
-  // Column filters + sort + page window → the backend query. Only fields that
-  // carry a value are set, so the unfiltered first page deep-equals
-  // DEFAULT_CASE_FILTERS and reads the route loader's warm cache.
+  // Tokens + sort + page window → the backend query. With no tokens the query
+  // deep-equals DEFAULT_CASE_FILTERS and reads the route loader's warm cache.
   const filters = useMemo<CaseListFilters>(() => {
-    const colVal = (id: string) =>
-      columnFilters.find((f) => f.id === id)?.value as string[] | undefined
     const sort = sorting.at(0)
     const out: CaseListFilters = {
       sort: sort ? (SORT_FIELD[sort.id] ?? 'id') : 'id',
@@ -55,20 +71,9 @@ export function CasesPage() {
       skip: pagination.pageIndex * pagination.pageSize,
       limit: pagination.pageSize,
     }
-    const status = colVal('status')
-    if (status?.length) out.status = status
-    const severity = colVal('id')
-    if (severity?.length) out.severity = severity.map(Number)
-    const assignee = colVal('assignee')
-    if (assignee?.length) out.assignee = assignee
-    const tag = colVal('tags')
-    if (tag?.length) out.tag = tag
-    const title = colVal('title')
-    if (title?.length) out.title = title
-    const caseNo = colVal('caseNo')
-    if (caseNo?.length) out.case = caseNo
+    if (clauses.length) out.clauses = clauses
     return out
-  }, [columnFilters, sorting, pagination])
+  }, [clauses, sorting, pagination])
 
   const { data, isFetching } = useQuery(casesQueryOptions(filters))
   const cases = data?.cases ?? []
@@ -77,8 +82,10 @@ export function CasesPage() {
 
   // Filters or sort changing can invalidate the current page index, so snap
   // back to the first page whenever either does.
-  const onColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (updater) => {
-    setColumnFilters(updater)
+  const onTokensChange = (next: Token[]) => {
+    const nextFilterParams = tokensToFilterParams(next)
+    if (onFilterParamsChange) onFilterParamsChange(nextFilterParams)
+    else setLocalFilterParams(nextFilterParams)
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
   const onSortingChange: OnChangeFn<SortingState> = (updater) => {
@@ -100,7 +107,7 @@ export function CasesPage() {
     () => (facets?.unassigned ? [...assignees, 'Unassigned'] : assignees),
     [assignees, facets],
   )
-  const tagOptions = useMemo(() => facets?.tags ?? [], [facets])
+  const tagKeys = useMemo(() => facets?.tagKeys ?? {}, [facets])
 
   const columns = useMemo<ColumnDef<Case>[]>(
     // openCase closes over the stable `navigate`; `assignees` feeds the
@@ -115,7 +122,6 @@ export function CasesPage() {
     state: {
       rowSelection,
       sorting,
-      columnFilters,
       columnVisibility: { select: selectMode, tags: false, caseNo: false },
       pagination,
     },
@@ -132,46 +138,59 @@ export function CasesPage() {
     enableSorting: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange,
-    onColumnFiltersChange,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
   })
 
   const toOpts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }))
-  const filterFields = useMemo(
-    () => [
+  // Core enum keys are Equals-only; text keys (Title, Case) also offer Contains.
+  // Each tag key becomes its own Equals-only field, so different tag keys AND
+  // and same-key values OR, matching the backend's clause grouping.
+  const filterFields = useMemo<TokenField[]>(() => {
+    const core: TokenField[] = [
       {
         key: 'status',
         label: 'Status',
-        kind: 'enum' as const,
-        columnId: 'status',
-        options: STATUS_OPTIONS,
+        kind: 'enum',
+        operators: ['eq'],
+        // STATUS_OPTIONS.label is the backend status value (Open/Resolved/…).
+        options: STATUS_OPTIONS.map((o) => ({
+          value: o.label,
+          label: o.label,
+        })),
       },
       {
         key: 'severity',
         label: 'Severity',
-        kind: 'enum' as const,
-        columnId: 'id',
+        kind: 'enum',
+        operators: ['eq'],
         options: SEVERITY_OPTIONS,
       },
       {
         key: 'assignee',
         label: 'Assignee',
-        kind: 'enum' as const,
-        columnId: 'assignee',
+        kind: 'enum',
+        operators: ['eq'],
         options: toOpts(assigneeOptions),
       },
-      {
-        key: 'tag',
-        label: 'Tag',
-        kind: 'enum' as const,
-        columnId: 'tags',
-        options: toOpts(tagOptions),
-      },
-      { key: 'case', label: 'Case', kind: 'text' as const, columnId: 'caseNo' },
-      { key: 'title', label: 'Title', kind: 'text' as const, columnId: 'title' },
-    ],
-    [assigneeOptions, tagOptions],
+      { key: 'title', label: 'Title', kind: 'text', operators: ['eq', 'co'] },
+      { key: 'case', label: 'Case', kind: 'text', operators: ['eq', 'co'] },
+    ]
+    const tagFields: TokenField[] = Object.entries(tagKeys).map(
+      ([key, values]): TokenField => ({
+        key: `tag:${key}`,
+        // Prettify simple namespaces (tlp → TLP); keep compound keys verbatim.
+        label: key.includes(':') ? key : key.toUpperCase(),
+        kind: 'enum',
+        operators: ['eq'],
+        options: toOpts(values),
+      }),
+    )
+    return [...core, ...tagFields]
+  }, [assigneeOptions, tagKeys])
+  const tokens = useMemo(
+    () => clausesToTokens(clauses, filterFields),
+    [clauses, filterFields],
   )
 
   const exitSelectMode = () => {
@@ -219,6 +238,10 @@ export function CasesPage() {
         table={table}
         filterFields={filterFields}
         filterPlaceholder="Filter cases — pick a field, then a value"
+        tokens={tokens}
+        onTokensChange={onTokensChange}
+        hasActiveFilters={tokens.length > 0}
+        onClearFilters={() => onTokensChange([])}
         selectable
         selectMode={selectMode}
         onToggleSelectMode={() =>

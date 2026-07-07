@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { AlertsPage } from '#/components/pages/AlertsPage'
-import { initialAlerts } from '#/components/Alerts/alerts.fixtures'
 import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
+import type { Alert } from '#/components/Alerts/alerts.types'
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -14,6 +14,33 @@ import {
 } from '@testing-library/react'
 import { Suspense } from 'react'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
+
+const alerts: Alert[] = [
+  {
+    id: 'AL-9123',
+    sev: 4,
+    tlp: 3,
+    title: 'Possible ransomware staging — mass file rename on FILESRV-AU02',
+    src: 'CrowdStrike',
+    tags: ['T1486', 'ransomware'],
+    ageMin: 14,
+    breach: false,
+    description:
+      'CrowdStrike detected >4,000 file renames with appended extension .0rgn on FILESRV-AU02 within 90 seconds, initiated by svchost.exe spawned from an unsigned binary in C:\\PerfLogs\\. Shadow copies deletion attempted (blocked).',
+    observables: [
+      { type: 'host', value: 'FILESRV-AU02' },
+      { type: 'hash', value: '9f86d081884c7d65...' },
+      { type: 'file', value: 'C:\\PerfLogs\\upd.exe' },
+    ],
+    similarCases: [
+      {
+        id: '#1841',
+        title: 'Ransomware staging on FILESRV-AU02',
+        status: 'Open',
+      },
+    ],
+  },
+]
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -50,7 +77,10 @@ function Harness() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
-  queryClient.setQueryData(alertsQueryOptions().queryKey, initialAlerts)
+  queryClient.setQueryData(alertsQueryOptions().queryKey, {
+    alerts,
+    total: alerts.length,
+  })
   return (
     <QueryClientProvider client={queryClient}>
       <MantineProvider>

@@ -27,6 +27,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
+import { CasePanelHeader } from './CasePanelHeader'
 import styles from './styles.module.css'
 
 const CASE_OBSERVABLE_TYPE_MAP: Record<string, ObservableType> = {
@@ -170,15 +171,19 @@ export function ObservablesPanel({
           </Button>
         </Stack>
       </Modal>
-      <Group justify="flex-end">
-        <Button
-          variant="default"
-          leftSection={<Plus size={16} />}
-          onClick={() => setAddingObservable(true)}
-        >
-          Add observable
-        </Button>
-      </Group>
+
+      <CasePanelHeader
+        label="Observables"
+        action={
+          <Button
+            variant="default"
+            leftSection={<Plus size={16} />}
+            onClick={() => setAddingObservable(true)}
+          >
+            Add observable
+          </Button>
+        }
+      />
 
       <Table verticalSpacing="sm" horizontalSpacing={0} highlightOnHover>
         <Table.Thead>

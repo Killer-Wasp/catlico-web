@@ -21,10 +21,7 @@ import {
   settingsKeys,
 } from '#/components/pages/settings/settingsQueries'
 import type { ObservableTypePublic } from '#/components/pages/settings/settingsQueries'
-import {
-  LoadingPanel,
-  Panel,
-} from '#/components/pages/settings/settingsUi'
+import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
 
 function AddTypeModal({
   opened,

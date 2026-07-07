@@ -5,6 +5,12 @@ import type { RowData } from '@tanstack/react-table'
 export type TableColumnMeta = {
   visibleFrom?: string
   ta?: 'left' | 'center' | 'right'
+  /** Size this column to its content and prevent wrapping. */
+  nowrap?: boolean
+  /** Reduce horizontal table padding for narrow utility columns. */
+  compact?: boolean
+  /** Let this column absorb the remaining table width. */
+  grow?: boolean
 }
 
 // Keep the old name as an alias so existing satisfies sites keep compiling

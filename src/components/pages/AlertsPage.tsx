@@ -1,56 +1,100 @@
-import type { Alert } from '#/components/Alerts/alerts.types'
 import {
+  alertFacetsQueryOptions,
   alertKeys,
   alertsQueryOptions,
   mergeAlertsToCase,
   promoteAlertToCase,
 } from '#/components/Alerts/alertsQueries'
+import type {
+  AlertListFilters,
+  AlertSort,
+} from '#/components/Alerts/alertsQueries'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
 import { caseKeys } from '#/components/Cases/casesQueries'
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  useSuspenseQuery,
-} from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 // Reuse the Cases page var scope so both tables share the SOC palette
 // (severity / TLP / MITRE colours, soft borders) defined on `.page`.
 import classes from '#/components/Cases/CasesPage.module.css'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
+import type { Token, TokenField } from '#/components/Table/TokenSearch'
+import type { FilterClause } from '#/lib/filters'
 import { Box, Button } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useNavigate } from '@tanstack/react-router'
-import type { SortingState } from '@tanstack/react-table'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
+import type { OnChangeFn, SortingState } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { SEVERITY_OPTIONS, TLP_OPTIONS } from '#/lib/domain'
 import { useMemo, useState } from 'react'
 import { AlertDetailDrawer } from './alerts/AlertDetailDrawer'
 import { buildAlertColumns } from './alerts/alertColumns'
 
+// Sortable columns whose id is a valid backend sort key.
+const ALERT_SORTS = new Set<AlertSort>(['id', 'age'])
+
 export function AlertsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data } = useSuspenseQuery(alertsQueryOptions())
   const { data: caseTemplatesResult } = useQuery(caseTemplatesQueryOptions())
   const caseTemplates = caseTemplatesResult?.templates ?? []
-  const [alerts, setAlerts] = useState<Alert[]>(data)
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null)
   const [alertComments, setAlertComments] = useState<Record<string, string[]>>(
     {},
   )
+  // Client-only "ignored"/promoted removals: alerts to hide from the current
+  // view without a dedicated backend delete. Cleared on refetch is not needed —
+  // promoted alerts stop matching, and ignore is a prototype cosmetic action.
+  const [ignoredIds, setIgnoredIds] = useState<Set<string>>(new Set())
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'id', desc: true },
   ])
+  const [tokens, setTokens] = useState<Token[]>([])
+  const pageSize = pagination.pageSize
+
+  const filters = useMemo<AlertListFilters>(() => {
+    const sort = sorting.at(0)
+    const sortKey =
+      sort && ALERT_SORTS.has(sort.id as AlertSort)
+        ? (sort.id as AlertSort)
+        : 'id'
+    const out: AlertListFilters = {
+      sort: sortKey,
+      order: sort ? (sort.desc ? 'desc' : 'asc') : 'desc',
+      skip: pagination.pageIndex * pagination.pageSize,
+      limit: pagination.pageSize,
+    }
+    const clauses: FilterClause[] = tokens.map((t) => ({
+      key: t.field,
+      op: t.op ?? 'eq',
+      value: t.value,
+    }))
+    if (clauses.length) out.clauses = clauses
+    return out
+  }, [tokens, sorting, pagination])
+
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
+    alertsQueryOptions(filters),
+  )
+  const { data: facets } = useQuery(alertFacetsQueryOptions())
+  const total = data?.total ?? 0
+  const alerts = useMemo(
+    () => (data?.alerts ?? []).filter((a) => !ignoredIds.has(a.id)),
+    [data, ignoredIds],
+  )
+  const hideAlerts = (ids: Iterable<string>) =>
+    setIgnoredIds((prev) => new Set([...prev, ...ids]))
+
+  const onTokensChange = (next: Token[]) => {
+    setTokens(next)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
   const activeAlert = alerts.find((alert) => alert.id === activeAlertId) ?? null
 
@@ -63,8 +107,7 @@ export function AlertsPage() {
     mutationFn: mergeAlertsToCase,
     onSuccess: (caseId, variables) => {
       invalidatePromotedResources()
-      const promoted = new Set(variables.alertIds)
-      setAlerts((prev) => prev.filter((alert) => !promoted.has(alert.id)))
+      hideAlerts(variables.alertIds)
       notifications.show({
         color: 'teal',
         message: `Created case #${caseId} from ${variables.alertIds.length} alert${
@@ -89,9 +132,7 @@ export function AlertsPage() {
     mutationFn: promoteAlertToCase,
     onSuccess: (caseId, variables) => {
       invalidatePromotedResources()
-      setAlerts((prev) =>
-        prev.filter((alert) => alert.id !== variables.alertId),
-      )
+      hideAlerts([variables.alertId])
       setActiveAlertId(null)
       notifications.show({
         color: 'orange',
@@ -116,7 +157,7 @@ export function AlertsPage() {
     notifications.show({ color: 'blue', message: `Running analysis on ${id}…` })
 
   const ignoreAlert = (id: string) => {
-    setAlerts((prev) => prev.filter((a) => a.id !== id))
+    hideAlerts([id])
     setActiveAlertId((prev) => (prev === id ? null : prev))
     setRowSelection((prev) => {
       const next = { ...(prev as Record<string, boolean>) }
@@ -142,63 +183,60 @@ export function AlertsPage() {
       pagination,
     },
     getRowId: (row) => row.id,
+    manualFiltering: true,
+    manualSorting: true,
+    manualPagination: true,
+    rowCount: total,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
     enableRowSelection: true,
     enableSorting: true,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    autoResetPageIndex: true,
   })
 
-  const sourceOptions = useMemo(
-    () => Array.from(new Set(alerts.map((a) => a.src))).sort(),
-    [alerts],
-  )
-  const tagOptions = useMemo(
-    () => Array.from(new Set(alerts.flatMap((a) => a.tags))).sort(),
-    [alerts],
-  )
+  const sourceOptions = useMemo(() => facets?.sources ?? [], [facets])
+  const tagKeys = useMemo(() => facets?.tagKeys ?? {}, [facets])
 
   const toOpts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }))
-  const filterFields = useMemo(
-    () => [
+  const filterFields = useMemo<TokenField[]>(() => {
+    const core: TokenField[] = [
       {
         key: 'severity',
         label: 'Severity',
-        kind: 'enum' as const,
-        columnId: 'id',
+        kind: 'enum',
+        operators: ['eq'],
         options: SEVERITY_OPTIONS,
       },
       {
         key: 'source',
         label: 'Source',
-        kind: 'enum' as const,
-        columnId: 'source',
+        kind: 'enum',
+        operators: ['eq'],
         options: toOpts(sourceOptions),
       },
       {
         key: 'tlp',
         label: 'TLP',
-        kind: 'enum' as const,
-        columnId: 'tlp',
+        kind: 'enum',
+        operators: ['eq'],
         options: TLP_OPTIONS,
       },
-      {
-        key: 'tag',
-        label: 'Tag',
-        kind: 'enum' as const,
-        columnId: 'tags',
-        options: toOpts(tagOptions),
-      },
-      { key: 'alert', label: 'Alert', kind: 'text' as const, columnId: 'alertNo' },
-      { key: 'title', label: 'Title', kind: 'text' as const, columnId: 'title' },
-    ],
-    [sourceOptions, tagOptions],
-  )
+      { key: 'alert', label: 'Alert', kind: 'text', operators: ['eq', 'co'] },
+      { key: 'title', label: 'Title', kind: 'text', operators: ['eq', 'co'] },
+    ]
+    const tagFields: TokenField[] = Object.entries(tagKeys).map(
+      ([key, values]): TokenField => ({
+        key: `tag:${key}`,
+        label: key.includes(':') ? key : key.toUpperCase(),
+        kind: 'enum',
+        operators: ['eq'],
+        options: toOpts(values),
+      }),
+    )
+    return [...core, ...tagFields]
+  }, [sourceOptions, tagKeys])
 
   const exitSelectMode = () => {
     setSelectMode(false)
@@ -239,8 +277,7 @@ export function AlertsPage() {
       })
       return
     }
-    const ids = new Set(selectedRows.map((r) => r.original.id))
-    setAlerts((prev) => prev.filter((a) => !ids.has(a.id)))
+    hideAlerts(selectedRows.map((r) => r.original.id))
     notifications.show({
       message: `${selectedCount} alert${selectedCount > 1 ? 's' : ''} marked as ignored`,
     })
@@ -271,8 +308,14 @@ export function AlertsPage() {
       <TablePanel
         title="All alerts"
         countNoun="alerts"
+        count={total}
         table={table}
         filterFields={filterFields}
+        filterPlaceholder="Filter alerts — pick a field, then a value"
+        tokens={tokens}
+        onTokensChange={onTokensChange}
+        hasActiveFilters={tokens.length > 0}
+        onClearFilters={() => onTokensChange([])}
         selectable
         selectMode={selectMode}
         onToggleSelectMode={() =>
@@ -306,10 +349,14 @@ export function AlertsPage() {
           table={table}
           minWidth={820}
           emptyMessage="No alerts match the current filters."
+          isPending={isPending}
+          isError={isError}
+          isFetching={isFetching}
+          onRetry={() => refetch()}
+          loadingMessage="Loading alerts…"
+          errorMessage="Couldn’t load alerts from the backend."
           onRowClick={(row) =>
-            selectMode
-              ? row.toggleSelected()
-              : openAlert(row.original.id)
+            selectMode ? row.toggleSelected() : openAlert(row.original.id)
           }
         />
       </TablePanel>

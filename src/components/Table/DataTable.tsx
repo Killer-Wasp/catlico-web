@@ -2,6 +2,7 @@ import { Button, Group, Loader, Stack, Table, Text } from '@mantine/core'
 import type { Row, RowData, Table as ReactTable } from '@tanstack/react-table'
 import { flexRender } from '@tanstack/react-table'
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
+import type { CSSProperties } from 'react'
 import classes from './Table.module.css'
 
 type DataTableProps<T extends RowData> = {
@@ -42,17 +43,35 @@ export function DataTable<T extends RowData>({
 }: DataTableProps<T>) {
   const rows = table.getRowModel().rows
   const colSpan = table.getVisibleLeafColumns().length
+  const getColumnStyle = (
+    columnId: string,
+    meta: { compact?: boolean; grow?: boolean; nowrap?: boolean } | undefined,
+  ): CSSProperties => {
+    const compactStyle: CSSProperties = meta?.compact
+      ? { paddingInline: '0.5rem' }
+      : {}
+
+    if (columnId === selectColumnId) {
+      return { width: 40, whiteSpace: 'nowrap', ...compactStyle }
+    }
+    if (meta?.grow) {
+      return { width: 'auto' }
+    }
+    if (meta?.nowrap) {
+      return {
+        width: 'max-content',
+        whiteSpace: 'nowrap',
+        ...compactStyle,
+      }
+    }
+    return {}
+  }
 
   return (
-    <Table.ScrollContainer
-      minWidth={minWidth}
-      style={{
-        opacity: isFetching ? 0.55 : 1,
-        transition: 'opacity 120ms ease',
-      }}
-    >
+    <Table.ScrollContainer minWidth={minWidth}>
       <Table
         aria-label={ariaLabel}
+        className={classes.dataTable}
         highlightOnHover
         horizontalSpacing="lg"
         verticalSpacing={verticalSpacing}
@@ -75,30 +94,39 @@ export function DataTable<T extends RowData>({
                     className={classes.columnHeader}
                     ta={meta?.ta}
                     visibleFrom={meta?.visibleFrom}
+                    style={getColumnStyle(header.column.id, meta)}
                     w={header.column.id === selectColumnId ? 40 : undefined}
                   >
-                    {canSort ? (
-                      <Group
-                        gap={4}
-                        wrap="nowrap"
-                        justify={
-                          meta?.ta === 'center' ? 'center' : undefined
-                        }
-                        onClick={header.column.getToggleSortingHandler()}
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
-                      >
-                        {label}
-                        {sorted === 'asc' ? (
-                          <ChevronUp size={12} />
-                        ) : sorted === 'desc' ? (
-                          <ChevronDown size={12} />
-                        ) : (
-                          <ChevronsUpDown size={12} style={{ opacity: 0.4 }} />
-                        )}
-                      </Group>
-                    ) : (
-                      label
-                    )}
+                    <Group
+                      gap={4}
+                      wrap="nowrap"
+                      justify={meta?.ta === 'center' ? 'center' : undefined}
+                      className={classes.headerContent}
+                    >
+                      {canSort ? (
+                        <Group
+                          gap={4}
+                          wrap="nowrap"
+                          justify={meta?.ta === 'center' ? 'center' : undefined}
+                          onClick={header.column.getToggleSortingHandler()}
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                        >
+                          {label}
+                          {sorted === 'asc' ? (
+                            <ChevronUp size={12} />
+                          ) : sorted === 'desc' ? (
+                            <ChevronDown size={12} />
+                          ) : (
+                            <ChevronsUpDown
+                              size={12}
+                              style={{ opacity: 0.4 }}
+                            />
+                          )}
+                        </Group>
+                      ) : (
+                        label
+                      )}
+                    </Group>
                   </Table.Th>
                 )
               })}
@@ -108,7 +136,14 @@ export function DataTable<T extends RowData>({
         <Table.Tbody>
           {isPending ? (
             <Table.Tr>
-              <Table.Td ta="center" c="dimmed" fz={13} py={40} px={18} colSpan={colSpan}>
+              <Table.Td
+                ta="center"
+                c="dimmed"
+                fz={13}
+                py={40}
+                px={18}
+                colSpan={colSpan}
+              >
                 <Group justify="center" gap="xs">
                   <Loader size="xs" />
                   <Text component="span" fz={13} c="dimmed">
@@ -165,6 +200,7 @@ export function DataTable<T extends RowData>({
                         key={cell.id}
                         ta={meta?.ta}
                         visibleFrom={meta?.visibleFrom}
+                        style={getColumnStyle(cell.column.id, meta)}
                         onClick={
                           stopPropagationColumnIds.includes(cell.column.id)
                             ? (e) => e.stopPropagation()

@@ -1,8 +1,13 @@
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
+import { appendClauses } from '#/lib/filters'
+import type { FilterClause } from '#/lib/filters'
 import type { Task, TaskStatus } from './tasks.types'
 
 type Page<T> = { items: T[]; total: number; skip: number; limit: number }
+
+/** Column the task queue is sorted by, server-side. */
+export type TaskSort = 'caseId' | 'title' | 'assignee' | 'due' | 'status'
 
 export type BackendTaskStatus =
   | 'Waiting'
@@ -36,6 +41,9 @@ export type TaskQueuePublic = TaskPublic & {
 }
 
 export type TaskListFilters = {
+  clauses?: FilterClause[]
+  sort?: TaskSort
+  order?: 'asc' | 'desc'
   skip?: number
   limit?: number
 }
@@ -45,9 +53,32 @@ export type TasksResult = {
   total: number
 }
 
-export const DEFAULT_TASK_FILTERS: Required<TaskListFilters> = {
+/** Filterable values across the org's task queue, for the filter dropdowns. */
+export type TaskFacets = {
+  assignees: string[]
+  unassigned: boolean
+  kinds: string[]
+}
+
+export const DEFAULT_TASK_FILTERS: TaskListFilters = {
+  sort: 'caseId',
+  order: 'asc',
   skip: 0,
-  limit: 200,
+  limit: 10,
+}
+
+/**
+ * Count-only query for open (Waiting | InProgress) tasks — same-key clauses OR,
+ * so this is "not finished" server-side. `limit: 1` because only `total` is
+ * read (a badge), not the rows.
+ */
+export const OPEN_TASK_FILTERS: TaskListFilters = {
+  clauses: [
+    { key: 'status', op: 'eq', value: 'Waiting' },
+    { key: 'status', op: 'eq', value: 'InProgress' },
+  ],
+  skip: 0,
+  limit: 1,
 }
 
 export const taskKeys = {
@@ -110,10 +141,12 @@ function toTask(dto: TaskPublic | TaskQueuePublic): Task {
 export async function fetchTasks(
   filters: TaskListFilters = DEFAULT_TASK_FILTERS,
 ): Promise<TasksResult> {
-  const params = {
-    limit: String(filters.limit ?? DEFAULT_TASK_FILTERS.limit),
-    skip: String(filters.skip ?? DEFAULT_TASK_FILTERS.skip),
-  }
+  const params = new URLSearchParams()
+  appendClauses(params, filters.clauses)
+  if (filters.sort) params.set('sort', filters.sort)
+  if (filters.order) params.set('order', filters.order)
+  if (filters.skip != null) params.set('skip', String(filters.skip))
+  if (filters.limit != null) params.set('limit', String(filters.limit))
   const page = await api
     .get('task-queue', { searchParams: params })
     .json<Page<TaskQueuePublic>>()
@@ -127,6 +160,16 @@ export const tasksQueryOptions = (
   queryOptions({
     queryKey: taskKeys.list(filters),
     queryFn: () => fetchTasks(filters),
+  })
+
+async function fetchTaskFacets(): Promise<TaskFacets> {
+  return api.get('task-queue/filters').json<TaskFacets>()
+}
+
+export const taskFacetsQueryOptions = () =>
+  queryOptions({
+    queryKey: [...taskKeys.all, 'facets'] as const,
+    queryFn: fetchTaskFacets,
   })
 
 export async function updateTaskStatus({

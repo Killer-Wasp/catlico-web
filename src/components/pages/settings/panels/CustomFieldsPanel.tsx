@@ -26,10 +26,7 @@ import type {
   CustomFieldCreateInput,
   CustomFieldPublic,
 } from '#/components/pages/settings/settingsQueries'
-import {
-  LoadingPanel,
-  Panel,
-} from '#/components/pages/settings/settingsUi'
+import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
 
 const FIELD_TYPES = [
   { value: 'string', label: 'string' },
@@ -164,9 +161,7 @@ export function CustomFieldsPanel() {
         id: 'label',
         header: 'Label',
         cell: ({ row }) => (
-          <Text fw={700}>
-            {row.original.display_name || row.original.name}
-          </Text>
+          <Text fw={700}>{row.original.display_name || row.original.name}</Text>
         ),
       },
       {

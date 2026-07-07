@@ -1,5 +1,7 @@
-import { queryOptions } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
+import { appendClauses } from '#/lib/filters'
+import type { FilterClause } from '#/lib/filters'
 import type { Tlp } from '#/lib/domain'
 import type {
   Observable,
@@ -25,9 +27,34 @@ export type ObservablePublic = {
   updated_at: string | null
 }
 
+/** Column the observable list is sorted by, server-side. */
+export type ObservableSort = 'value' | 'added'
+
+export type ObservableListFilters = {
+  clauses?: FilterClause[]
+  sort?: ObservableSort | ''
+  order?: 'asc' | 'desc'
+  skip?: number
+  limit?: number
+}
+
+export type ObservablesResult = { observables: Observable[]; total: number }
+
+/** Filterable values across the org's observables, for the filter dropdowns. */
+export type ObservableFacets = { sources: string[] }
+
+export const DEFAULT_OBSERVABLE_FILTERS: ObservableListFilters = {
+  sort: '',
+  order: 'desc',
+  skip: 0,
+  limit: 10,
+}
+
 export const observableKeys = {
   all: ['observables'] as const,
-  list: () => [...observableKeys.all, 'list'] as const,
+  lists: () => [...observableKeys.all, 'list'] as const,
+  list: (filters: ObservableListFilters = DEFAULT_OBSERVABLE_FILTERS) =>
+    [...observableKeys.lists(), filters] as const,
   enrichments: (id: string) =>
     [...observableKeys.all, 'enrichments', id] as const,
 }
@@ -109,15 +136,38 @@ function toObservable(dto: ObservablePublic): Observable {
   }
 }
 
-export async function fetchObservables(): Promise<Observable[]> {
-  const page = await api.get('observables/').json<Page<ObservablePublic>>()
-  return page.items.map(toObservable)
+export async function fetchObservables(
+  filters: ObservableListFilters = DEFAULT_OBSERVABLE_FILTERS,
+): Promise<ObservablesResult> {
+  const params = new URLSearchParams()
+  appendClauses(params, filters.clauses)
+  if (filters.sort) params.set('sort', filters.sort)
+  if (filters.order) params.set('order', filters.order)
+  if (filters.skip != null) params.set('skip', String(filters.skip))
+  if (filters.limit != null) params.set('limit', String(filters.limit))
+  const page = await api
+    .get('observables/', { searchParams: params })
+    .json<Page<ObservablePublic>>()
+  return { observables: page.items.map(toObservable), total: page.total }
 }
 
-export const observablesQueryOptions = () =>
+export const observablesQueryOptions = (
+  filters: ObservableListFilters = DEFAULT_OBSERVABLE_FILTERS,
+) =>
   queryOptions({
-    queryKey: observableKeys.list(),
-    queryFn: fetchObservables,
+    queryKey: observableKeys.list(filters),
+    queryFn: () => fetchObservables(filters),
+    placeholderData: keepPreviousData,
+  })
+
+async function fetchObservableFacets(): Promise<ObservableFacets> {
+  return api.get('observables/filters').json<ObservableFacets>()
+}
+
+export const observableFacetsQueryOptions = () =>
+  queryOptions({
+    queryKey: [...observableKeys.all, 'facets'] as const,
+    queryFn: fetchObservableFacets,
   })
 
 export async function fetchObservableEnrichments(

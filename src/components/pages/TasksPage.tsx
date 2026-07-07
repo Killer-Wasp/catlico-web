@@ -1,16 +1,18 @@
 import classes from '#/components/Cases/CasesPage.module.css'
 import { getCaseRouteId } from '#/components/Cases/caseDetails'
 import { AssignMenu } from '#/components/Table/AssignMenu'
-import type { TokenField } from '#/components/Table/TokenSearch'
+import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import type { Task, TaskStatus } from '#/components/Tasks/tasks.types'
 import { TASK_STATUS_LABEL, advanceTaskStatus } from '#/components/Tasks/tasks'
 import {
-  DEFAULT_TASK_FILTERS,
   assignTask,
+  taskFacetsQueryOptions,
   taskKeys,
   tasksQueryOptions,
   updateTaskStatus,
 } from '#/components/Tasks/tasksQueries'
+import type { TaskListFilters, TaskSort } from '#/components/Tasks/tasksQueries'
+import type { FilterClause } from '#/lib/filters'
 import type { UserPublic } from '#/components/Users/usersQueries'
 import { userDisplayName } from '#/components/Users/usersQueries'
 import { DataTable } from '#/components/Table/DataTable'
@@ -18,32 +20,79 @@ import { TablePanel } from '#/components/Table/TablePanel'
 import { Box } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ColumnDef, SortingState } from '@tanstack/react-table'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
+import type { OnChangeFn, ColumnDef, SortingState } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
-import { STATUS_OPTIONS } from './tasks/constants'
 import { buildTaskColumns } from './tasks/taskColumns'
+
+// Task status filter options carry the backend enum value (Waiting/InProgress/…)
+// so the server can match exactly.
+const STATUS_FILTER_OPTIONS = [
+  { value: 'Waiting', label: 'Waiting' },
+  { value: 'InProgress', label: 'In progress' },
+  { value: 'Completed', label: 'Completed' },
+  { value: 'Cancelled', label: 'Cancelled' },
+]
+
+// Sortable columns whose id is a valid backend sort key.
+const TASK_SORTS = new Set<TaskSort>([
+  'caseId',
+  'title',
+  'assignee',
+  'due',
+  'status',
+])
 
 export function TasksPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data, isPending, isError, refetch, isFetching } = useQuery(
-    tasksQueryOptions(DEFAULT_TASK_FILTERS),
-  )
-  const tasks = data?.tasks ?? []
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'caseId', desc: false },
   ])
+  const [tokens, setTokens] = useState<Token[]>([])
+  const pageSize = pagination.pageSize
+
+  // Tokens + sort + page window → the backend query.
+  const filters = useMemo<TaskListFilters>(() => {
+    const sort = sorting.at(0)
+    const sortKey =
+      sort && TASK_SORTS.has(sort.id as TaskSort)
+        ? (sort.id as TaskSort)
+        : 'caseId'
+    const out: TaskListFilters = {
+      sort: sortKey,
+      order: sort ? (sort.desc ? 'desc' : 'asc') : 'asc',
+      skip: pagination.pageIndex * pagination.pageSize,
+      limit: pagination.pageSize,
+    }
+    const clauses: FilterClause[] = tokens.map((t) => ({
+      key: t.field,
+      op: t.op ?? 'eq',
+      value: t.value,
+    }))
+    if (clauses.length) out.clauses = clauses
+    return out
+  }, [tokens, sorting, pagination])
+
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
+    tasksQueryOptions(filters),
+  )
+  const tasks = data?.tasks ?? []
+  const total = data?.total ?? 0
+  const { data: facets } = useQuery(taskFacetsQueryOptions())
+
+  const onTokensChange = (next: Token[]) => {
+    setTokens(next)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
   const openTaskCase = (caseId: string) => {
     navigate({
@@ -129,56 +178,53 @@ export function TasksPage() {
       columnVisibility: { kind: false, select: selectMode },
     },
     getRowId: (row) => row.id,
+    manualFiltering: true,
+    manualSorting: true,
+    manualPagination: true,
+    rowCount: total,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
     enableSorting: true,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    autoResetPageIndex: true,
   })
 
-  const assigneeOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(tasks.map((task) => task.assignee ?? 'Unassigned')),
-      ).sort(),
-    [tasks],
-  )
-  const kindOptions = useMemo(
-    () => Array.from(new Set(tasks.map((task) => task.kind))).sort(),
-    [tasks],
-  )
+  // Options come from org-wide facets so every value stays selectable even when
+  // it's off the current page.
+  const assigneeOptions = useMemo(() => {
+    const xs = facets?.assignees ?? []
+    return facets?.unassigned ? [...xs, 'Unassigned'] : xs
+  }, [facets])
+  const kindOptions = useMemo(() => facets?.kinds ?? [], [facets])
 
   const toOpts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }))
-  const filterFields = useMemo<(TokenField & { columnId: string })[]>(
+  const filterFields = useMemo<TokenField[]>(
     () => [
       {
         key: 'status',
         label: 'Status',
-        kind: 'enum' as const,
-        columnId: 'status',
-        options: STATUS_OPTIONS,
+        kind: 'enum',
+        operators: ['eq'],
+        options: STATUS_FILTER_OPTIONS,
       },
       {
         key: 'assignee',
         label: 'Assignee',
-        kind: 'enum' as const,
-        columnId: 'assignee',
+        kind: 'enum',
+        operators: ['eq'],
         options: toOpts(assigneeOptions),
       },
       {
         key: 'kind',
         label: 'Kind',
-        kind: 'enum' as const,
-        columnId: 'kind',
+        kind: 'enum',
+        operators: ['eq'],
         options: toOpts(kindOptions),
       },
-      { key: 'case', label: 'Case', kind: 'text' as const, columnId: 'caseId' },
-      { key: 'title', label: 'Title', kind: 'text' as const, columnId: 'title' },
+      { key: 'case', label: 'Case', kind: 'text', operators: ['eq', 'co'] },
+      { key: 'title', label: 'Title', kind: 'text', operators: ['eq', 'co'] },
     ],
     [assigneeOptions, kindOptions],
   )
@@ -235,9 +281,14 @@ export function TasksPage() {
       <TablePanel
         title="Task queue"
         countNoun="tasks"
+        count={total}
         table={table}
         filterFields={filterFields}
         filterPlaceholder="Filter tasks — pick a field, then a value"
+        tokens={tokens}
+        onTokensChange={onTokensChange}
+        hasActiveFilters={tokens.length > 0}
+        onClearFilters={() => onTokensChange([])}
         selectable
         selectMode={selectMode}
         onToggleSelectMode={() =>

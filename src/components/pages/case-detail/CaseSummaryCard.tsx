@@ -248,7 +248,7 @@ function SummaryField({
       <Text className={styles.fieldLabel} mb={4}>
         {label}
       </Text>
-      <Text fw={650}>{children}</Text>
+      <Box className={styles.summaryFieldValue}>{children}</Box>
     </Box>
   )
 }

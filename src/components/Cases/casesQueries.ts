@@ -9,6 +9,8 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api, API_BASE } from '#/lib/api/client'
 import { getActiveOrgId } from '#/lib/auth/session'
+import { appendClauses } from '#/lib/filters'
+import type { FilterClause, FilterOp } from '#/lib/filters'
 import type { CaseStatus, Severity, Tlp } from '#/lib/domain'
 import type { MemberPublic } from './caseUsers'
 import type {
@@ -45,6 +47,9 @@ export type AttachmentPublic = {
 /** Column the list is sorted by, server-side. */
 export type CaseSort = 'id' | 'created' | 'updated'
 
+// Shared filter primitives, re-exported for existing importers of this module.
+export type { FilterOp, FilterClause }
+
 /**
  * The complete query the cases list sends to the backend: filters (every field
  * is OR-within / AND-across), the sort, and the page window. Empty/omitted
@@ -53,18 +58,8 @@ export type CaseSort = 'id' | 'created' | 'updated'
  * entry.
  */
 export type CaseListFilters = {
-  /** Backend `status_filter` (Open | Resolved | Duplicated). */
-  status?: string[]
-  /** Backend `severity` (1–4). */
-  severity?: number[]
-  /** Assignee emails, plus the literal `Unassigned` for unassigned cases. */
-  assignee?: string[]
-  /** Tag strings; a case matches if it carries any. */
-  tag?: string[]
-  /** Case-insensitive title substrings. */
-  title?: string[]
-  /** Case-number substrings (the leading `#` is tolerated). */
-  case?: string[]
+  /** Filter clauses (OR-within-key, AND-across-key). Omitted ⇒ no constraint. */
+  clauses?: FilterClause[]
   sort?: CaseSort
   order?: 'asc' | 'desc'
   skip?: number
@@ -181,20 +176,9 @@ function toCase(c: CasePublic): Case {
 
 // --- fetchers --------------------------------------------------------------
 
-// Append each value of a multi-value filter as a repeated query param
-// (`?tag=a&tag=b`), matching FastAPI's `list[...]` query parsing.
-function appendAll(params: URLSearchParams, key: string, values?: string[]) {
-  for (const v of values ?? []) params.append(key, v)
-}
-
 async function fetchCases(filters: CaseListFilters): Promise<CasesResult> {
   const params = new URLSearchParams()
-  appendAll(params, 'status_filter', filters.status)
-  appendAll(params, 'severity', filters.severity?.map(String))
-  appendAll(params, 'assignee', filters.assignee)
-  appendAll(params, 'tag', filters.tag)
-  appendAll(params, 'title', filters.title)
-  appendAll(params, 'case_q', filters.case)
+  appendClauses(params, filters.clauses)
   if (filters.sort) params.set('sort', filters.sort)
   if (filters.order) params.set('order', filters.order)
   if (filters.skip != null) params.set('skip', String(filters.skip))
@@ -205,15 +189,27 @@ async function fetchCases(filters: CaseListFilters): Promise<CasesResult> {
   return { cases: page.items.map(toCase), total: page.total }
 }
 
-/** Distinct assignee/tag values across the org's cases, for the filter dropdowns. */
+/** Filterable values across the org's cases, powering the filter dropdowns. */
 export type CaseFacets = {
   assignees: string[]
   unassigned: boolean
-  tags: string[]
+  /** Tag key → its distinct values (value-aware grouping; free tags excluded). */
+  tagKeys: Record<string, string[]>
+}
+
+type CaseFacetsDTO = {
+  assignees: string[]
+  unassigned: boolean
+  tag_keys: Record<string, string[]>
 }
 
 async function fetchCaseFacets(): Promise<CaseFacets> {
-  return api.get('cases/filters').json<CaseFacets>()
+  const raw = await api.get('cases/filters').json<CaseFacetsDTO>()
+  return {
+    assignees: raw.assignees,
+    unassigned: raw.unassigned,
+    tagKeys: raw.tag_keys,
+  }
 }
 
 export async function createCaseFromTemplate(

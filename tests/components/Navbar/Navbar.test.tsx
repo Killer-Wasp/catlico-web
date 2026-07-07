@@ -1,15 +1,18 @@
 // @vitest-environment jsdom
 import { Navbar } from '#/components/Navbar/Navbar'
-import type { Alert } from '#/components/Alerts/alerts.types'
+import type { AlertsResult } from '#/components/Alerts/alertsQueries'
 import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
 import type { CasesResult } from '#/components/Cases/casesQueries'
 import { casesQueryOptions } from '#/components/Cases/casesQueries'
 import { connectorsQueryOptions } from '#/components/Connectors/connectors'
 import { analyzerJobsQueryOptions } from '#/components/Connectors/connectorJobs'
-import type { Observable } from '#/components/Observables/observables.types'
+import type { ObservablesResult } from '#/components/Observables/observablesQueries'
 import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
 import type { TasksResult } from '#/components/Tasks/tasksQueries'
-import { tasksQueryOptions } from '#/components/Tasks/tasksQueries'
+import {
+  OPEN_TASK_FILTERS,
+  tasksQueryOptions,
+} from '#/components/Tasks/tasksQueries'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
@@ -53,53 +56,49 @@ function renderNavbar() {
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
 
-  queryClient.setQueryData(alertsQueryOptions().queryKey, [] satisfies Alert[])
+  queryClient.setQueryData(alertsQueryOptions().queryKey, {
+    alerts: [],
+    total: 0,
+  } satisfies AlertsResult)
   queryClient.setQueryData(casesQueryOptions().queryKey, {
     cases: [],
     total: 0,
   } satisfies CasesResult)
-  queryClient.setQueryData(observablesQueryOptions().queryKey, [
-    {
-      id: 'observable-1',
-      type: 'ip',
-      value: '203.0.113.47',
-      flags: ['ioc'],
-      tlp: 2,
-      source: 'feed',
-      added: '10:00',
-    },
-    {
-      id: 'observable-2',
-      type: 'domain',
-      value: 'login.example',
-      flags: [],
-      tlp: 1,
-      source: '#1842',
-      added: '10:05',
-    },
-  ] satisfies Observable[])
-  queryClient.setQueryData(connectorsQueryOptions().queryKey, [])
-  queryClient.setQueryData(analyzerJobsQueryOptions().queryKey, [])
-  queryClient.setQueryData(tasksQueryOptions().queryKey, {
-    total: 1,
-    tasks: [
+  queryClient.setQueryData(observablesQueryOptions().queryKey, {
+    total: 2,
+    observables: [
       {
-        id: 'T-1842-1',
-        title: 'Revoke refresh tokens',
-        description: 'OAuth consent grant',
-        kind: 'Contain',
-        caseId: '#1842',
-        caseSeverity: 'high',
-        due: 'No due date',
-        status: 'waiting',
+        id: 'observable-1',
+        type: 'ip',
+        value: '203.0.113.47',
+        flags: ['ioc'],
+        tlp: 2,
+        source: 'feed',
+        added: '10:00',
+      },
+      {
+        id: 'observable-2',
+        type: 'domain',
+        value: 'login.example',
+        flags: [],
+        tlp: 1,
+        source: '#1842',
+        added: '10:05',
       },
     ],
+  } satisfies ObservablesResult)
+  queryClient.setQueryData(connectorsQueryOptions().queryKey, [])
+  queryClient.setQueryData(analyzerJobsQueryOptions().queryKey, [])
+  // The navbar badge reads the server-side open-tasks count (total), not rows.
+  queryClient.setQueryData(tasksQueryOptions(OPEN_TASK_FILTERS).queryKey, {
+    total: 1,
+    tasks: [],
   } satisfies TasksResult)
 
   render(
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
-        <Navbar />
+        <Navbar collapsed={false} onToggle={() => {}} />
       </MantineProvider>
     </QueryClientProvider>,
   )

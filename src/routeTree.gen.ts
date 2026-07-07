@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppOrganisationsRouteImport } from './routes/_app/organisations'
 import { Route as AppObservablesRouteImport } from './routes/_app/observables'
 import { Route as AppKnowledgeBaseRouteImport } from './routes/_app/knowledge-base'
 import { Route as AppFunctionsRouteImport } from './routes/_app/functions'
@@ -53,6 +54,11 @@ const AppTasksRoute = AppTasksRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrganisationsRoute = AppOrganisationsRouteImport.update({
+  id: '/organisations',
+  path: '/organisations',
   getParentRoute: () => AppRoute,
 } as any)
 const AppObservablesRoute = AppObservablesRouteImport.update({
@@ -146,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/functions': typeof AppFunctionsRoute
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
+  '/organisations': typeof AppOrganisationsRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/functions': typeof AppFunctionsRoute
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
+  '/organisations': typeof AppOrganisationsRoute
   '/tasks': typeof AppTasksRoute
   '/': typeof AppIndexRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/_app/functions': typeof AppFunctionsRoute
   '/_app/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/_app/observables': typeof AppObservablesRoute
+  '/_app/organisations': typeof AppOrganisationsRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRoute
   '/_app/': typeof AppIndexRoute
@@ -214,6 +223,7 @@ export interface FileRouteTypes {
     | '/functions'
     | '/knowledge-base'
     | '/observables'
+    | '/organisations'
     | '/settings'
     | '/tasks'
     | '/case-templates/$templateId'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/functions'
     | '/knowledge-base'
     | '/observables'
+    | '/organisations'
     | '/tasks'
     | '/'
     | '/case-templates/$templateId'
@@ -256,6 +267,7 @@ export interface FileRouteTypes {
     | '/_app/functions'
     | '/_app/knowledge-base'
     | '/_app/observables'
+    | '/_app/organisations'
     | '/_app/settings'
     | '/_app/tasks'
     | '/_app/'
@@ -311,6 +323,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/organisations': {
+      id: '/_app/organisations'
+      path: '/organisations'
+      fullPath: '/organisations'
+      preLoaderRoute: typeof AppOrganisationsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/observables': {
@@ -474,6 +493,7 @@ interface AppRouteChildren {
   AppFunctionsRoute: typeof AppFunctionsRoute
   AppKnowledgeBaseRoute: typeof AppKnowledgeBaseRouteWithChildren
   AppObservablesRoute: typeof AppObservablesRoute
+  AppOrganisationsRoute: typeof AppOrganisationsRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTasksRoute: typeof AppTasksRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -491,6 +511,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppFunctionsRoute: AppFunctionsRoute,
   AppKnowledgeBaseRoute: AppKnowledgeBaseRouteWithChildren,
   AppObservablesRoute: AppObservablesRoute,
+  AppOrganisationsRoute: AppOrganisationsRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTasksRoute: AppTasksRoute,
   AppIndexRoute: AppIndexRoute,

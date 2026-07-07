@@ -13,7 +13,6 @@ import { DataTable } from '#/components/Table/DataTable'
 import { getActiveOrgId } from '#/lib/auth/session'
 import type { ResolvedAuthor } from './case-templates-list/templateColumns'
 import { TablePanel } from '#/components/Table/TablePanel'
-import { ButtonLink } from '#/components/ui/ButtonLink'
 import { SEVERITY_OPTIONS } from '#/lib/domain'
 import { Box, Button, Group, Loader, Stack, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
@@ -154,6 +153,11 @@ function CaseTemplatesIndex() {
 
   const openTemplate = (id: string) =>
     navigate({ to: '/case-templates/$templateId', params: { templateId: id } })
+  const createTemplate = () =>
+    navigate({
+      to: '/case-templates/$templateId',
+      params: { templateId: 'new' },
+    })
 
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'updated', desc: true },
@@ -267,13 +271,9 @@ function CaseTemplatesIndex() {
             >
               Import JSON
             </Button>
-            <ButtonLink
-              to="/case-templates/$templateId"
-              params={{ templateId: 'new' }}
-              size="xs"
-            >
+            <Button size="xs" onClick={createTemplate}>
               + New template
-            </ButtonLink>
+            </Button>
           </Group>
         }
       >

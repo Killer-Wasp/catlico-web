@@ -119,4 +119,30 @@ describe('Header account menu', () => {
     expect(localStorage.getItem('catlico.orgId')).toBeNull()
     expect(assign).toHaveBeenCalledWith('/login')
   })
+
+  test('hides the Organisations link for a non-superadmin', async () => {
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open account menu' }))
+    expect(await screen.findByText('Account settings')).toBeDefined()
+    expect(screen.queryByText('Organisations')).toBeNull()
+  })
+
+  test('shows the Organisations link for a superadmin', async () => {
+    vi.mocked(api.get).mockReturnValue({
+      json: async () => ({
+        id: 'u1',
+        email: 'j.tanaka@origin.example',
+        is_active: true,
+        is_superadmin: true,
+        created_at: '2026-01-01T00:00:00Z',
+        last_login_at: null,
+      }),
+    } satisfies JsonResponse as ReturnType<typeof api.get>)
+
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open account menu' }))
+    expect(await screen.findByText('Organisations')).toBeDefined()
+  })
 })

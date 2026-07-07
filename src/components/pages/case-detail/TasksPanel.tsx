@@ -16,6 +16,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Flag, Hourglass } from 'lucide-react'
 import { useState } from 'react'
+import { CasePanelHeader } from './CasePanelHeader'
 import { actionNotice } from './constants'
 import { TaskDetailPanel } from './TaskDetailPanel'
 import { formatDue, TASK_STATUS, taskMeta } from './taskHelpers'
@@ -50,7 +51,8 @@ export function TasksPanel({
 
   if (activeTask) {
     return (
-      <Stack gap={0} p="lg">
+      <Stack gap="md" p="lg">
+        <CasePanelHeader label="Tasks" />
         <TaskDetailPanel
           task={activeTask}
           caseDetail={caseDetail}
@@ -66,6 +68,8 @@ export function TasksPanel({
 
   return (
     <Stack gap={0} p="lg">
+      <CasePanelHeader label="Tasks" />
+
       {tasks.map((task) => {
         const done = task.status === 'completed'
         return (

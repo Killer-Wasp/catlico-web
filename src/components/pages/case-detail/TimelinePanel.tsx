@@ -4,6 +4,7 @@ import { Box, Button, Group, Stack, Text, TextInput } from '@mantine/core'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
+import { CasePanelHeader } from './CasePanelHeader'
 import { actionNotice } from './constants'
 
 const TIMELINE_MARKER: Record<'warn' | 'ok' | 'neutral' | 'comment', string> = {
@@ -70,6 +71,8 @@ export function TimelinePanel({
 
   return (
     <Stack gap="md" p="lg">
+      <CasePanelHeader label="Timeline" />
+
       <Box style={{ position: 'relative' }}>
         <Box
           style={{

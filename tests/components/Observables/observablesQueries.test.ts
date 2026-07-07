@@ -69,9 +69,10 @@ describe('observables queries', () => {
       } satisfies JsonResponse as ReturnType<typeof api.get>
     })
 
-    const observables = await fetchObservables()
+    const result = await fetchObservables()
 
-    expect(observables).toEqual([
+    expect(result.total).toBe(2)
+    expect(result.observables).toEqual([
       {
         id: 'a276a296-3609-4926-b159-b9f506fcd668',
         type: 'url',
@@ -95,7 +96,11 @@ describe('observables queries', () => {
   })
 
   test('uses a stable query key', () => {
-    expect(observablesQueryOptions().queryKey).toEqual(['observables', 'list'])
+    expect(observablesQueryOptions().queryKey).toEqual([
+      'observables',
+      'list',
+      { sort: '', order: 'desc', skip: 0, limit: 10 },
+    ])
   })
 
   test('fetches the enrichment overview for an observable', async () => {

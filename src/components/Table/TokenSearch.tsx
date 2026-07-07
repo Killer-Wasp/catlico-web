@@ -1,13 +1,20 @@
-import { Combobox, Pill, PillsInput, useCombobox } from '@mantine/core'
+import { Combobox, Pill, PillsInput, Text, useCombobox } from '@mantine/core'
 import { useMemo, useState } from 'react'
+import { Tag } from '#/components/Tag/Tag'
 import classes from './TokenSearch.module.css'
 
-// AWS EC2-style token search. The user picks a field, then a value, and each
-// choice is committed as a `field:value` pill. Multiple pills build a compound
-// filter. The component owns only the combobox UX — it is table-agnostic and
-// reports its state through the controlled `tokens` / `onChange` props.
+// AWS EC2-style token search. The user picks a field, optionally an operator,
+// then a value, and each choice is committed as a pill. Multiple pills build a
+// compound filter. The component owns only the combobox UX — it is table-agnostic
+// and reports its state through the controlled `tokens` / `onChange` props.
+//
+// Operators are opt-in per field. A field with no `operators` keeps the legacy
+// behaviour: no operator stage, and a `field:value` pill. A field that declares
+// `operators` renders EC2-style `field = value` / `field : value` pills and, when
+// it offers more than one, an operator-selection stage between field and value.
 
 export type TokenFieldKind = 'enum' | 'text'
+export type TokenOp = 'eq' | 'co'
 
 export type TokenField = {
   /** Stable key used in tokens and option encoding (e.g. "status"). */
@@ -17,9 +24,16 @@ export type TokenField = {
   kind: TokenFieldKind
   /** Required for `enum` fields; the selectable values. */
   options?: { value: string; label: string }[]
+  /** Operators this field offers. Omit for the legacy single-operator behaviour. */
+  operators?: TokenOp[]
 }
 
-export type Token = { field: string; value: string; label: string }
+export type Token = {
+  field: string
+  value: string
+  label: string
+  op?: TokenOp
+}
 
 export type TokenSearchProps = {
   fields: TokenField[]
@@ -28,8 +42,17 @@ export type TokenSearchProps = {
   placeholder?: string
 }
 
+const OP_SYMBOL: Record<TokenOp, string> = { eq: '=', co: ':' }
+const OP_LABEL: Record<TokenOp, string> = { eq: 'Equals', co: 'Contains' }
+
+// A field opts into EC2-style operator pills by declaring `operators`.
+const usesOperators = (f: TokenField) => f.operators != null
+// Whether the operator-selection stage is shown (more than one to choose from).
+const needsOpStage = (f: TokenField) => (f.operators?.length ?? 0) > 1
+const defaultOp = (f: TokenField): TokenOp => f.operators?.[0] ?? 'eq'
+
 // Resolve a typed field name to a field: exact key/label match, or a unique
-// prefix match. Used by the ":" shortcut to jump straight into value stage.
+// prefix match. Used by the ":" shortcut to jump straight past field selection.
 function matchField(fields: TokenField[], search: string): TokenField | null {
   const s = search.trim().toLowerCase()
   if (!s) return null
@@ -54,15 +77,24 @@ export function TokenSearch({
   const [search, setSearch] = useState('')
   // The field currently being valued; null means we're choosing a field.
   const [activeField, setActiveField] = useState<TokenField | null>(null)
+  // The chosen operator; null while still on the operator stage.
+  const [activeOp, setActiveOp] = useState<TokenOp | null>(null)
 
   const fieldByKey = useMemo(
     () => new Map(fields.map((f) => [f.key, f])),
     [fields],
   )
 
+  // Phase: 'field' → 'op' (only when needed) → 'value'.
+  const phase: 'field' | 'op' | 'value' = !activeField
+    ? 'field'
+    : needsOpStage(activeField) && activeOp === null
+      ? 'op'
+      : 'value'
+
   const options = useMemo(() => {
     const s = search.trim().toLowerCase()
-    if (!activeField) {
+    if (phase === 'field') {
       return fields
         .filter(
           (f) =>
@@ -72,7 +104,14 @@ export function TokenSearch({
         )
         .map((f) => ({ value: `field:${f.key}`, label: f.label }))
     }
-    if (activeField.kind === 'enum') {
+    if (phase === 'op' && activeField) {
+      return (activeField.operators ?? []).map((op) => ({
+        value: `op:${op}`,
+        label: `${activeField.label} ${OP_SYMBOL[op]} — ${OP_LABEL[op]}`,
+      }))
+    }
+    // value phase, enum: offer the not-yet-used values.
+    if (activeField?.kind === 'enum') {
       const used = new Set(
         tokens.filter((t) => t.field === activeField.key).map((t) => t.value),
       )
@@ -84,23 +123,44 @@ export function TokenSearch({
         .map((o) => ({ value: `val:${o.value}`, label: o.label }))
     }
     return []
-  }, [activeField, fields, search, tokens])
+  }, [phase, activeField, activeOp, fields, search, tokens])
 
   const commit = (field: TokenField, value: string, label: string) => {
-    // Ignore exact duplicates within the same field.
-    if (tokens.some((t) => t.field === field.key && t.value === value)) return
-    onChange([...tokens, { field: field.key, value, label }])
+    const op = usesOperators(field) ? (activeOp ?? defaultOp(field)) : undefined
+    // Ignore exact duplicates within the same field + operator.
+    if (
+      tokens.some(
+        (t) => t.field === field.key && t.value === value && t.op === op,
+      )
+    ) {
+      resetToFieldStage()
+      return
+    }
+    onChange([...tokens, { field: field.key, value, label, op }])
+    resetToFieldStage()
+  }
+
+  const resetToFieldStage = () => {
     setActiveField(null)
+    setActiveOp(null)
+    setSearch('')
+  }
+
+  const enterField = (field: TokenField) => {
+    setActiveField(field)
+    setActiveOp(needsOpStage(field) ? null : defaultOp(field))
     setSearch('')
   }
 
   const handleOptionSubmit = (optionValue: string) => {
     if (optionValue.startsWith('field:')) {
       const field = fieldByKey.get(optionValue.slice('field:'.length))
-      if (field) {
-        setActiveField(field)
-        setSearch('')
-      }
+      if (field) enterField(field)
+      return
+    }
+    if (optionValue.startsWith('op:') && activeField) {
+      setActiveOp(optionValue.slice('op:'.length) as TokenOp)
+      setSearch('')
       return
     }
     if (optionValue.startsWith('val:') && activeField) {
@@ -111,31 +171,37 @@ export function TokenSearch({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === ':' && !activeField) {
+    if (e.key === ':' && phase === 'field') {
       const field = matchField(fields, search)
       if (field) {
         e.preventDefault()
-        setActiveField(field)
-        setSearch('')
+        enterField(field)
       }
       return
     }
-    if (e.key === 'Enter' && activeField?.kind === 'text' && search.trim()) {
+    if (
+      e.key === 'Enter' &&
+      phase === 'value' &&
+      activeField?.kind === 'text' &&
+      search.trim()
+    ) {
       e.preventDefault()
       const v = search.trim()
       commit(activeField, v, v)
       return
     }
     if (e.key === 'Backspace' && search === '') {
-      if (activeField) setActiveField(null)
-      else if (tokens.length) onChange(tokens.slice(0, -1))
+      if (phase === 'value' && activeField && needsOpStage(activeField)) {
+        setActiveOp(null) // step back to operator selection
+      } else if (activeField) {
+        resetToFieldStage()
+      } else if (tokens.length) {
+        onChange(tokens.slice(0, -1))
+      }
       return
     }
     if (e.key === 'Escape') {
-      if (activeField) {
-        setActiveField(null)
-        setSearch('')
-      }
+      if (activeField) resetToFieldStage()
       combobox.closeDropdown()
     }
   }
@@ -143,18 +209,57 @@ export function TokenSearch({
   const removeToken = (index: number) =>
     onChange(tokens.filter((_, i) => i !== index))
 
-  const pills = tokens.map((t, i) => {
+  const pillLabel = (t: Token) => {
     const field = fieldByKey.get(t.field)
-    return (
-      <Pill
-        key={`${t.field}:${t.value}`}
-        withRemoveButton
-        onRemove={() => removeToken(i)}
-      >
-        {field?.label ?? t.field}:{t.label}
-      </Pill>
-    )
-  })
+    const name = field?.label ?? t.field
+    if (field && usesOperators(field)) {
+      return `${name} ${OP_SYMBOL[t.op ?? 'eq']} ${t.label}`
+    }
+    return `${name}:${t.label}`
+  }
+
+  const toneForField = (
+    fieldKey: string,
+  ): React.ComponentProps<typeof Tag>['tone'] => {
+    const key = fieldKey.toLowerCase()
+    if (key === 'status') return 'status'
+    if (key === 'severity') return 'severity'
+    if (key === 'assignee') return 'assignee'
+    if (key === 'tlp' || key === 'tag:tlp') return 'tlp'
+    if (key === 'pap' || key === 'tag:pap') return 'pap'
+    if (key.startsWith('tag:')) return 'taxonomy'
+    return 'neutral'
+  }
+
+  const pillTone = (t: Token): React.ComponentProps<typeof Tag>['tone'] =>
+    toneForField(t.field)
+
+  const pills = tokens.map((t, i) => (
+    <Tag
+      key={`${t.field}:${t.op ?? ''}:${t.value}`}
+      label={pillLabel(t)}
+      tone={pillTone(t)}
+      onRemove={() => removeToken(i)}
+      removeLabel={`Remove ${pillLabel(t)} filter`}
+    />
+  ))
+
+  // In-progress pill prefix while valuing a field, e.g. "Status =" or "Title".
+  const activePrefix = activeField
+    ? usesOperators(activeField) && activeOp
+      ? `${activeField.label} ${OP_SYMBOL[activeOp]}`
+      : activeField.label
+    : ''
+
+  const fieldPlaceholder = () => {
+    if (phase === 'op') return `pick an operator…`
+    if (phase === 'value') {
+      return activeField?.kind === 'text'
+        ? `type a ${activeField.label}…`
+        : `select a ${activeField?.label}…`
+    }
+    return tokens.length ? undefined : placeholder
+  }
 
   return (
     <Combobox
@@ -172,29 +277,17 @@ export function TokenSearch({
           <Pill.Group>
             {pills}
             {activeField && (
-              <Pill
-                withRemoveButton
-                className={classes.activePill}
-                onRemove={() => {
-                  setActiveField(null)
-                  setSearch('')
-                }}
-              >
-                {activeField.label}:
-              </Pill>
+              <Tag
+                label={activePrefix}
+                tone={toneForField(activeField.key)}
+                onRemove={resetToFieldStage}
+                removeLabel={`Clear ${activePrefix} filter`}
+              />
             )}
             <Combobox.EventsTarget>
               <PillsInput.Field
                 value={search}
-                placeholder={
-                  activeField
-                    ? activeField.kind === 'text'
-                      ? `type a ${activeField.label}…`
-                      : `select a ${activeField.label}…`
-                    : tokens.length
-                      ? undefined
-                      : placeholder
-                }
+                placeholder={fieldPlaceholder()}
                 onChange={(e) => {
                   setSearch(e.currentTarget.value)
                   combobox.openDropdown()
@@ -218,11 +311,17 @@ export function TokenSearch({
             ))
           ) : (
             <Combobox.Empty>
-              {activeField?.kind === 'text'
-                ? search.trim()
-                  ? 'Press Enter to add'
-                  : `Type a ${activeField.label}`
-                : 'No matches'}
+              {phase === 'value' && activeField?.kind === 'text' ? (
+                search.trim() ? (
+                  'Press Enter to add'
+                ) : (
+                  <Text size="xs" c="dimmed">
+                    Type a {activeField.label}
+                  </Text>
+                )
+              ) : (
+                'No matches'
+              )}
             </Combobox.Empty>
           )}
         </Combobox.Options>

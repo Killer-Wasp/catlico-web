@@ -49,7 +49,9 @@ describe('tasks API queries', () => {
   test('fetches the org task queue and maps backend context for the table', async () => {
     vi.mocked(api.get).mockImplementation((input, options) => {
       expect(String(input)).toBe('task-queue')
-      expect(options).toEqual({ searchParams: { limit: '200', skip: '0' } })
+      const sp = (options as { searchParams: URLSearchParams }).searchParams
+      expect(sp.get('limit')).toBe('200')
+      expect(sp.get('skip')).toBe('0')
       return {
         json: async () => ({
           items: [taskDto],

@@ -15,6 +15,7 @@ import {
 } from '@mantine/core'
 import type { ColumnDef } from '@tanstack/react-table'
 import { EyeOff, Settings, Sparkles } from 'lucide-react'
+import type { TableColumnMeta } from '#/components/Table/columnMeta'
 import {
   includesAnySubstring,
   includesAnyTag,
@@ -61,6 +62,7 @@ export function buildAlertColumns({
       accessorFn: (row) => row.sev,
       filterFn: includesOne,
       sortingFn: byAlertId,
+      meta: { nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => (
         <Severity id={row.original.id} sev={row.original.sev} />
       ),
@@ -71,9 +73,10 @@ export function buildAlertColumns({
       accessorFn: (row) => row.title,
       filterFn: includesAnySubstring,
       enableSorting: false,
+      meta: { grow: true } satisfies TableColumnMeta,
       cell: ({ row }) => (
         <Box>
-          <Text fw={500} truncate maw={420}>
+          <Text fw={500} truncate>
             {row.original.title}
           </Text>
           <Group gap={6} mt={4} wrap="wrap">
@@ -90,6 +93,7 @@ export function buildAlertColumns({
       accessorFn: (row) => row.src,
       filterFn: includesOne,
       enableSorting: false,
+      meta: { nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => (
         <Group gap={8} wrap="nowrap">
           <ColorSwatch
@@ -110,6 +114,7 @@ export function buildAlertColumns({
       accessorFn: (row) => row.tlp,
       filterFn: includesOne,
       enableSorting: false,
+      meta: { nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => {
         const tlpName = TLP[row.original.tlp]
         return (
@@ -147,6 +152,7 @@ export function buildAlertColumns({
       accessorFn: (row) => row.ageMin,
       enableColumnFilter: false,
       sortingFn: byAge,
+      meta: { nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => (
         <Text
           ff="monospace"
@@ -164,7 +170,7 @@ export function buildAlertColumns({
       header: '',
       enableColumnFilter: false,
       enableSorting: false,
-      meta: { ta: 'right' },
+      meta: { ta: 'right', nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => (
         <Menu position="bottom-end" withArrow shadow="md">
           <Menu.Target>

@@ -2,7 +2,13 @@
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import { TokenSearch } from '#/components/Table/TokenSearch'
 import { MantineProvider } from '@mantine/core'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 
@@ -132,5 +138,129 @@ describe('TokenSearch', () => {
     fireEvent.click(optionByName('Open'))
 
     expect(screen.getByText('status:Open')).toBeDefined()
+  })
+
+  test('committed filter pills render through the shared tag chip', () => {
+    render(<Harness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.click(optionByName('status'))
+    fireEvent.click(optionByName('Open'))
+
+    expect(
+      screen.getByText('status:Open').closest('[data-tag-tone]')?.dataset
+        .tagTone,
+    ).toBe('status')
+  })
+
+  test('committed filter tags include their own close button', () => {
+    render(<Harness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.click(optionByName('status'))
+    fireEvent.click(optionByName('Open'))
+
+    const tag = screen.getByText('status:Open').closest('[data-tag-tone]')
+    expect(tag).not.toBeNull()
+
+    const removeButton = within(tag as HTMLElement).getByRole('button', {
+      name: 'Remove status:Open filter',
+    })
+    fireEvent.click(removeButton)
+
+    expect(screen.queryByText('status:Open')).toBeNull()
+  })
+})
+
+// Fields that opt into operators (EC2-style): an operator stage between field
+// and value, and `field = value` / `field : value` pills.
+const OP_FIELDS: TokenField[] = [
+  {
+    key: 'status',
+    label: 'Status',
+    kind: 'enum',
+    operators: ['eq'],
+    options: [
+      { value: 'open', label: 'Open' },
+      { value: 'new', label: 'New' },
+    ],
+  },
+  { key: 'title', label: 'Title', kind: 'text', operators: ['eq', 'co'] },
+]
+
+function OpHarness() {
+  const [tokens, setTokens] = useState<Token[]>([])
+  return (
+    <MantineProvider>
+      <TokenSearch fields={OP_FIELDS} tokens={tokens} onChange={setTokens} />
+    </MantineProvider>
+  )
+}
+
+describe('TokenSearch with operators', () => {
+  test('single-operator enum field skips the operator stage', () => {
+    render(<OpHarness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.click(optionByName('Status'))
+
+    // Straight to values — no operator stage for an Equals-only field.
+    expect(options().map((o) => o.textContent)).toEqual(['Open', 'New'])
+    fireEvent.click(optionByName('Open'))
+    // Pill uses the EC2 "=" form, not "field:value".
+    expect(screen.getByText('Status = Open')).toBeDefined()
+  })
+
+  test('multi-operator text field: pick Contains, then commit on Enter', () => {
+    render(<OpHarness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.click(optionByName('Title'))
+
+    // Operator stage lists Equals and Contains.
+    expect(options().map((o) => o.textContent)).toEqual([
+      'Title = — Equals',
+      'Title : — Contains',
+    ])
+
+    fireEvent.click(optionByName('Title : — Contains'))
+    fireEvent.change(input, { target: { value: 'phish' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(screen.getByText('Title : phish')).toBeDefined()
+  })
+
+  test('in-progress operator filters render through the shared tag chip', () => {
+    render(<OpHarness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.click(optionByName('Title'))
+    fireEvent.click(optionByName('Title = — Equals'))
+
+    const tag = screen.getByText('Title =').closest('[data-tag-tone]')
+    expect(tag).not.toBeNull()
+
+    const clearButton = within(tag as HTMLElement).getByRole('button', {
+      name: 'Clear Title = filter',
+    })
+    fireEvent.click(clearButton)
+
+    expect(screen.queryByText('Title =')).toBeNull()
+    expect(options().map((o) => o.textContent)).toEqual(['Status', 'Title'])
+  })
+
+  test('backspace steps back from value to operator stage', () => {
+    render(<OpHarness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.click(optionByName('Title'))
+    fireEvent.click(optionByName('Title = — Equals'))
+
+    // In value stage; empty-input backspace returns to the operator stage.
+    fireEvent.keyDown(input, { key: 'Backspace' })
+    expect(options().map((o) => o.textContent)).toEqual([
+      'Title = — Equals',
+      'Title : — Contains',
+    ])
   })
 })

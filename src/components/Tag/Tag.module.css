@@ -1,4 +1,8 @@
 .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
   font-family: var(--mantine-font-family-monospace);
   font-size: 10px;
   padding: 1px 7px;
@@ -12,8 +16,85 @@
   );
 }
 
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  color: currentColor;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.remove:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 1px;
+}
+
 /* MITRE ATT&CK tags use the --mitre accent for text and border. */
 .mitre {
   color: var(--mitre);
   border-color: color-mix(in srgb, var(--mitre) 35%, transparent);
+}
+
+.status {
+  color: var(--mantine-color-blue-7);
+  border-color: var(--mantine-color-blue-3);
+  background: light-dark(
+    var(--mantine-color-blue-0),
+    var(--mantine-color-dark-6)
+  );
+}
+
+.severity {
+  color: var(--mantine-color-red-7);
+  border-color: var(--mantine-color-red-3);
+  background: light-dark(
+    var(--mantine-color-red-0),
+    var(--mantine-color-dark-6)
+  );
+}
+
+.tlp {
+  color: var(--mantine-color-yellow-8);
+  border-color: var(--mantine-color-yellow-4);
+  background: light-dark(
+    var(--mantine-color-yellow-0),
+    var(--mantine-color-dark-6)
+  );
+}
+
+.pap {
+  color: var(--mantine-color-teal-7);
+  border-color: var(--mantine-color-teal-3);
+  background: light-dark(
+    var(--mantine-color-teal-0),
+    var(--mantine-color-dark-6)
+  );
+}
+
+.assignee {
+  color: var(--mantine-color-violet-7);
+  border-color: var(--mantine-color-violet-3);
+  background: light-dark(
+    var(--mantine-color-violet-0),
+    var(--mantine-color-dark-6)
+  );
+}
+
+.taxonomy {
+  color: var(--mantine-color-grape-7);
+  border-color: var(--mantine-color-grape-3);
+  background: light-dark(
+    var(--mantine-color-grape-0),
+    var(--mantine-color-dark-6)
+  );
 }

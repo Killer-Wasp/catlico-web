@@ -257,12 +257,15 @@ describe('case list query', () => {
 
     const result = await runQueryFn<{ cases: unknown[]; total: number }>(
       casesQueryOptions({
-        status: ['Open', 'Resolved'],
-        severity: [3, 4],
-        assignee: ['a@b.com', 'Unassigned'],
-        tag: ['phishing'],
-        title: ['consent'],
-        case: ['1842'],
+        clauses: [
+          { key: 'status', op: 'eq', value: 'Open' },
+          { key: 'status', op: 'eq', value: 'Resolved' },
+          { key: 'severity', op: 'eq', value: '3' },
+          { key: 'assignee', op: 'eq', value: 'a@b.com' },
+          { key: 'tag:tlp', op: 'eq', value: 'amber' },
+          { key: 'title', op: 'co', value: 'consent' },
+          { key: 'case', op: 'eq', value: '1842' },
+        ],
         sort: 'created',
         order: 'asc',
         skip: 10,
@@ -275,12 +278,16 @@ describe('case list query', () => {
     expect(result.cases[0]).toMatchObject({ id: '#7', title: 'matched' })
 
     const p = captured as URLSearchParams
-    expect(p.getAll('status_filter')).toEqual(['Open', 'Resolved'])
-    expect(p.getAll('severity')).toEqual(['3', '4'])
-    expect(p.getAll('assignee')).toEqual(['a@b.com', 'Unassigned'])
-    expect(p.getAll('tag')).toEqual(['phishing'])
-    expect(p.getAll('title')).toEqual(['consent'])
-    expect(p.getAll('case_q')).toEqual(['1842'])
+    // Each clause becomes a repeated `filter=key~op~value` param, in order.
+    expect(p.getAll('filter')).toEqual([
+      'status~eq~Open',
+      'status~eq~Resolved',
+      'severity~eq~3',
+      'assignee~eq~a@b.com',
+      'tag:tlp~eq~amber',
+      'title~co~consent',
+      'case~eq~1842',
+    ])
     expect(p.get('sort')).toBe('created')
     expect(p.get('order')).toBe('asc')
     expect(p.get('skip')).toBe('10')
@@ -300,8 +307,7 @@ describe('case list query', () => {
     await runQueryFn(casesQueryOptions({ sort: 'id', order: 'desc' }))
 
     const p = captured as URLSearchParams
-    expect(p.getAll('status_filter')).toEqual([])
-    expect(p.getAll('tag')).toEqual([])
+    expect(p.getAll('filter')).toEqual([])
     expect(p.has('skip')).toBe(false)
   })
 
@@ -313,7 +319,7 @@ describe('case list query', () => {
         json: async () => ({
           assignees: ['a@b.com'],
           unassigned: true,
-          tags: ['phishing'],
+          tag_keys: { tlp: ['amber', 'red'] },
         }),
       } as ReturnType<typeof api.get>
     })
@@ -321,10 +327,11 @@ describe('case list query', () => {
     const facets = await runQueryFn(caseFacetsQueryOptions())
 
     expect(calls).toEqual(['cases/filters'])
+    // The DTO's `tag_keys` is mapped to the camelCase `tagKeys`.
     expect(facets).toEqual({
       assignees: ['a@b.com'],
       unassigned: true,
-      tags: ['phishing'],
+      tagKeys: { tlp: ['amber', 'red'] },
     })
   })
 })

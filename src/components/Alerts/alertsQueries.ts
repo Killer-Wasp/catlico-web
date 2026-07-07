@@ -11,16 +11,37 @@
  * `queryOptions`, so the loader-warmed cache and the component read share a
  * key and never double-fetch.
  */
-import { queryOptions } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
+import { appendClauses } from '#/lib/filters'
+import type { FilterClause } from '#/lib/filters'
 import type { Severity, Tlp } from '#/lib/domain'
 import type { Alert } from './alerts.types'
 
+/** Column the alert list is sorted by, server-side. */
+export type AlertSort = 'id' | 'age'
+
 export type AlertListFilters = {
-  /** Backend `status_filter` (New | InProgress | Imported | Ignored). */
-  status?: string
-  /** Backend `source_filter` (detection source, e.g. "CrowdStrike"). */
-  source?: string
+  clauses?: FilterClause[]
+  sort?: AlertSort
+  order?: 'asc' | 'desc'
+  skip?: number
+  limit?: number
+}
+
+export type AlertsResult = { alerts: Alert[]; total: number }
+
+/** Filterable values across the org's alerts, for the filter dropdowns. */
+export type AlertFacets = {
+  sources: string[]
+  tagKeys: Record<string, string[]>
+}
+
+export const DEFAULT_ALERT_FILTERS: AlertListFilters = {
+  sort: 'id',
+  order: 'desc',
+  skip: 0,
+  limit: 10,
 }
 
 /**
@@ -31,7 +52,7 @@ export type AlertListFilters = {
 export const alertKeys = {
   all: ['alerts'] as const,
   lists: () => [...alertKeys.all, 'list'] as const,
-  list: (filters: AlertListFilters = {}) =>
+  list: (filters: AlertListFilters = DEFAULT_ALERT_FILTERS) =>
     [...alertKeys.lists(), filters] as const,
   details: () => [...alertKeys.all, 'detail'] as const,
   detail: (id: string) => [...alertKeys.details(), id] as const,
@@ -91,14 +112,24 @@ function toAlert(a: AlertPublic): Alert {
 
 // --- fetchers --------------------------------------------------------------
 
-async function fetchAlerts(filters: AlertListFilters): Promise<Alert[]> {
+async function fetchAlerts(filters: AlertListFilters): Promise<AlertsResult> {
   const params = new URLSearchParams()
-  if (filters.status) params.set('status_filter', filters.status)
-  if (filters.source) params.set('source_filter', filters.source)
+  appendClauses(params, filters.clauses)
+  if (filters.sort) params.set('sort', filters.sort)
+  if (filters.order) params.set('order', filters.order)
+  if (filters.skip != null) params.set('skip', String(filters.skip))
+  if (filters.limit != null) params.set('limit', String(filters.limit))
   const page = await api
     .get('alerts/', { searchParams: params })
     .json<Page<AlertPublic>>()
-  return page.items.map(toAlert)
+  return { alerts: page.items.map(toAlert), total: page.total }
+}
+
+async function fetchAlertFacets(): Promise<AlertFacets> {
+  const raw = await api
+    .get('alerts/filters')
+    .json<{ sources: string[]; tag_keys: Record<string, string[]> }>()
+  return { sources: raw.sources, tagKeys: raw.tag_keys }
 }
 
 async function fetchAlert(id: string): Promise<Alert> {
@@ -145,10 +176,19 @@ export async function mergeAlertsToCase({
 // `queryOptions(...)` is the shareable unit. It binds a key to a fetcher and is
 // what loaders and components both consume.
 
-export const alertsQueryOptions = (filters: AlertListFilters = {}) =>
+export const alertsQueryOptions = (
+  filters: AlertListFilters = DEFAULT_ALERT_FILTERS,
+) =>
   queryOptions({
     queryKey: alertKeys.list(filters),
     queryFn: () => fetchAlerts(filters),
+    placeholderData: keepPreviousData,
+  })
+
+export const alertFacetsQueryOptions = () =>
+  queryOptions({
+    queryKey: [...alertKeys.all, 'facets'] as const,
+    queryFn: fetchAlertFacets,
   })
 
 export const alertQueryOptions = (id: string) =>

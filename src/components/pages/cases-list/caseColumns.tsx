@@ -77,10 +77,25 @@ export function buildCaseColumns({
       filterFn: includesOne,
       enableSorting: true,
       sortingFn: byCaseId,
+      meta: { nowrap: true } satisfies TableColumnMeta,
       cell: (info) => (
         <Severity
           id={info.row.original.id}
           sev={info.getValue<Case['sev']>()}
+        />
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: (row) => row.status,
+      filterFn: includesOne,
+      enableSorting: false,
+      meta: { compact: true, nowrap: true } satisfies TableColumnMeta,
+      cell: (info) => (
+        <StatusBadge
+          status={info.getValue<CaseStatus>()}
+          label={info.row.original.statusName}
         />
       ),
     },
@@ -90,6 +105,7 @@ export function buildCaseColumns({
       accessorFn: (row) => row.title,
       filterFn: includesAnySubstring,
       enableSorting: false,
+      meta: { grow: true } satisfies TableColumnMeta,
       cell: (info) => {
         const tags = info.row.original.tags
         return (
@@ -97,7 +113,6 @@ export function buildCaseColumns({
             <Text
               fw={500}
               truncate
-              maw={420}
               onClick={() => openCase(info.row.original.id)}
               style={{ cursor: 'pointer' }}
             >
@@ -113,25 +128,12 @@ export function buildCaseColumns({
       },
     },
     {
-      id: 'status',
-      header: 'Status',
-      accessorFn: (row) => row.status,
-      filterFn: includesOne,
-      enableSorting: false,
-      cell: (info) => (
-        <StatusBadge
-          status={info.getValue<CaseStatus>()}
-          label={info.row.original.statusName}
-        />
-      ),
-    },
-    {
       id: 'tasks',
       header: 'Tasks',
       accessorFn: (row) => ({ done: row.tasksDone, total: row.tasksTotal }),
       enableColumnFilter: false,
       enableSorting: false,
-      meta: { visibleFrom: 'md' } satisfies TableColumnMeta,
+      meta: { visibleFrom: 'md', nowrap: true } satisfies TableColumnMeta,
       cell: (info) => {
         const { done, total: taskTotal } = info.getValue<{
           done: number
@@ -165,7 +167,12 @@ export function buildCaseColumns({
       accessorFn: (row) => row.assignee,
       filterFn: includesOne,
       enableSorting: false,
-      meta: { visibleFrom: 'md', ta: 'center' } satisfies TableColumnMeta,
+      meta: {
+        visibleFrom: 'md',
+        ta: 'center',
+        compact: true,
+        nowrap: true,
+      } satisfies TableColumnMeta,
       cell: (info) => <AssigneeAvatar name={info.getValue<string>()} />,
     },
     {
@@ -191,7 +198,7 @@ export function buildCaseColumns({
       enableColumnFilter: false,
       enableSorting: true,
       sortingFn: byCreated,
-      meta: { visibleFrom: 'lg' } satisfies TableColumnMeta,
+      meta: { visibleFrom: 'lg', nowrap: true } satisfies TableColumnMeta,
       cell: (info) => (
         <Text
           ff="monospace"
@@ -210,6 +217,7 @@ export function buildCaseColumns({
       enableColumnFilter: false,
       enableSorting: true,
       sortingFn: byUpdated,
+      meta: { nowrap: true } satisfies TableColumnMeta,
       cell: (info) => (
         <Text
           ff="monospace"
@@ -226,7 +234,7 @@ export function buildCaseColumns({
       header: '',
       enableColumnFilter: false,
       enableSorting: false,
-      meta: { ta: 'right' } satisfies TableColumnMeta,
+      meta: { ta: 'right', nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => (
         <Menu position="bottom-end" withArrow shadow="md">
           <Menu.Target>

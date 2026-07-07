@@ -1,4 +1,4 @@
-import type { TokenField } from '#/components/Table/TokenSearch'
+import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import { Button, Group, Paper, Text, Title } from '@mantine/core'
 import type { TitleOrder } from '@mantine/core'
 import type { RowData, Table } from '@tanstack/react-table'
@@ -8,7 +8,7 @@ import classes from './Table.module.css'
 import { TableFilterBar } from './TableFilterBar'
 import { TablePagination } from './TablePagination'
 
-type FilterField = TokenField & { columnId: string }
+type FilterField = TokenField & { columnId?: string }
 
 type TablePanelProps<T extends RowData> = {
   title: ReactNode
@@ -37,6 +37,15 @@ type TablePanelProps<T extends RowData> = {
   onToggleSelectMode?: () => void
   /** Extra elements in the filter row (between TokenSearch and Select button). */
   filterRowActions?: ReactNode
+  /**
+   * Controlled filter tokens. When provided, the panel drives its filter bar,
+   * "Clear" button and active-filter check from these instead of the table's
+   * column-filter state. Used by the cases list's clause-based filters.
+   */
+  tokens?: Token[]
+  onTokensChange?: (tokens: Token[]) => void
+  hasActiveFilters?: boolean
+  onClearFilters?: () => void
   /** The DataTable body — passed as children so each page controls its own props. */
   children: ReactNode
 }
@@ -58,9 +67,15 @@ export function TablePanel<T extends RowData>({
   selectMode = false,
   onToggleSelectMode,
   filterRowActions,
+  tokens,
+  onTokensChange,
+  hasActiveFilters,
+  onClearFilters,
   children,
 }: TablePanelProps<T>) {
-  const hasFilters = table.getState().columnFilters.length > 0
+  const hasFilters =
+    hasActiveFilters ?? table.getState().columnFilters.length > 0
+  const clearFilters = onClearFilters ?? (() => table.resetColumnFilters())
 
   const resolvedCount =
     count ??
@@ -105,7 +120,7 @@ export function TablePanel<T extends RowData>({
               color="gray"
               size="xs"
               leftSection={<X size={14} />}
-              onClick={() => table.resetColumnFilters()}
+              onClick={clearFilters}
             >
               Clear
             </Button>
@@ -123,6 +138,8 @@ export function TablePanel<T extends RowData>({
         selectMode={selectMode}
         onToggleSelectMode={onToggleSelectMode}
         filterRowActions={filterRowActions}
+        tokens={tokens}
+        onTokensChange={onTokensChange}
       />
 
       {/* Table body (DataTable or custom loading/error wrapper) */}

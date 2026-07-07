@@ -2,12 +2,20 @@ import '@mantine/core/styles.css'
 import '@mantine/notifications/styles.css'
 import '@mantine/tiptap/styles.css'
 
-import { MantineProvider, mantineHtmlProps } from '@mantine/core'
+import {
+  Anchor,
+  Box,
+  MantineProvider,
+  Text,
+  Title,
+  mantineHtmlProps,
+} from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import {
   HeadContent,
+  Link,
   Outlet,
   Scripts,
   createRootRouteWithContext,
@@ -46,6 +54,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
     ],
   }),
+  notFoundComponent: RootNotFound,
   shellComponent: RootComponent,
 })
 
@@ -54,6 +63,20 @@ function RootComponent() {
     <RootDocument>
       <Outlet />
     </RootDocument>
+  )
+}
+
+function RootNotFound() {
+  return (
+    <Box p="xl" maw={720} mx="auto">
+      <Title order={1}>Page not found</Title>
+      <Text c="dimmed" mt="xs">
+        The page you requested does not exist.
+      </Text>
+      <Anchor component={Link} to="/" mt="md" display="inline-block">
+        Go to dashboard
+      </Anchor>
+    </Box>
   )
 }
 

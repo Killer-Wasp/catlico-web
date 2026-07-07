@@ -1,3 +1,8 @@
+.dataTable {
+  table-layout: auto;
+  width: 100%;
+}
+
 .columnHeader {
   font-family: var(--mantine-font-family-monospace);
   text-transform: uppercase;
@@ -5,6 +10,11 @@
   font-weight: 500;
   color: var(--mantine-color-dimmed);
   letter-spacing: 1px;
+}
+
+.headerContent {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .fieldLabel {

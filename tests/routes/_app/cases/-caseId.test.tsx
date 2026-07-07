@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { getCaseDetail } from '#/components/Cases/caseDetails'
+import type { CaseDetail } from '#/components/Cases/caseDetails.types'
+import { CaseSummaryCard } from '#/components/pages/case-detail/CaseSummaryCard'
 import { CaseTabPanel } from '#/components/pages/CaseDetailPage'
 import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
@@ -60,6 +61,86 @@ const enrichmentOverview = {
   ],
 }
 
+const caseDetail: CaseDetail = {
+  id: '#1842',
+  sev: 3,
+  tlp: 2,
+  pap: 2,
+  status: 'open',
+  statusName: 'Open',
+  title: 'OAuth consent grant — privileged account compromise',
+  assignee: 'J. Tanaka',
+  tags: ['T1528', 'identity', 'bec'],
+  tasksDone: 3,
+  tasksTotal: 7,
+  opened: 'Today 09:12',
+  sla: '3h 18m to SLA',
+  source: 'Defender XDR',
+  businessUnit: 'Corporate IT',
+  descriptionMarkdown: 'OAuth consent grant investigation.',
+  summary: 'Containment is underway.',
+  customFields: [
+    ['Affected users', '3'],
+    ['Business unit', 'Corporate IT'],
+    ['Campaign ID', 'BILL-2026-Q2'],
+  ],
+  linkedAlerts: [],
+  tasks: [
+    {
+      id: 'T-1842-4',
+      apiId: 4,
+      caseId: 1842,
+      title: 'Disable malicious app registration tenant-wide',
+      group: 'Contain',
+      status: 'inprogress',
+      assignee: 'J. Tanaka',
+      flagged: false,
+      due: '2026-06-12T13:00:00Z',
+      start: '2026-06-12T10:00:00Z',
+      end: null,
+      description:
+        'Block the app registration and add it to the blocked apps policy.',
+      logs: 1,
+      workLogs: [
+        {
+          id: 'wl-1842-4-1',
+          apiId: 1,
+          caseId: 1842,
+          taskId: 4,
+          author: 'J. Tanaka',
+          time: '12 June, 10:08 am',
+          body: 'App registration disabled in our tenant. Waiting on cross-tenant confirmation.',
+          attachments: [
+            {
+              id: 'att-1',
+              name: 'tenant-blocklist-approval.pdf',
+              size: '92 KB',
+            },
+          ],
+        },
+      ],
+    },
+  ],
+  observables: [
+    {
+      id: 'obs-2',
+      type: 'url',
+      value: 'hxxps://cdn-au-billing[.]net/invoice.php',
+      ioc: true,
+      sighted: false,
+      analysis: 'URLscan complete',
+      added: '09:21',
+    },
+  ],
+  comments: [],
+  attachments: [],
+  shares: 0,
+  timeline: [],
+  responders: [],
+  related: [],
+  ttps: [],
+}
+
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -92,21 +173,37 @@ function Harness() {
   return <CaseTabHarness tab="observables" />
 }
 
+function CaseSummaryHarness() {
+  const queryClient = new QueryClient()
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <Notifications />
+        <CaseSummaryCard caseDetail={caseDetail} caseId="1842" />
+      </MantineProvider>
+    </QueryClientProvider>
+  )
+}
+
 function CaseTabHarness({
   tab,
 }: {
-  tab: 'comments' | 'observables' | 'tasks'
+  tab:
+    | 'attachments'
+    | 'comments'
+    | 'custom-fields'
+    | 'details'
+    | 'observables'
+    | 'sharing'
+    | 'tasks'
+    | 'timeline'
 }) {
   const queryClient = new QueryClient()
   return (
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
         <Notifications />
-        <CaseTabPanel
-          tab={tab}
-          caseDetail={getCaseDetail('1842')}
-          caseId="1842"
-        />
+        <CaseTabPanel tab={tab} caseDetail={caseDetail} caseId="1842" />
       </MantineProvider>
     </QueryClientProvider>
   )
@@ -152,6 +249,15 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
+describe('case summary card', () => {
+  test('does not render the assignee avatar inside a paragraph', () => {
+    const { container } = render(<CaseSummaryHarness />)
+
+    expect(container.querySelector('p .mantine-Avatar-root')).toBeNull()
+    expect(screen.getByText('J. Tanaka')).toBeDefined()
+  })
+})
+
 describe('case observables tab', () => {
   test('places the add observable action above the table', () => {
     const { container } = render(<Harness />)
@@ -192,6 +298,45 @@ describe('case observables tab', () => {
       within(drawer).getByRole('button', { name: /export to misp/i }),
     ).toBeDefined()
     expect(api.get).toHaveBeenCalledWith('observables/obs-2/enrichments')
+  })
+})
+
+describe('case details tab', () => {
+  test('keeps custom fields out of the details panel', () => {
+    render(<CaseTabHarness tab="details" />)
+
+    expect(screen.getByText('OAuth consent grant investigation.')).toBeDefined()
+    expect(screen.queryByText('Affected users')).toBeNull()
+    expect(screen.queryByText('BILL-2026-Q2')).toBeNull()
+  })
+})
+
+describe('case custom fields tab', () => {
+  test('renders case custom fields in their own tab panel', () => {
+    render(<CaseTabHarness tab="custom-fields" />)
+
+    expect(screen.getByText('Affected users')).toBeDefined()
+    expect(screen.getByText('3')).toBeDefined()
+    expect(screen.getByText('Business unit')).toBeDefined()
+    expect(screen.getByText('Corporate IT')).toBeDefined()
+    expect(screen.getByText('Campaign ID')).toBeDefined()
+    expect(screen.getByText('BILL-2026-Q2')).toBeDefined()
+  })
+})
+
+describe('case tab panel headers', () => {
+  test.each([
+    ['custom-fields', 'Custom fields'],
+    ['tasks', 'Tasks'],
+    ['observables', 'Observables'],
+    ['comments', 'Comments'],
+    ['attachments', 'Attachments'],
+    ['timeline', 'Timeline'],
+    ['sharing', 'Sharing'],
+  ] as const)('renders a %s panel header', (tab, label) => {
+    render(<CaseTabHarness tab={tab} />)
+
+    expect(screen.getByText(label, { exact: true })).toBeDefined()
   })
 })
 

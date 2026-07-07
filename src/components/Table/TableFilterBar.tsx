@@ -1,4 +1,4 @@
-import type { TokenField } from '#/components/Table/TokenSearch'
+import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import { TokenSearch } from '#/components/Table/TokenSearch'
 import { Button, Group, Text } from '@mantine/core'
 import type { RowData, Table } from '@tanstack/react-table'
@@ -6,7 +6,7 @@ import { ListChecks } from 'lucide-react'
 import classes from './Table.module.css'
 import { useTableTokens } from './useTableTokens'
 
-type FilterField = TokenField & { columnId: string }
+type FilterField = TokenField & { columnId?: string }
 
 type TableFilterBarProps<T extends RowData> = {
   table: Table<T>
@@ -17,6 +17,13 @@ type TableFilterBarProps<T extends RowData> = {
   onToggleSelectMode?: () => void
   /** Extra content appended after the Select button (e.g. in-select-mode actions). */
   filterRowActions?: React.ReactNode
+  /**
+   * Controlled token override. When provided, the bar reports/reads tokens
+   * through these instead of the table's column-filter state — used by pages
+   * (e.g. cases) that track filters as an operator-aware clause list.
+   */
+  tokens?: Token[]
+  onTokensChange?: (tokens: Token[]) => void
 }
 
 export function TableFilterBar<T extends RowData>({
@@ -27,8 +34,18 @@ export function TableFilterBar<T extends RowData>({
   selectMode = false,
   onToggleSelectMode,
   filterRowActions,
+  tokens: externalTokens,
+  onTokensChange,
 }: TableFilterBarProps<T>) {
-  const { tokens, setTokens } = useTableTokens(table, filterFields)
+  // Always call the hook (rules of hooks); prefer the controlled override.
+  const derived = useTableTokens(
+    table,
+    filterFields.filter(
+      (f): f is TokenField & { columnId: string } => f.columnId != null,
+    ),
+  )
+  const tokens = externalTokens ?? derived.tokens
+  const setTokens = onTokensChange ?? derived.setTokens
   const selectedCount = selectable
     ? table.getSelectedRowModel().rows.length
     : 0

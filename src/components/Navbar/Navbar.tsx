@@ -10,12 +10,24 @@ import {
   LayoutDashboard,
   ListTodo,
   ListFilter,
+  PanelLeftClose,
+  PanelLeftOpen,
   ScrollText,
   Settings,
   SquareFunction,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { Badge, Box, Flex, Image, NavLink, Text } from '@mantine/core'
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Flex,
+  Image,
+  Indicator,
+  NavLink,
+  Text,
+  Tooltip,
+} from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from '@tanstack/react-router'
 import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
@@ -27,8 +39,10 @@ import {
   countConnectorJobsByTab,
 } from '#/components/Connectors/connectorJobs'
 import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
-import { filterTasksByStatus } from '#/components/Tasks/tasks'
-import { tasksQueryOptions } from '#/components/Tasks/tasksQueries'
+import {
+  OPEN_TASK_FILTERS,
+  tasksQueryOptions,
+} from '#/components/Tasks/tasksQueries'
 
 type NavItem = {
   icon: LucideIcon
@@ -146,8 +160,71 @@ function iconColor(active: boolean, danger?: boolean) {
   return 'light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2))'
 }
 
-function NavItemLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavItemLink({
+  item,
+  active,
+  collapsed,
+}: {
+  item: NavItem
+  active: boolean
+  collapsed: boolean
+}) {
   const Icon = item.icon
+
+  // Collapsed rail: icon only, centred, with the label surfaced as a
+  // right-side tooltip (mirrors Mantine's NavbarMinimal). Numeric badges
+  // don't fit an 80px rail, so a count collapses to an Indicator dot.
+  if (collapsed) {
+    return (
+      <Tooltip
+        label={item.label}
+        position="right"
+        withArrow
+        transitionProps={{ duration: 0 }}
+      >
+        <NavLink
+          component={item.to ? Link : undefined}
+          to={item.to}
+          active={active}
+          variant="subtle"
+          color="gray"
+          aria-label={item.label}
+          leftSection={
+            <Indicator
+              disabled={!item.badge}
+              color={item.badgeColor === 'red' ? 'red' : 'gray'}
+              size={8}
+              offset={2}
+              withBorder
+            >
+              <Icon
+                size={20}
+                style={{
+                  color: iconColor(active, item.danger),
+                  display: 'block',
+                }}
+              />
+            </Indicator>
+          }
+          styles={{
+            root: {
+              width: 44,
+              height: 44,
+              marginInline: 'auto',
+              marginBottom: 4,
+              padding: 0,
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
+            body: { display: 'none' },
+            section: { marginInlineStart: 0, marginInlineEnd: 0 },
+          }}
+          style={linkStyle(active, item.danger)}
+        />
+      </Tooltip>
+    )
+  }
+
   return (
     <NavLink
       component={item.to ? Link : undefined}
@@ -179,12 +256,20 @@ function NavItemLink({ item, active }: { item: NavItem; active: boolean }) {
   )
 }
 
-export function Navbar() {
+export function Navbar({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean
+  onToggle: () => void
+}) {
   const { pathname } = useLocation()
   const { data: alerts } = useQuery(alertsQueryOptions())
   const { data: cases } = useQuery(casesQueryOptions())
   const { data: observables } = useQuery(observablesQueryOptions())
-  const { data: taskQueue } = useQuery(tasksQueryOptions())
+  // Server-side count of open tasks (the list itself is paginated, so counting
+  // fetched rows would only see one page).
+  const { data: openTasks } = useQuery(tasksQueryOptions(OPEN_TASK_FILTERS))
   const { data: connectors } = useQuery(connectorsQueryOptions())
   const { data: connectorJobs } = useQuery(analyzerJobsQueryOptions())
   const { data: caseTemplates } = useQuery(caseTemplatesQueryOptions())
@@ -192,12 +277,10 @@ export function Navbar() {
     ? countConnectorJobsByTab(connectorJobs)
     : undefined
   const sections = sectionsForCounts({
-    tasks: taskQueue
-      ? filterTasksByStatus(taskQueue.tasks, 'open').length
-      : undefined,
-    alerts: alerts?.length,
+    tasks: openTasks?.total,
+    alerts: alerts?.total,
     cases: cases?.total,
-    observables: observables?.length,
+    observables: observables?.total,
     connectors: connectors?.length,
     connectorJobs: connectorJobCounts
       ? connectorJobCounts.queued + connectorJobCounts.running
@@ -215,9 +298,10 @@ export function Navbar() {
     >
       <Flex
         align="center"
-        gap={12}
+        gap={10}
         h={64}
-        px="md"
+        px={collapsed ? 0 : 'md'}
+        justify={collapsed ? 'center' : 'flex-start'}
         style={{
           flexShrink: 0,
           borderBottom:
@@ -237,34 +321,42 @@ export function Navbar() {
               '0 0 0 1px light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4)), 0 2px 6px rgba(31, 31, 30, 0.12)',
           }}
         />
-        <Text
-          ff="'Space Grotesk', var(--mantine-font-family)"
-          fz={25}
-          fw={700}
-          lts="0.06em"
-          tt="uppercase"
-          variant="gradient"
-          gradient={{ from: 'orange.6', to: 'dark.9', deg: 105 }}
-          style={{ lineHeight: 1 }}
-        >
-          Catlico
-        </Text>
+        {!collapsed && (
+          <Text
+            ff="'Space Grotesk', var(--mantine-font-family)"
+            fz={25}
+            fw={700}
+            lts="0.06em"
+            tt="uppercase"
+            variant="gradient"
+            gradient={{ from: 'orange.6', to: 'dark.9', deg: 105 }}
+            style={{ lineHeight: 1 }}
+          >
+            Catlico
+          </Text>
+        )}
       </Flex>
 
-      <Box px="sm" py="md" style={{ flex: 1, overflowY: 'auto' }}>
+      <Box
+        px={collapsed ? 'xs' : 'sm'}
+        py="md"
+        style={{ flex: 1, overflowY: 'auto' }}
+      >
         {sections.map((section) => (
           <Box key={section.title} mb="lg">
-            <Text
-              fz={11}
-              fw={600}
-              lts="0.1em"
-              tt="uppercase"
-              c="dimmed"
-              px="sm"
-              mb={6}
-            >
-              {section.title}
-            </Text>
+            {!collapsed && (
+              <Text
+                fz={11}
+                fw={600}
+                lts="0.1em"
+                tt="uppercase"
+                c="dimmed"
+                px="sm"
+                mb={6}
+              >
+                {section.title}
+              </Text>
+            )}
             {section.items.map((item) => {
               const active =
                 item.to === pathname ||
@@ -272,12 +364,51 @@ export function Navbar() {
                   item.to !== undefined &&
                   pathname.startsWith(`${item.to}/`))
               return (
-                <NavItemLink key={item.label} item={item} active={active} />
+                <NavItemLink
+                  key={item.label}
+                  item={item}
+                  active={active}
+                  collapsed={collapsed}
+                />
               )
             })}
           </Box>
         ))}
       </Box>
+
+      <Flex
+        align="center"
+        justify={collapsed ? 'center' : 'flex-start'}
+        px={collapsed ? 0 : 'sm'}
+        py="sm"
+        style={{
+          flexShrink: 0,
+          borderTop:
+            '1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4))',
+        }}
+      >
+        <Tooltip
+          label="Expand"
+          position="right"
+          withArrow
+          disabled={!collapsed}
+          transitionProps={{ duration: 0 }}
+        >
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="lg"
+            onClick={onToggle}
+            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          >
+            {collapsed ? (
+              <PanelLeftOpen size={20} />
+            ) : (
+              <PanelLeftClose size={20} />
+            )}
+          </ActionIcon>
+        </Tooltip>
+      </Flex>
     </Flex>
   )
 }

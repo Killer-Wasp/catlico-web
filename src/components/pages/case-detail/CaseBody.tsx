@@ -1,12 +1,14 @@
 import type { CaseDetail } from '#/components/Cases/caseDetails.types'
-import { Group, Paper, Tabs, Text } from '@mantine/core'
+import { Group, Paper, Stack, Tabs, Text } from '@mantine/core'
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { AttachmentsPanel } from './AttachmentsPanel'
+import { CasePanelHeader } from './CasePanelHeader'
 import { CASE_TABS } from './constants'
 import type { CaseTab } from './constants'
 import { CommentsPanel } from './CommentsPanel'
+import { CustomFieldsPanel } from './CustomFieldsPanel'
 import { DetailsPanel } from './DetailsPanel'
 import { ObservablesPanel } from './ObservablesPanel'
 import { TasksPanel } from './TasksPanel'
@@ -28,6 +30,10 @@ export function CaseBody({
 
   const tabDefs: { value: CaseTab; label: string }[] = [
     { value: 'details', label: 'Details' },
+    {
+      value: 'custom-fields',
+      label: `Custom fields ${caseDetail.customFields.length}`,
+    },
     { value: 'tasks', label: `Tasks ${caseDetail.tasks.length}` },
     {
       value: 'observables',
@@ -81,6 +87,8 @@ export function CaseTabPanel({
   caseId: string
 }) {
   switch (tab) {
+    case 'custom-fields':
+      return <CustomFieldsPanel customFields={caseDetail.customFields} />
     case 'tasks':
       return <TasksPanel caseDetail={caseDetail} caseId={caseId} />
     case 'observables':
@@ -100,6 +108,7 @@ export function CaseTabPanel({
       return (
         <EmptyTab
           icon={<ShieldCheck size={18} />}
+          title="Sharing"
           label={`${caseDetail.shares} external sharing entries are active.`}
         />
       )
@@ -109,11 +118,22 @@ export function CaseTabPanel({
   }
 }
 
-function EmptyTab({ icon, label }: { icon: ReactNode; label: string }) {
+function EmptyTab({
+  icon,
+  label,
+  title,
+}: {
+  icon: ReactNode
+  label: string
+  title: string
+}) {
   return (
-    <Group justify="center" c="dimmed" gap="xs" py={60}>
-      {icon}
-      <Text fz={14}>{label}</Text>
-    </Group>
+    <Stack gap="md" p="lg">
+      <CasePanelHeader label={title} />
+      <Group justify="center" c="dimmed" gap="xs" py={60}>
+        {icon}
+        <Text fz={14}>{label}</Text>
+      </Group>
+    </Stack>
   )
 }

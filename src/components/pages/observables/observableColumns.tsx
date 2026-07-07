@@ -3,10 +3,10 @@ import type {
   ObservableFlag,
   ObservableType,
 } from '#/components/Observables/observables.types'
-import { Badge, Button, Checkbox, Group, Text } from '@mantine/core'
+import { ActionIcon, Badge, Checkbox, Group, Menu, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Play } from 'lucide-react'
+import { Play, Settings } from 'lucide-react'
 import { AnalysisPill, TlpPill, TypePill } from './Pills'
 import {
   includesAnyTag as includesAnyFlag,
@@ -146,19 +146,29 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       enableSorting: false,
       meta: { ta: 'right' },
       cell: ({ row }) => (
-        <Button
-          size="xs"
-          variant="default"
-          color="gray"
-          leftSection={<Play size={12} fill="currentColor" />}
-          onClick={() =>
-            notifications.show({
-              message: `Analyzer queued for ${row.original.value}`,
-            })
-          }
-        >
-          Analyze
-        </Button>
+        <Menu position="bottom-end" withArrow shadow="md">
+          <Menu.Target>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              aria-label={`Observable ${row.original.value} actions`}
+            >
+              <Settings size={16} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item
+              leftSection={<Play size={14} fill="currentColor" />}
+              onClick={() =>
+                notifications.show({
+                  message: `Analyzer queued for ${row.original.value}`,
+                })
+              }
+            >
+              Analyze
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       ),
     },
   ]
