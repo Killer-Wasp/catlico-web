@@ -17,6 +17,7 @@ import { appendClauses } from '#/lib/filters'
 import type { FilterClause } from '#/lib/filters'
 import type { Severity, Tlp } from '#/lib/domain'
 import type { Alert } from './alerts.types'
+import { isHTTPError } from 'ky'
 
 /** Column the alert list is sorted by, server-side. */
 export type AlertSort = 'id' | 'age'
@@ -80,6 +81,13 @@ type AlertPublic = {
 
 type CasePublic = {
   id: number
+}
+
+export class AlertAlreadyPromotedError extends Error {
+  constructor(public readonly caseId: number) {
+    super(`Alert already promoted to case ${caseId}`)
+    this.name = 'AlertAlreadyPromotedError'
+  }
 }
 
 const clamp = (n: number, lo: number, hi: number) =>
@@ -146,27 +154,58 @@ export async function promoteAlertToCase({
   caseTemplateId?: number | null
 }): Promise<number> {
   const numeric = alertId.replace(/^AL-/, '')
-  const created = await api
-    .post(`alerts/${numeric}/promote`, {
-      json: { case_template_id: caseTemplateId ?? null },
-    })
-    .json<CasePublic>()
-  return created.id
+  try {
+    const created = await api
+      .post(`alerts/${numeric}/promote`, {
+        json: { case_template_id: caseTemplateId ?? null },
+      })
+      .json<CasePublic>()
+    return created.id
+  } catch (error) {
+    if (isHTTPError(error)) {
+      try {
+        const body: { detail?: string } = await error.response.json()
+        const match = body.detail?.match(/already promoted to case (\d+)/i)
+        if (match) throw new AlertAlreadyPromotedError(Number(match[1]))
+      } catch (parseError) {
+        if (parseError instanceof AlertAlreadyPromotedError) throw parseError
+      }
+    }
+    throw error
+  }
+}
+
+export async function dismissAlert(alertId: string): Promise<void> {
+  const numeric = alertId.replace(/^AL-/, '')
+  await api.patch(`alerts/${numeric}`, { json: { status: 'Ignored' } })
 }
 
 export async function mergeAlertsToCase({
   alertIds,
   caseTemplateId,
+  targetCaseId,
 }: {
   alertIds: string[]
   caseTemplateId?: number | null
+  targetCaseId?: number | null
 }): Promise<number> {
+  const json: {
+    alert_ids: number[]
+    case_template_id?: number | null
+    target_case_id?: number
+  } = {
+    alert_ids: alertIds.map((id) => Number(id.replace(/^AL-/, ''))),
+  }
+
+  if (targetCaseId != null) {
+    json.target_case_id = targetCaseId
+  } else {
+    json.case_template_id = caseTemplateId ?? null
+  }
+
   const created = await api
     .post('alerts/merge', {
-      json: {
-        alert_ids: alertIds.map((id) => Number(id.replace(/^AL-/, ''))),
-        case_template_id: caseTemplateId ?? null,
-      },
+      json,
     })
     .json<CasePublic>()
   return created.id

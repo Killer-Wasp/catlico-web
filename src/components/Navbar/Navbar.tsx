@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   BookOpen,
   Briefcase,
+  Building2,
   Cable,
   ClipboardList,
   Eye,
@@ -18,17 +19,17 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
-  ActionIcon,
   Badge,
   Box,
   Flex,
   Image,
   Indicator,
   NavLink,
+  Select,
   Text,
   Tooltip,
 } from '@mantine/core'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation } from '@tanstack/react-router'
 import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
@@ -43,6 +44,9 @@ import {
   OPEN_TASK_FILTERS,
   tasksQueryOptions,
 } from '#/components/Tasks/tasksQueries'
+import { accessibleOrganisationsQueryOptions } from '#/components/pages/settings/settingsQueries'
+import { getActiveOrgId } from '#/lib/auth/session'
+import { useState } from 'react'
 
 type NavItem = {
   icon: LucideIcon
@@ -256,6 +260,66 @@ function NavItemLink({
   )
 }
 
+function NavControlItem({
+  collapsed,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  collapsed: boolean
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+}) {
+  if (collapsed) {
+    return (
+      <Tooltip
+        label={label}
+        position="right"
+        withArrow
+        transitionProps={{ duration: 0 }}
+      >
+        <NavLink
+          component="button"
+          aria-label={label}
+          leftSection={<Icon size={20} />}
+          onClick={onClick}
+          variant="subtle"
+          color="gray"
+          styles={{
+            root: {
+              width: 44,
+              height: 44,
+              marginInline: 'auto',
+              marginBottom: 4,
+              padding: 0,
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
+            body: { display: 'none' },
+            section: { marginInlineStart: 0, marginInlineEnd: 0 },
+          }}
+          style={linkStyle(false)}
+        />
+      </Tooltip>
+    )
+  }
+
+  return (
+    <NavLink
+      component="button"
+      label={label}
+      aria-label={label}
+      leftSection={<Icon size={20} />}
+      onClick={onClick}
+      variant="subtle"
+      color="gray"
+      fw={600}
+      style={linkStyle(false)}
+    />
+  )
+}
+
 export function Navbar({
   collapsed,
   onToggle,
@@ -264,6 +328,8 @@ export function Navbar({
   onToggle: () => void
 }) {
   const { pathname } = useLocation()
+  const queryClient = useQueryClient()
+  const [activeOrgId, setActiveOrgId] = useState(() => getActiveOrgId())
   const { data: alerts } = useQuery(alertsQueryOptions())
   const { data: cases } = useQuery(casesQueryOptions())
   const { data: observables } = useQuery(observablesQueryOptions())
@@ -273,6 +339,7 @@ export function Navbar({
   const { data: connectors } = useQuery(connectorsQueryOptions())
   const { data: connectorJobs } = useQuery(analyzerJobsQueryOptions())
   const { data: caseTemplates } = useQuery(caseTemplatesQueryOptions())
+  const { data: organisations } = useQuery(accessibleOrganisationsQueryOptions())
   const connectorJobCounts = connectorJobs
     ? countConnectorJobsByTab(connectorJobs)
     : undefined
@@ -287,6 +354,21 @@ export function Navbar({
       : undefined,
     caseTemplates: caseTemplates?.total ?? 0,
   })
+  const organisationOptions = (organisations ?? []).map((organisation) => ({
+    value: organisation.id,
+    label: organisation.name,
+  }))
+  const activeOrganisationLabel =
+    organisationOptions.find((option) => option.value === activeOrgId)?.label ??
+    activeOrgId ??
+    'No organisation'
+
+  const setActiveOrganisation = (orgId: string | null) => {
+    if (!orgId) return
+    localStorage.setItem('catlico.orgId', orgId)
+    setActiveOrgId(orgId)
+    void queryClient.invalidateQueries()
+  }
 
   return (
     <Flex
@@ -377,8 +459,8 @@ export function Navbar({
       </Box>
 
       <Flex
-        align="center"
-        justify={collapsed ? 'center' : 'flex-start'}
+        direction="column"
+        gap={8}
         px={collapsed ? 0 : 'sm'}
         py="sm"
         style={{
@@ -387,27 +469,51 @@ export function Navbar({
             '1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4))',
         }}
       >
-        <Tooltip
-          label="Expand"
-          position="right"
-          withArrow
-          disabled={!collapsed}
-          transitionProps={{ duration: 0 }}
-        >
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            size="lg"
-            onClick={onToggle}
-            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+        {collapsed ? (
+          <Tooltip
+            label={activeOrganisationLabel}
+            position="right"
+            withArrow
+            transitionProps={{ duration: 0 }}
           >
-            {collapsed ? (
-              <PanelLeftOpen size={20} />
-            ) : (
-              <PanelLeftClose size={20} />
-            )}
-          </ActionIcon>
-        </Tooltip>
+            <NavLink
+              component="button"
+              aria-label={`Active organisation: ${activeOrganisationLabel}`}
+              leftSection={<Building2 size={20} />}
+              variant="subtle"
+              color="gray"
+              styles={{
+                root: {
+                  width: 44,
+                  height: 44,
+                  marginInline: 'auto',
+                  padding: 0,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+                body: { display: 'none' },
+                section: { marginInlineStart: 0, marginInlineEnd: 0 },
+              }}
+              style={linkStyle(false)}
+            />
+          </Tooltip>
+        ) : (
+          <Select
+            aria-label="Active organisation"
+            data={organisationOptions}
+            value={activeOrgId}
+            onChange={setActiveOrganisation}
+            leftSection={<Building2 size={16} />}
+            allowDeselect={false}
+            size="xs"
+          />
+        )}
+        <NavControlItem
+          collapsed={collapsed}
+          icon={collapsed ? PanelLeftOpen : PanelLeftClose}
+          label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          onClick={onToggle}
+        />
       </Flex>
     </Flex>
   )

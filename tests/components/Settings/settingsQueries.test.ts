@@ -5,6 +5,7 @@ import {
   customFieldsQueryOptions,
   deleteCustomField,
   deleteOrganisation,
+  fetchAccessibleOrganisations,
   fetchCustomFields,
   fetchOrganisationMembers,
   fetchOrganisationProfile,
@@ -26,8 +27,18 @@ vi.mock('#/lib/api/client', () => ({
 
 type JsonResponse = { json: () => Promise<unknown> }
 
+function fakeAccessToken(payload: Record<string, unknown>) {
+  const encode = (value: unknown) =>
+    btoa(JSON.stringify(value))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '')
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.signature`
+}
+
 beforeEach(() => {
   localStorage.setItem('catlico.orgId', 'origin-soc')
+  localStorage.removeItem('catlico.accessToken')
   vi.mocked(api.get).mockReset()
   vi.mocked(api.patch).mockReset()
   vi.mocked(api.post).mockReset()
@@ -72,6 +83,38 @@ describe('settings backend queries', () => {
     ])
     expect(api.get).toHaveBeenCalledWith('organisations/origin-soc')
     expect(api.get).toHaveBeenCalledWith('organisations/origin-soc/members')
+  })
+
+  test('loads accessible organisations from token memberships without listing every organisation', async () => {
+    localStorage.setItem(
+      'catlico.accessToken',
+      fakeAccessToken({ organisations: ['origin-soc', 'partner-acme'] }),
+    )
+    vi.mocked(api.get).mockImplementation(
+      (input) =>
+        ({
+          json: async () => {
+            const id = String(input).replace('organisations/', '')
+            return {
+              id,
+              name: id === 'origin-soc' ? 'Origin SOC' : 'Partner ACME',
+              description: '',
+              timezone: 'UTC',
+              default_tlp: 2,
+              created_at: '2026-06-12T09:12:00Z',
+              updated_at: null,
+            }
+          },
+        }) satisfies JsonResponse as ReturnType<typeof api.get>,
+    )
+
+    await expect(fetchAccessibleOrganisations()).resolves.toEqual([
+      expect.objectContaining({ id: 'origin-soc', name: 'Origin SOC' }),
+      expect.objectContaining({ id: 'partner-acme', name: 'Partner ACME' }),
+    ])
+    expect(api.get).toHaveBeenCalledWith('organisations/origin-soc')
+    expect(api.get).toHaveBeenCalledWith('organisations/partner-acme')
+    expect(api.get).not.toHaveBeenCalledWith('organisations/')
   })
 
   test('updates active organisation profile through PATCH /organisations/{id}', async () => {

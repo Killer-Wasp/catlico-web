@@ -13,7 +13,6 @@ import {
 } from '#/components/Cases/casesQueries'
 import type {
   CaseListFilters,
-  FilterClause,
 } from '#/components/Cases/casesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { AssignMenu } from '#/components/Table/AssignMenu'

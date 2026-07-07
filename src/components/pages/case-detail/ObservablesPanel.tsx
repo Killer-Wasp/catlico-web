@@ -8,15 +8,16 @@ import type {
   ObservableType,
 } from '#/components/Observables/observables.types'
 import { caseKeys, createCaseObservable } from '#/components/Cases/casesQueries'
+import { updateObservableFlags } from '#/components/Observables/observablesQueries'
 import { observableTypesQueryOptions } from '#/components/pages/settings/settingsQueries'
 import { ObservableDetailDrawer } from '#/components/pages/ObservablesPage'
+import { addFlag, toggleFlag } from '#/components/pages/observables/tableFns'
 import { TLP } from '#/lib/domain'
 import type { Tlp } from '#/lib/domain'
 import {
   Badge,
   Button,
   Checkbox,
-  Group,
   Modal,
   Select,
   Stack,
@@ -75,6 +76,9 @@ export function ObservablesPanel({
 }) {
   const [activeObservable, setActiveObservable] =
     useState<CaseDetailObservable | null>(null)
+  const [flagOverrides, setFlagOverrides] = useState<
+    Partial<Record<string, ObservableFlag[]>>
+  >({})
   const [addingObservable, setAddingObservable] = useState(false)
   const [newType, setNewType] = useState<string | null>(null)
   const [newData, setNewData] = useState('')
@@ -108,15 +112,69 @@ export function ObservablesPanel({
     },
   })
 
-  const observables = caseDetail.observables
+  const flagMutation = useMutation({
+    mutationFn: ({
+      id,
+      flags,
+    }: {
+      id: string
+      flags: ObservableFlag[]
+    }) =>
+      updateObservableFlags(id, {
+        ioc: flags.includes('ioc'),
+        sighted: flags.includes('sighted'),
+      }),
+    onSuccess: (_updated, variables) => {
+      setFlagOverrides((current) => ({ ...current, [variables.id]: variables.flags }))
+      setActiveObservable((current) =>
+        current?.id === variables.id
+          ? {
+              ...current,
+              ioc: variables.flags.includes('ioc'),
+              sighted: variables.flags.includes('sighted'),
+            }
+          : current,
+      )
+      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+    },
+  })
+
+  const observables = caseDetail.observables.map((observable) => {
+    const override = flagOverrides[observable.id]
+    return override
+      ? {
+          ...observable,
+          ioc: override.includes('ioc'),
+          sighted: override.includes('sighted'),
+        }
+      : observable
+  })
   const drawerObservable = activeObservable
     ? toObservable(activeObservable, caseDetail)
     : null
+
+  const requestObservableFlags = (
+    observable: Observable,
+    update: (flags: ObservableFlag[]) => ObservableFlag[],
+  ) => {
+    const nextFlags = update(observable.flags)
+    flagMutation.mutate({ id: observable.id, flags: nextFlags })
+  }
 
   return (
     <Stack gap="md" p="lg">
       <ObservableDetailDrawer
         observable={drawerObservable}
+        onToggleIoc={(observable) =>
+          requestObservableFlags(observable, (flags) =>
+            toggleFlag(flags, 'ioc'),
+          )
+        }
+        onMarkSighted={(observable) =>
+          requestObservableFlags(observable, (flags) =>
+            addFlag(flags, 'sighted'),
+          )
+        }
         onClose={() => setActiveObservable(null)}
       />
 
@@ -185,7 +243,12 @@ export function ObservablesPanel({
         }
       />
 
-      <Table verticalSpacing="sm" horizontalSpacing={0} highlightOnHover>
+      <Table
+        aria-label="Case observables"
+        verticalSpacing="sm"
+        horizontalSpacing={0}
+        highlightOnHover
+      >
         <Table.Thead>
           <Table.Tr>
             <Table.Th className={styles.fieldLabel} fw={500}>
@@ -193,12 +256,6 @@ export function ObservablesPanel({
             </Table.Th>
             <Table.Th className={styles.fieldLabel} fw={500}>
               Value
-            </Table.Th>
-            <Table.Th className={styles.fieldLabel} fw={500}>
-              Flags
-            </Table.Th>
-            <Table.Th className={styles.fieldLabel} fw={500}>
-              Analysis
             </Table.Th>
             <Table.Th className={styles.fieldLabel} fw={500} ta="right">
               Added
@@ -223,42 +280,6 @@ export function ObservablesPanel({
               </Table.Td>
               <Table.Td>
                 <Text ff="monospace">{observable.value}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Group gap={8} wrap="nowrap">
-                  {observable.ioc ? (
-                    <Text ff="monospace" fz={12} fw={700}>
-                      IOC
-                    </Text>
-                  ) : null}
-                  {observable.sighted ? (
-                    <Text
-                      ff="monospace"
-                      fz={11}
-                      fw={600}
-                      tt="uppercase"
-                      c="var(--sev-high)"
-                    >
-                      Sighted
-                    </Text>
-                  ) : null}
-                </Group>
-              </Table.Td>
-              <Table.Td>
-                {observable.analysis === '—' ? (
-                  <Text c="dimmed">—</Text>
-                ) : (
-                  <Badge
-                    variant="light"
-                    color="indigo"
-                    radius="sm"
-                    ff="monospace"
-                    fw={500}
-                    tt="none"
-                  >
-                    {observable.analysis}
-                  </Badge>
-                )}
               </Table.Td>
               <Table.Td ta="right">
                 <Text ff="monospace" fz={13} c="dimmed">

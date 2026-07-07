@@ -1,11 +1,7 @@
 import type { CaseDetailTimelineEvent } from '#/components/Cases/caseDetails.types'
-import { caseKeys, createCaseComment } from '#/components/Cases/casesQueries'
-import { Box, Button, Group, Stack, Text, TextInput } from '@mantine/core'
-import { useQueryClient } from '@tanstack/react-query'
+import { Box, Group, Stack, Text } from '@mantine/core'
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
 import { CasePanelHeader } from './CasePanelHeader'
-import { actionNotice } from './constants'
 
 const TIMELINE_MARKER: Record<'warn' | 'ok' | 'neutral' | 'comment', string> = {
   warn: 'var(--sev-high)',
@@ -33,15 +29,9 @@ function BoldText({ text }: { text: string }) {
 
 export function TimelinePanel({
   timeline,
-  caseId,
 }: {
   timeline: CaseDetailTimelineEvent[]
-  caseId: string
 }) {
-  const queryClient = useQueryClient()
-  const [note, setNote] = useState('')
-  const [posting, setPosting] = useState(false)
-
   const markerColor = (event: CaseDetailTimelineEvent) =>
     event.kind === 'comment'
       ? TIMELINE_MARKER.comment
@@ -52,21 +42,6 @@ export function TimelinePanel({
   function eventKey(event: CaseDetailTimelineEvent) {
     if (event.kind === 'comment') return `comment-${commentIndex++}`
     return `audit-${event.createdAt}`
-  }
-
-  async function post() {
-    const trimmed = note.trim()
-    if (!trimmed || posting) return
-    setPosting(true)
-    try {
-      await createCaseComment(caseId, trimmed)
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
-      setNote('')
-    } catch {
-      actionNotice('Failed to post note')
-    } finally {
-      setPosting(false)
-    }
   }
 
   return (
@@ -146,24 +121,6 @@ export function TimelinePanel({
           ))}
         </Stack>
       </Box>
-
-      <Group gap="sm" wrap="nowrap">
-        <TextInput
-          flex={1}
-          placeholder="Add a note to the case log…"
-          value={note}
-          onChange={(e) => setNote(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              post()
-            }
-          }}
-        />
-        <Button variant="default" onClick={post} loading={posting}>
-          Post
-        </Button>
-      </Group>
     </Stack>
   )
 }

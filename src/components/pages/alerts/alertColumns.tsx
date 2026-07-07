@@ -25,12 +25,12 @@ import { byAge, byAlertId } from './tableFns'
 
 type AlertColumnHandlers = {
   onRunAnalysis: (id: string) => void
-  onIgnore: (id: string) => void
+  onDismiss: (id: string) => void
 }
 
 export function buildAlertColumns({
   onRunAnalysis,
-  onIgnore,
+  onDismiss,
 }: AlertColumnHandlers): ColumnDef<Alert>[] {
   return [
     {
@@ -191,9 +191,9 @@ export function buildAlertColumns({
             </Menu.Item>
             <Menu.Item
               leftSection={<EyeOff size={14} />}
-              onClick={() => onIgnore(row.original.id)}
+              onClick={() => onDismiss(row.original.id)}
             >
-              Ignore
+              Dismiss
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>

@@ -1,9 +1,18 @@
-import { Button, Code, Modal, Stack, Text, TextInput } from '@mantine/core'
+import {
+  ActionIcon,
+  Button,
+  Code,
+  Modal,
+  Stack,
+  Text,
+  TextInput,
+} from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
+import { Copy } from 'lucide-react'
 import { DataTable } from '#/components/Table/DataTable'
 import type { ApiKeyPublic } from '#/components/pages/settings/settingsQueries'
 import {
@@ -36,7 +45,6 @@ export function ApiKeysPanel() {
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       setNewKey(created.key)
-      setShowCreate(false)
       setNewName('')
       notifications.show({
         color: 'green',
@@ -158,13 +166,36 @@ export function ApiKeysPanel() {
 
       <Modal
         opened={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="Generate new API key"
+        onClose={() => {
+          setShowCreate(false)
+          setNewKey('')
+        }}
+        title={newKey ? 'API key created' : 'Generate new API key'}
       >
         {newKey ? (
           <Stack>
-            <Text size="sm">Save this key — it won&#39;t be shown again:</Text>
-            <Code block>{newKey}</Code>
+            <Text size="sm">
+              This API key will only be shown once. Copy it before closing this
+              modal.
+            </Text>
+            <TextInput
+              label="API key"
+              value={newKey}
+              disabled
+              styles={{ input: { fontFamily: 'monospace' } }}
+              rightSection={
+                <ActionIcon
+                  variant="subtle"
+                  aria-label="Copy API key"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(newKey)
+                    notifications.show({ message: 'API key copied' })
+                  }}
+                >
+                  <Copy size={16} />
+                </ActionIcon>
+              }
+            />
           </Stack>
         ) : (
           <Stack>

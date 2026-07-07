@@ -7,6 +7,7 @@ import { observableTypeLabels } from '#/components/Observables/observables'
 import {
   observableFacetsQueryOptions,
   observablesQueryOptions,
+  updateObservableFlags,
 } from '#/components/Observables/observablesQueries'
 import type {
   ObservableListFilters,
@@ -17,9 +18,10 @@ import { TablePanel } from '#/components/Table/TablePanel'
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import type { FilterClause } from '#/lib/filters'
 import { Box, Button } from '@mantine/core'
+import { notifications } from '@mantine/notifications'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { ObservableDetailDrawer } from './observables/ObservableDetailDrawer'
 import { buildObservableColumns } from './observables/observableColumns'
@@ -91,7 +93,37 @@ export function ObservablesPage() {
     [fetchedObservables, flagOverrides],
   )
 
-  const updateObservableFlags = (
+  const persistFlags = useMutation({
+    mutationFn: ({
+      id,
+      flags,
+    }: {
+      id: string
+      flags: ObservableFlag[]
+    }) =>
+      updateObservableFlags(id, {
+        ioc: flags.includes('ioc'),
+        sighted: flags.includes('sighted'),
+      }),
+    onSuccess: (_updated, variables) => {
+      applyObservableFlags(variables.id, variables.flags)
+    },
+    onError: () => {
+      notifications.show({
+        color: 'red',
+        message: 'Unable to update observable flags',
+      })
+    },
+  })
+
+  const applyObservableFlags = (id: string, nextFlags: ObservableFlag[]) => {
+    setFlagOverrides((current) => ({ ...current, [id]: nextFlags }))
+    setActiveObservable((current) =>
+      current?.id === id ? { ...current, flags: nextFlags } : current,
+    )
+  }
+
+  const requestObservableFlags = (
     id: string,
     update: (flags: ObservableFlag[]) => ObservableFlag[],
   ) => {
@@ -100,10 +132,7 @@ export function ObservablesPage() {
       fetchedObservables.find((observable) => observable.id === id)?.flags ??
       []
     const nextFlags = update(currentFlags)
-    setFlagOverrides((current) => ({ ...current, [id]: nextFlags }))
-    setActiveObservable((current) =>
-      current?.id === id ? { ...current, flags: nextFlags } : current,
-    )
+    persistFlags.mutate({ id, flags: nextFlags })
   }
 
   const columns = useMemo(() => buildObservableColumns(), [])
@@ -239,12 +268,12 @@ export function ObservablesPage() {
       <ObservableDetailDrawer
         observable={activeObservable}
         onToggleIoc={(observable) =>
-          updateObservableFlags(observable.id, (flags) =>
+          requestObservableFlags(observable.id, (flags) =>
             toggleFlag(flags, 'ioc'),
           )
         }
         onMarkSighted={(observable) =>
-          updateObservableFlags(observable.id, (flags) =>
+          requestObservableFlags(observable.id, (flags) =>
             addFlag(flags, 'sighted'),
           )
         }

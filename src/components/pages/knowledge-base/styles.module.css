@@ -1,0 +1,14 @@
+.detailPanel {
+  padding: 26px;
+  padding-right: clamp(
+    var(--mantine-spacing-xl),
+    4vw,
+    calc(var(--mantine-spacing-xl) * 2)
+  );
+}
+
+@media (max-width: 900px) {
+  .detailPanel {
+    padding-right: var(--mantine-spacing-lg);
+  }
+}

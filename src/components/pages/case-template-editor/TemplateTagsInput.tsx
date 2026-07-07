@@ -1,9 +1,9 @@
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
+import { Tag } from '#/components/Tag/Tag'
 import {
   CheckIcon,
   Combobox,
   Group,
-  Pill,
   PillsInput,
   useCombobox,
 } from '@mantine/core'
@@ -80,11 +80,9 @@ export function TemplateTagsInput({
           description="pick a suggested tag or type your own (MITRE T-codes auto-style)"
           onClick={() => combobox.openDropdown()}
         >
-          <Pill.Group>
+          <Group gap={6}>
             {value.map((tag) => (
-              <Pill key={tag} withRemoveButton onRemove={() => removeTag(tag)}>
-                {tag}
-              </Pill>
+              <Tag key={tag} label={tag} onRemove={() => removeTag(tag)} />
             ))}
             <Combobox.EventsTarget>
               <PillsInput.Field
@@ -115,7 +113,7 @@ export function TemplateTagsInput({
                 }}
               />
             </Combobox.EventsTarget>
-          </Pill.Group>
+          </Group>
         </PillsInput>
       </Combobox.DropdownTarget>
 

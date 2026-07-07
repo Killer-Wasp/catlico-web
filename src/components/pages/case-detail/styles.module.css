@@ -12,6 +12,12 @@
   font-weight: 650;
 }
 
+.caseDescriptionReadOnly :global(.mantine-RichTextEditor-content),
+.caseDescriptionReadOnly :global(.ProseMirror) {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .attachmentsDropZone {
   border: 2px dashed transparent;
   border-radius: var(--mantine-radius-sm);

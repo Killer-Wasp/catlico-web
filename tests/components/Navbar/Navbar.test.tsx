@@ -15,9 +15,16 @@ import {
 } from '#/components/Tasks/tasksQueries'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import type React from 'react'
-import { beforeAll, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { accessibleOrganisationsQueryOptions } from '#/components/pages/settings/settingsQueries'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -49,9 +56,27 @@ beforeAll(() => {
       dispatchEvent: () => false,
     }),
   })
+  Object.defineProperty(window, 'ResizeObserver', {
+    writable: true,
+    value: class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  })
+  Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+    writable: true,
+    value: () => {},
+  })
 })
 
-function renderNavbar() {
+function renderNavbar({
+  collapsed = false,
+  onToggle = () => {},
+}: {
+  collapsed?: boolean
+  onToggle?: () => void
+} = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
@@ -94,15 +119,41 @@ function renderNavbar() {
     total: 1,
     tasks: [],
   } satisfies TasksResult)
+  queryClient.setQueryData(accessibleOrganisationsQueryOptions().queryKey, [
+    {
+      id: 'origin-soc',
+      name: 'Origin SOC',
+      description: '',
+      timezone: 'Australia/Sydney',
+      default_tlp: 2,
+      created_at: '2026-06-01T00:00:00Z',
+      updated_at: null,
+    },
+    {
+      id: 'partner-acme',
+      name: 'Partner ACME',
+      description: '',
+      timezone: 'Australia/Sydney',
+      default_tlp: 2,
+      created_at: '2026-06-01T00:00:00Z',
+      updated_at: null,
+    },
+  ])
 
   render(
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
-        <Navbar collapsed={false} onToggle={() => {}} />
+        <Navbar collapsed={collapsed} onToggle={onToggle} />
       </MantineProvider>
     </QueryClientProvider>,
   )
 }
+
+beforeEach(() => {
+  localStorage.setItem('catlico.orgId', 'origin-soc')
+})
+
+afterEach(cleanup)
 
 describe('Navbar', () => {
   test('renders query-backed badge counts from current data instead of prototype constants', () => {
@@ -123,5 +174,35 @@ describe('Navbar', () => {
     expect(
       screen.queryByRole('link', { name: /Analyzer jobs\s+3/i }),
     ).toBeNull()
+  })
+
+  test('shows the active organisation switcher at the bottom of the nav', async () => {
+    renderNavbar()
+
+    const switcher = screen.getByRole('combobox', {
+      name: 'Active organisation',
+    })
+
+    expect((switcher as HTMLInputElement).value).toBe('Origin SOC')
+
+    fireEvent.click(switcher)
+    fireEvent.click(await screen.findByRole('option', { name: 'Partner ACME' }))
+
+    await waitFor(() =>
+      expect(localStorage.getItem('catlico.orgId')).toBe('partner-acme'),
+    )
+  })
+
+  test('renders collapse as a labelled nav item', () => {
+    const onToggle = vi.fn()
+
+    renderNavbar({ onToggle })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Collapse navigation' }),
+    )
+
+    expect(screen.getByText('Collapse navigation')).toBeDefined()
+    expect(onToggle).toHaveBeenCalledTimes(1)
   })
 })

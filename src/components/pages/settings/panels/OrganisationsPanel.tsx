@@ -52,6 +52,8 @@ export function OrganisationsPanel() {
   const [managedOrg, setManagedOrg] = useState<OrganisationPublic | null>(null)
   const [managedName, setManagedName] = useState('')
   const [managedDescription, setManagedDescription] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteConfirmName, setDeleteConfirmName] = useState('')
 
   useEffect(() => {
     if (!managedOrg) return
@@ -129,6 +131,8 @@ export function OrganisationsPanel() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       setManagedOrg(null)
+      setDeleteConfirmOpen(false)
+      setDeleteConfirmName('')
       notifications.show({
         color: 'green',
         message: 'Organisation deleted',
@@ -276,11 +280,11 @@ export function OrganisationsPanel() {
                 onChange={(event) => {
                   const value = event.currentTarget.value
                   setNewName(value)
-                  if (!newId) setNewId(toOrgShortName(value))
+                  setNewId(toOrgShortName(value))
                 }}
               />
               <TextInput
-                label="New organisation short name"
+                label="New Organisation ID"
                 value={newId}
                 onChange={(event) =>
                   setNewId(toOrgShortName(event.currentTarget.value))
@@ -338,7 +342,7 @@ export function OrganisationsPanel() {
                 onChange={(event) => setManagedName(event.currentTarget.value)}
               />
               <TextInput
-                label="Manage organisation short name"
+                label="Manage Organisation ID"
                 value={managedOrg.id}
                 readOnly
                 styles={{ input: { fontFamily: 'monospace' } }}
@@ -357,7 +361,10 @@ export function OrganisationsPanel() {
                   color="red"
                   variant="light"
                   loading={deleteMutation.isPending}
-                  onClick={() => deleteMutation.mutate()}
+                  onClick={() => {
+                    setDeleteConfirmName('')
+                    setDeleteConfirmOpen(true)
+                  }}
                 >
                   Delete organisation
                 </Button>
@@ -383,6 +390,40 @@ export function OrganisationsPanel() {
           </Box>
         </Paper>
       )}
+
+      <Modal
+        opened={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        title="Delete organisation"
+      >
+        <Stack gap="md">
+          <Text fz={14}>
+            Type {managedOrg?.name ?? 'the organisation name'} to confirm
+            deletion.
+          </Text>
+          <TextInput
+            label="Organisation name"
+            value={deleteConfirmName}
+            onChange={(event) => setDeleteConfirmName(event.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={deleteMutation.isPending}
+              disabled={deleteConfirmName !== managedOrg?.name}
+              onClick={() => deleteMutation.mutate()}
+            >
+              Delete organisation
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Panel
         title="Organisations"

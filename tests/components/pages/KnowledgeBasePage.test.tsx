@@ -213,6 +213,7 @@ describe('KnowledgeBasePage', () => {
     expect(summary.getAttribute('data-size')).toBe('sm')
     expect(summary.getAttribute('data-dimmed')).toBe('true')
     expect(screen.getByText(/Edited by analyst@example.com/)).toBeDefined()
+    expect(screen.getByTestId('knowledge-base-detail-panel')).toBeDefined()
   })
 
   test('clicking Edit in the action menu replaces the detail view with an inline rich text editor', async () => {
@@ -229,16 +230,22 @@ describe('KnowledgeBasePage', () => {
       container.querySelector('[contenteditable="true"].ProseMirror'),
     ).not.toBeNull()
 
-    const titleInput = screen.getByRole('textbox', { name: /title/i })
+    const titleInput = screen.getByRole('textbox', {
+      name: /title/i,
+    }) as HTMLInputElement
     expect(titleInput.value).toBe('Phishing response runbook')
 
-    const summaryInput = screen.getByRole('textbox', { name: /summary/i })
+    const summaryInput = screen.getByRole('textbox', {
+      name: /summary/i,
+    }) as HTMLInputElement
     expect(summaryInput.value).toBe('Standard procedure for phishing.')
 
     expect(screen.getAllByText('runbook').length).toBeGreaterThan(0)
     expect(screen.getAllByText('phishing').length).toBeGreaterThan(0)
 
-    const tagsInput = screen.getByRole('textbox', { name: /tags/i })
+    const tagsInput = screen.getByRole('textbox', {
+      name: /tags/i,
+    }) as HTMLInputElement
     expect(tagsInput.value).toBe('')
   })
 
@@ -336,7 +343,7 @@ describe('KnowledgeBasePage', () => {
   })
 
   test('opens a timeline drawer and previews a version snapshot', async () => {
-    vi.mocked(api.get).mockImplementation((input: string) => {
+    vi.mocked(api.get).mockImplementation((input) => {
       if (String(input) === 'knowledge-base/1/versions') {
         return {
           json: async () => [
@@ -379,7 +386,7 @@ describe('KnowledgeBasePage', () => {
   })
 
   test('reverts a version from the timeline drawer', async () => {
-    vi.mocked(api.get).mockImplementation((input: string) => {
+    vi.mocked(api.get).mockImplementation((input) => {
       if (String(input) === 'knowledge-base/1/versions') {
         return {
           json: async () => [

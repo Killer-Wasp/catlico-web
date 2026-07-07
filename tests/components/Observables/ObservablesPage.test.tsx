@@ -25,6 +25,7 @@ import {
 vi.mock('#/lib/api/client', () => ({
   api: {
     get: vi.fn(),
+    patch: vi.fn(),
   },
 }))
 
@@ -45,7 +46,7 @@ const observableItems = [
     case_id: 1842,
     alert_id: null,
     observable_type: 'domain',
-    data: 'login-originenergy.support',
+    data: 'login-paylink.support',
     message: 'VT 12/93',
     tlp: 2,
     ioc: true,
@@ -75,7 +76,7 @@ const observableItems = [
     case_id: 1842,
     alert_id: null,
     observable_type: 'mail',
-    data: 'accounts@billing-origin.co',
+    data: 'accounts@billing-paylink.co',
     message: '',
     tlp: 2,
     ioc: true,
@@ -233,18 +234,26 @@ function Harness() {
 // Server-side filtering is simulated here: the mock applies the `type` clause
 // the UI tests exercise (category → raw observable_type), so the page renders
 // the filtered page the "backend" would have returned.
-const TYPE_RAWS: Record<string, string[]> = {
+const TYPE_RAWS = {
   domain: ['domain'],
   url: ['url'],
   mail: ['mail', 'email'],
   ip: ['ip', 'ipv4', 'ipv6'],
   hash: ['hash'],
   file: ['file', 'filename'],
+} as const
+const KNOWN_RAWS = new Set<string>(Object.values(TYPE_RAWS).flat())
+
+function isObservableCategory(value: string): value is keyof typeof TYPE_RAWS {
+  return Object.hasOwn(TYPE_RAWS, value)
 }
-const KNOWN_RAWS = new Set(Object.values(TYPE_RAWS).flat())
 
 beforeEach(() => {
   vi.mocked(api.get).mockReset()
+  vi.mocked(api.patch).mockReset()
+  vi.mocked(api.patch).mockReturnValue({
+    json: async () => ({}),
+  } satisfies JsonResponse as ReturnType<typeof api.patch>)
   vi.mocked(api.get).mockImplementation((input, options) => {
     const url = String(input)
     if (url.includes('/enrichments')) {
@@ -263,10 +272,12 @@ beforeEach(() => {
     for (const term of sp?.getAll('filter') ?? []) {
       const [key, , value] = term.split('~')
       if (key === 'type') {
-        const raws = TYPE_RAWS[value]
-        items = raws
-          ? items.filter((o) => raws.includes(o.observable_type))
-          : items.filter((o) => !KNOWN_RAWS.has(o.observable_type))
+        if (isObservableCategory(value)) {
+          const raws: readonly string[] = TYPE_RAWS[value]
+          items = items.filter((o) => raws.includes(o.observable_type))
+        } else {
+          items = items.filter((o) => !KNOWN_RAWS.has(o.observable_type))
+        }
       }
     }
     return {
@@ -281,7 +292,7 @@ describe('ObservablesPage', () => {
   test('renders an observable table with search-bar filters, bulk actions and pagination', async () => {
     render(<Harness />)
 
-    expect(await screen.findByText('login-originenergy.support')).toBeDefined()
+    expect(await screen.findByText('login-paylink.support')).toBeDefined()
     expect(
       screen.getByRole('button', { name: '+ Add observable' }),
     ).toBeDefined()
@@ -300,12 +311,12 @@ describe('ObservablesPage', () => {
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Observable login-originenergy.support actions',
+        name: 'Observable login-paylink.support actions',
       }),
     )
     fireEvent.click(await screen.findByRole('menuitem', { name: /analyze/i }))
     expect(
-      await screen.findByText('Analyzer queued for login-originenergy.support'),
+      await screen.findByText('Analyzer queued for login-paylink.support'),
     ).toBeDefined()
 
     // Bulk actions live in select mode and start disabled with nothing selected.
@@ -321,12 +332,12 @@ describe('ObservablesPage', () => {
   test('enables bulk actions when an observable is selected', async () => {
     render(<Harness />)
 
-    expect(await screen.findByText('login-originenergy.support')).toBeDefined()
+    expect(await screen.findByText('login-paylink.support')).toBeDefined()
     // Row checkboxes only appear after entering select mode.
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
     fireEvent.click(
       screen.getByRole('checkbox', {
-        name: 'Select observable login-originenergy.support',
+        name: 'Select observable login-paylink.support',
       }),
     )
 
@@ -341,7 +352,7 @@ describe('ObservablesPage', () => {
   test('filters observables by token search field', async () => {
     render(<Harness />)
 
-    expect(await screen.findByText('login-originenergy.support')).toBeDefined()
+    expect(await screen.findByText('login-paylink.support')).toBeDefined()
     fireEvent.click(
       screen.getByPlaceholderText(
         'Filter observables — pick a field, then a value',
@@ -352,7 +363,7 @@ describe('ObservablesPage', () => {
 
     // Filtering is server-side now: wait for the refetched page to render.
     await waitFor(() =>
-      expect(screen.queryByText('login-originenergy.support')).toBeNull(),
+      expect(screen.queryByText('login-paylink.support')).toBeNull(),
     )
     expect(screen.getByText('203.0.113.47')).toBeDefined()
     expect(screen.getByText('198.51.100.22')).toBeDefined()
@@ -394,9 +405,19 @@ describe('ObservablesPage', () => {
     expect(within(modal).getAllByText('no').length).toBeGreaterThanOrEqual(2)
 
     fireEvent.click(within(modal).getByRole('button', { name: 'Toggle IOC' }))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('observables/obs-5', {
+        json: { ioc: true, sighted: false },
+      }),
+    )
     expect(within(modal).getByText('yes')).toBeDefined()
 
     fireEvent.click(within(modal).getByRole('button', { name: 'Mark sighted' }))
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('observables/obs-5', {
+        json: { ioc: true, sighted: true },
+      }),
+    )
     expect(within(modal).getAllByText('yes').length).toBeGreaterThanOrEqual(2)
     expect(
       within(modal).getByRole('button', { name: 'Mark sighted' }),
@@ -450,6 +471,6 @@ describe('ObservablesPage', () => {
     expect(
       await screen.findByText('Couldn’t load observables from the backend.'),
     ).toBeDefined()
-    expect(screen.queryByText('login-originenergy.support')).toBeNull()
+    expect(screen.queryByText('login-paylink.support')).toBeNull()
   })
 })

@@ -92,26 +92,31 @@ export function ProfilesPanel() {
   const [checkState, setCheckState] = useState<Set<string>>(new Set())
   const [newProfileOpen, setNewProfileOpen] = useState(false)
 
-  const roleProfiles = roles as RolePublic[]
+  const roleProfiles: RolePublic[] = roles
 
   useEffect(() => {
     if (profile || roleProfiles.length === 0) return
     setProfile(roleProfiles[0].id)
   }, [profile, roleProfiles])
 
-  const activeProfile = roleProfiles.find((r) => r.id === profile) ?? roleProfiles[0]
+  const activeProfile = roleProfiles.find((r) => r.id === profile) ?? roleProfiles.at(0)
 
   useEffect(() => {
     if (!activeProfile) return
     setCheckState(new Set(activeProfile.permissions))
-  }, [activeProfile?.id])
+  }, [activeProfile])
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      updateRole(activeProfile.id, { permissions: [...checkState] }),
+    mutationFn: () => {
+      if (!activeProfile) throw new Error('Select a profile before saving')
+      return updateRole(activeProfile.id, { permissions: [...checkState] })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ color: 'green', message: `Profile "${activeProfile.name}" saved` })
+      notifications.show({
+        color: 'green',
+        message: `Profile "${activeProfile?.name ?? 'Profile'}" saved`,
+      })
     },
     onError: (error) =>
       notifications.show({

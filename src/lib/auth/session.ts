@@ -80,6 +80,11 @@ function orgsFromToken(accessToken: string): string[] {
   return Array.isArray(orgs) ? (orgs as string[]) : []
 }
 
+export function getSessionOrganisationIds(): string[] {
+  const access = getAccessToken()
+  return access ? orgsFromToken(access) : []
+}
+
 /**
  * Exchange credentials for tokens, then resolve an active organisation:
  * prefer the membership baked into the access token; fall back to the org list

@@ -56,7 +56,7 @@ describe('page table column order', () => {
     })
     const alertColumns = buildAlertColumns({
       onRunAnalysis: vi.fn(),
-      onIgnore: vi.fn(),
+      onDismiss: vi.fn(),
     })
 
     const caseTitle = caseColumns.find((column) => column.id === 'title')

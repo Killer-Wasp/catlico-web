@@ -22,6 +22,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import {
   afterEach,
@@ -38,6 +39,7 @@ vi.mock('#/lib/api/client', () => ({
     get: vi.fn(),
     patch: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
     delete: vi.fn(),
   },
 }))
@@ -158,6 +160,7 @@ beforeEach(() => {
   vi.mocked(api.get).mockReset()
   vi.mocked(api.patch).mockReset()
   vi.mocked(api.post).mockReset()
+  vi.mocked(api.put).mockReset()
   vi.mocked(api.delete).mockReset()
   vi.mocked(api.get).mockImplementation((input) => {
     const endpoint = String(input)
@@ -171,6 +174,9 @@ beforeEach(() => {
           organisation_id: 'origin-soc',
           role_id: 'role-analyst',
           email: 'analyst@example.test',
+          first_name: 'Ada',
+          last_name: 'Lovelace',
+          has_avatar: false,
           created_at: '2026-06-12T09:12:00Z',
         },
       ],
@@ -210,6 +216,13 @@ beforeEach(() => {
           has_secrets: false,
         },
       ],
+      'api-keys/': [],
+      'sla-policies/': {
+        items: [],
+        total: 0,
+        skip: 0,
+        limit: 100,
+      },
     }
     return {
       json: async () => payloads[endpoint] ?? [],
@@ -225,13 +238,21 @@ beforeEach(() => {
   } satisfies JsonResponse as ReturnType<typeof api.patch>)
   vi.mocked(api.post).mockReturnValue({
     json: async () => ({
-      id: 'partner-acme',
-      name: 'Managed Partner - Acme',
-      description: 'External partner',
+      id: 'key-1',
+      name: 'splunk-forwarder',
+      prefix: 'catlico',
+      last_four: '1234',
+      scopes: [],
+      last_used_at: null,
+      expires_at: null,
+      organisation_id: 'origin-soc',
       created_at: '2026-06-12T10:12:00Z',
-      updated_at: null,
+      key: 'catlico_live_secret_1234',
     }),
   } satisfies JsonResponse as ReturnType<typeof api.post>)
+  vi.mocked(api.put).mockReturnValue({
+    json: async () => [],
+  } satisfies JsonResponse as ReturnType<typeof api.put>)
   vi.mocked(api.delete).mockReturnValue({} as ReturnType<typeof api.delete>)
 })
 
@@ -257,9 +278,12 @@ describe('SettingsPage', () => {
       screen.getByRole('navigation', { name: /settings sections/i }),
     ).toBeDefined()
     expect(await screen.findByDisplayValue('Backend SOC')).toBeDefined()
-    expect(fieldValue('Org short name')).toBe('origin-soc')
+    expect(fieldValue('Organisation ID')).toBe('origin-soc')
     expect(screen.getByDisplayValue('Primary backend tenant')).toBeDefined()
     expect(api.get).toHaveBeenCalledWith('organisations/origin-soc')
+
+    fireEvent.mouseDown(screen.getByLabelText('Timezone'))
+    expect(await screen.findByText('Pacific/Auckland')).toBeDefined()
   })
 
   test('saves organisation profile changes to the backend', async () => {
@@ -289,7 +313,12 @@ describe('SettingsPage', () => {
 
     fireEvent.click(await screen.findByRole('tab', { name: 'Users & roles' }))
     expect(await screen.findByText('analyst@example.test')).toBeDefined()
+    expect(screen.getByText('Ada Lovelace')).toBeDefined()
     expect(screen.getByText('ANALYST')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Add User' })).toBeDefined()
+    expect(
+      screen.getByRole('button', { name: /member actions for ada lovelace/i }),
+    ).toBeDefined()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Profiles & permissions' }))
     expect(await screen.findByRole('button', { name: 'analyst' })).toBeDefined()
@@ -312,9 +341,7 @@ describe('SettingsPage', () => {
     fireEvent.change(await screen.findByLabelText('New organisation name'), {
       target: { value: 'Managed Partner - Acme' },
     })
-    fireEvent.change(screen.getByLabelText('New organisation short name'), {
-      target: { value: 'partner-acme' },
-    })
+    expect(fieldValue('New Organisation ID')).toBe('managed-partner-acme')
     fireEvent.change(screen.getByLabelText('New organisation description'), {
       target: { value: 'External partner' },
     })
@@ -323,7 +350,7 @@ describe('SettingsPage', () => {
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('organisations/', {
         json: {
-          id: 'partner-acme',
+          id: 'managed-partner-acme',
           name: 'Managed Partner - Acme',
           description: 'External partner',
         },
@@ -351,9 +378,48 @@ describe('SettingsPage', () => {
       ),
     )
 
+    expect(fieldValue('Manage Organisation ID')).toBe('origin-soc')
     fireEvent.click(screen.getByRole('button', { name: 'Delete organisation' }))
+    const deleteModal = await screen.findByRole('dialog', {
+      name: /delete organisation/i,
+    })
+    expect(
+      within(deleteModal).getByText(/type Updated Backend SOC to confirm/i),
+    ).toBeDefined()
+    fireEvent.change(within(deleteModal).getByLabelText('Organisation name'), {
+      target: { value: 'Updated Backend SOC' },
+    })
+    fireEvent.click(
+      within(deleteModal).getByRole('button', { name: 'Delete organisation' }),
+    )
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith('organisations/origin-soc'),
     )
+  })
+
+  test('shows the generated API key once in a disabled input with copy action', async () => {
+    render(<Harness />)
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'API keys' }))
+    fireEvent.click(await screen.findByRole('button', { name: '+ Generate key' }))
+    fireEvent.change(await screen.findByLabelText('Key name'), {
+      target: { value: 'splunk-forwarder' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    const modal = await screen.findByRole('dialog', { name: /api key created/i })
+    const keyInput = within(modal).getByDisplayValue('catlico_live_secret_1234')
+    expect((keyInput as HTMLInputElement).disabled).toBe(true)
+    expect(within(modal).getByRole('button', { name: /copy api key/i })).toBeDefined()
+  })
+
+  test('shows an add SLA policy action when no policies exist', async () => {
+    render(<Harness />)
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'SLA policies' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Add SLA policy' }),
+    ).toBeDefined()
   })
 })

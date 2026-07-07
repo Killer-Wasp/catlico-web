@@ -1,6 +1,9 @@
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
-import { getActiveOrgId } from '#/lib/auth/session'
+import {
+  getActiveOrgId,
+  getSessionOrganisationIds,
+} from '#/lib/auth/session'
 
 type Page<T> = { items: T[]; total: number; skip: number; limit: number }
 
@@ -57,9 +60,11 @@ export type OrganisationCreateInput = Pick<
 >
 
 export type OrganisationMemberCreateInput = {
-  user_id: string
   role_id: string
-}
+} & (
+  | { user_id: string }
+  | { email: string; first_name?: string; last_name?: string }
+)
 
 export type OrganisationMemberUpdateInput = {
   role_id: string
@@ -105,6 +110,8 @@ export const settingsKeys = {
   organisation: (orgId: string) =>
     [...settingsKeys.all, 'organisation', orgId] as const,
   organisations: () => [...settingsKeys.all, 'organisations'] as const,
+  accessibleOrganisations: () =>
+    [...settingsKeys.all, 'accessible-organisations'] as const,
   members: (orgId: string) => [...settingsKeys.all, 'members', orgId] as const,
   roles: () => [...settingsKeys.all, 'roles'] as const,
   customFields: (filters: SettingsListFilters = DEFAULT_SETTINGS_FILTERS) =>
@@ -149,6 +156,14 @@ export async function updateOrganisationProfile(
 
 export async function fetchOrganisations(): Promise<OrganisationPublic[]> {
   return api.get('organisations/').json<OrganisationPublic[]>()
+}
+
+export async function fetchAccessibleOrganisations(): Promise<
+  OrganisationPublic[]
+> {
+  const orgIds = getSessionOrganisationIds()
+  if (orgIds.length === 0) return fetchOrganisations()
+  return Promise.all(orgIds.map((orgId) => fetchOrganisationProfile(orgId)))
 }
 
 export async function createOrganisation(
@@ -291,6 +306,13 @@ export const organisationsQueryOptions = () =>
   queryOptions({
     queryKey: settingsKeys.organisations(),
     queryFn: fetchOrganisations,
+    retry: false,
+  })
+
+export const accessibleOrganisationsQueryOptions = () =>
+  queryOptions({
+    queryKey: settingsKeys.accessibleOrganisations(),
+    queryFn: fetchAccessibleOrganisations,
     retry: false,
   })
 

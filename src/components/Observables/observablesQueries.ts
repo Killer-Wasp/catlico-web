@@ -181,3 +181,12 @@ export const observableEnrichmentsQueryOptions = (id: string) =>
     queryKey: observableKeys.enrichments(id),
     queryFn: () => fetchObservableEnrichments(id),
   })
+
+export async function updateObservableFlags(
+  id: string,
+  flags: { ioc: boolean; sighted: boolean },
+): Promise<void> {
+  await api.patch(`observables/${id}`, {
+    json: flags,
+  })
+}

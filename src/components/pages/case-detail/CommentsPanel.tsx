@@ -19,6 +19,7 @@ import {
   Group,
   Menu,
   ScrollArea,
+  Select,
   Stack,
   Text,
 } from '@mantine/core'
@@ -28,7 +29,7 @@ import { Mention } from '@tiptap/extension-mention'
 import { Markdown } from '@tiptap/markdown'
 import { useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { ArrowDown, ArrowUp, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { CasePanelHeader } from './CasePanelHeader'
 import { actionNotice } from './constants'
@@ -58,33 +59,20 @@ export function CommentsPanel({ caseId }: { caseId: string }) {
       <CasePanelHeader
         label="Comments"
         action={
-          <Menu shadow="md" width={160}>
-            <Menu.Target>
-              <ActionIcon variant="subtle" color="gray" size="sm">
-                {sortOrder === 'desc' ? (
-                  <ArrowDown size={14} />
-                ) : (
-                  <ArrowUp size={14} />
-                )}
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<ArrowDown size={14} />}
-                rightSection={sortOrder === 'desc' ? '✓' : undefined}
-                onClick={() => setSortOrder('desc')}
-              >
-                Newest first
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<ArrowUp size={14} />}
-                rightSection={sortOrder === 'asc' ? '✓' : undefined}
-                onClick={() => setSortOrder('asc')}
-              >
-                Oldest first
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
+          <Select
+            aria-label="Sort comments"
+            size="xs"
+            w={150}
+            value={sortOrder}
+            data={[
+              { value: 'desc', label: 'Newest first' },
+              { value: 'asc', label: 'Oldest first' },
+            ]}
+            allowDeselect={false}
+            onChange={(value) =>
+              setSortOrder(value === 'asc' ? 'asc' : 'desc')
+            }
+          />
         }
       />
 

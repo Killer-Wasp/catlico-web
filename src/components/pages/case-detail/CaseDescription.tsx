@@ -23,6 +23,7 @@ import {
   mentionSuggestion,
 } from './mentionSuggestion'
 import type { MentionUser } from './mentionSuggestion'
+import styles from './styles.module.css'
 
 // Mono, uppercase, dimmed inline field label — matches the detail page's other
 // section labels.
@@ -154,6 +155,8 @@ export function CaseDescription({ markdown, onSave }: CaseDescriptionProps) {
       ) : (
         <RichTextEditor
           editor={editor}
+          className={!editing ? styles.caseDescriptionReadOnly : undefined}
+          data-testid={!editing ? 'case-description-read-mode' : undefined}
           // In read mode strip the editor chrome so it reads as plain content.
           styles={
             editing

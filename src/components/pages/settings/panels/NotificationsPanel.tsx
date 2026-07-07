@@ -23,8 +23,8 @@ import {
   settingsKeys,
   updateNotificationRule,
   updateNotifier,
-  type NotifierPublic,
 } from '#/components/pages/settings/settingsQueries'
+import type { NotifierPublic } from '#/components/pages/settings/settingsQueries'
 import { Panel } from '#/components/pages/settings/settingsUi'
 
 export function NotificationsPanel() {
@@ -247,7 +247,7 @@ export function NotificationsPanel() {
               { value: 'kafka', label: 'Kafka' },
             ]}
             value={ntype}
-            onChange={(v) => v && setNtype(v as NotifierPublic['type'])}
+            onChange={(v) => setNtype(v as NotifierPublic['type'])}
             required
           />
           <TextInput

@@ -1,7 +1,9 @@
 import {
+  ActionIcon,
   Button,
   Code,
   Group,
+  Menu,
   Modal,
   Select,
   Stack,
@@ -12,6 +14,9 @@ import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { EllipsisVertical, Pencil, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { DataTable } from '#/components/Table/DataTable'
 import {
@@ -24,11 +29,19 @@ import {
 } from '#/components/pages/settings/settingsQueries'
 import type { OrganisationMemberPublic } from '#/components/pages/settings/settingsQueries'
 import {
-  compactDate,
   LoadingPanel,
   Panel,
   RoleBadge,
 } from '#/components/pages/settings/settingsUi'
+
+dayjs.extend(relativeTime)
+
+function memberName(member: OrganisationMemberPublic) {
+  return (
+    [member.first_name, member.last_name].filter(Boolean).join(' ').trim() ||
+    member.email
+  )
+}
 
 function InviteMemberModal({
   opened,
@@ -40,16 +53,25 @@ function InviteMemberModal({
   roleIds: { value: string; label: string }[]
 }) {
   const queryClient = useQueryClient()
-  const [userId, setUserId] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [email, setEmail] = useState('')
   const [roleId, setRoleId] = useState(roleIds[0]?.value ?? '')
 
   const mutation = useMutation({
     mutationFn: () =>
-      createOrganisationMember({ user_id: userId.trim(), role_id: roleId }),
+      createOrganisationMember({
+        email: email.trim(),
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        role_id: roleId,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       notifications.show({ color: 'green', message: 'Member added' })
-      setUserId('')
+      setFirstName('')
+      setLastName('')
+      setEmail('')
       onClose()
     },
     onError: (error) =>
@@ -61,19 +83,31 @@ function InviteMemberModal({
   })
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Invite user">
+    <Modal opened={opened} onClose={onClose} title="Add User">
       <Stack gap="md">
         <TextInput
-          label="User ID"
-          value={userId}
-          onChange={(e) => setUserId(e.currentTarget.value)}
+          label="First name"
+          value={firstName}
+          onChange={(e) => setFirstName(e.currentTarget.value)}
+          required
+        />
+        <TextInput
+          label="Last name"
+          value={lastName}
+          onChange={(e) => setLastName(e.currentTarget.value)}
+          required
+        />
+        <TextInput
+          label="Email"
+          value={email}
+          onChange={(e) => setEmail(e.currentTarget.value)}
           required
         />
         <Select
           label="Role"
           data={roleIds}
           value={roleId}
-          onChange={(v) => setRoleId(v ?? roleIds[0]?.value ?? '')}
+          onChange={(value) => setRoleId(value ?? roleIds[0]?.value ?? '')}
           allowDeselect={false}
         />
         <Group justify="flex-end">
@@ -83,10 +117,10 @@ function InviteMemberModal({
           <Button
             color="orange"
             loading={mutation.isPending}
-            disabled={!userId.trim()}
+            disabled={!firstName.trim() || !lastName.trim() || !email.trim()}
             onClick={() => mutation.mutate()}
           >
-            Add member
+            Add User
           </Button>
         </Group>
       </Stack>
@@ -196,9 +230,7 @@ export function UsersPanel() {
       {
         id: 'user',
         header: 'User',
-        cell: ({ row }) => (
-          <Text fw={700}>{row.original.email.split('@')[0]}</Text>
-        ),
+        cell: ({ row }) => <Text fw={700}>{memberName(row.original)}</Text>,
       },
       {
         id: 'email',
@@ -218,8 +250,8 @@ export function UsersPanel() {
         id: 'lastActive',
         header: 'Last active',
         cell: ({ row }) => (
-          <Text ff="monospace" c="var(--faint)">
-            {compactDate(row.original.created_at)}
+          <Text ff="monospace" c="var(--faint)" fz={12}>
+            {dayjs(row.original.created_at).fromNow()}
           </Text>
         ),
       },
@@ -228,13 +260,32 @@ export function UsersPanel() {
         header: '',
         meta: { ta: 'right' },
         cell: ({ row }) => (
-          <Button
-            size="xs"
-            variant="default"
-            onClick={() => setEditingMember(row.original)}
-          >
-            Edit
-          </Button>
+          <Menu position="bottom-end" withinPortal withArrow shadow="md">
+            <Menu.Target>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                aria-label={`Member actions for ${memberName(row.original)}`}
+              >
+                <EllipsisVertical size={16} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<Pencil size={14} />}
+                onClick={() => setEditingMember(row.original)}
+              >
+                Edit
+              </Menu.Item>
+              <Menu.Item
+                color="red"
+                leftSection={<Trash2 size={14} />}
+                onClick={() => setEditingMember(row.original)}
+              >
+                Remove
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         ),
       },
     ],
@@ -261,7 +312,7 @@ export function UsersPanel() {
         count={members.length}
         action={
           <Button variant="default" onClick={() => setInviteOpen(true)}>
-            + Invite user
+            Add User
           </Button>
         }
       >

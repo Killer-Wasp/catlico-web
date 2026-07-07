@@ -15,12 +15,14 @@ import { FunctionsList } from './functions/FunctionsList'
 import { fromApi, newFunctionAutomation } from './functions/model'
 import type { FunctionAutomation } from './functions/model'
 
-export function FunctionsPage() {
+export function FunctionsPage({ initialNew = false }: { initialNew?: boolean }) {
   const queryClient = useQueryClient()
   const { data, isPending, isError, refetch, isFetching } = useQuery(
     functionsQueryOptions(),
   )
-  const [draft, setDraft] = useState<FunctionAutomation | null>(null)
+  const [draft, setDraft] = useState<FunctionAutomation | null>(() =>
+    initialNew ? newFunctionAutomation() : null,
+  )
   const funcs = (data?.items ?? []).map(fromApi)
 
   const saveMutation = useMutation({

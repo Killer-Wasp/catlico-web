@@ -19,6 +19,18 @@ import {
 } from '#/components/pages/settings/settingsQueries'
 import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
 
+const FALLBACK_TIMEZONES = [
+  'UTC',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+  'America/New_York',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Berlin',
+  'Asia/Tokyo',
+  'Asia/Singapore',
+]
+
 export function OrgProfilePanel() {
   const queryClient = useQueryClient()
   const {
@@ -34,6 +46,13 @@ export function OrgProfilePanel() {
     () => Intl.DateTimeFormat().resolvedOptions().timeZone,
     [],
   )
+  const timezoneOptions = useMemo(() => {
+    const supported =
+      typeof Intl.supportedValuesOf === 'function'
+        ? Intl.supportedValuesOf('timeZone')
+        : FALLBACK_TIMEZONES
+    return Array.from(new Set([browserTz, ...supported, ...FALLBACK_TIMEZONES]))
+  }, [browserTz])
   const [timezone, setTimezone] = useState(browserTz)
   const [defaultTlp, setDefaultTlp] = useState(2)
 
@@ -99,7 +118,7 @@ export function OrgProfilePanel() {
             onChange={(event) => setName(event.currentTarget.value)}
           />
           <TextInput
-            label="Org short name"
+            label="Organisation ID"
             value={org.id}
             readOnly
             styles={{ input: { fontFamily: 'monospace', fontWeight: 600 } }}
@@ -108,18 +127,12 @@ export function OrgProfilePanel() {
             label="Organisation description"
             value={description}
             minRows={2}
+            style={{ gridColumn: '1 / -1' }}
             onChange={(event) => setDescription(event.currentTarget.value)}
           />
           <Select
             label="Timezone"
-            data={Array.from(new Set([
-              browserTz,
-              'UTC',
-              'Australia/Sydney',
-              'America/New_York',
-              'Europe/London',
-              'Asia/Tokyo',
-            ]))}
+            data={timezoneOptions}
             value={timezone}
             onChange={(v) => setTimezone(v ?? browserTz)}
             allowDeselect={false}
@@ -132,7 +145,7 @@ export function OrgProfilePanel() {
               { value: '3', label: 'TLP:RED' },
             ]}
             value={String(defaultTlp)}
-            onChange={(v) => setDefaultTlp(Number(v) ?? 2)}
+            onChange={(v) => setDefaultTlp(Number(v))}
             allowDeselect={false}
           />
         </SimpleGrid>

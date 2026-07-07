@@ -49,12 +49,12 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 })
 
-function Harness() {
+function Harness({ initialNew = false }: { initialNew?: boolean } = {}) {
   return (
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
         <Notifications />
-        <FunctionsPage />
+        <FunctionsPage initialNew={initialNew} />
       </MantineProvider>
     </QueryClientProvider>
   )
@@ -95,6 +95,13 @@ describe('FunctionsPage', () => {
     render(<Harness />)
 
     fireEvent.click(screen.getByRole('button', { name: '+ New function' }))
+
+    expect(screen.getByRole('heading', { name: 'New function' })).toBeDefined()
+    expect(screen.getByText('create an automation')).toBeDefined()
+  })
+
+  test('can open directly in new function editor mode', () => {
+    render(<Harness initialNew />)
 
     expect(screen.getByRole('heading', { name: 'New function' })).toBeDefined()
     expect(screen.getByText('create an automation')).toBeDefined()

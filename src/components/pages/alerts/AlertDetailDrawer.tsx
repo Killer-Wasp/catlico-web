@@ -15,7 +15,6 @@ import {
   Textarea,
   VisuallyHidden,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import styles from './styles.module.css'
@@ -26,7 +25,8 @@ export function AlertDetailDrawer({
   comments,
   onClose,
   onAddComment,
-  onIgnore,
+  onDismiss,
+  onMergeIntoCase,
   onRunAnalysis,
   onPromote,
   promotionPending,
@@ -36,7 +36,8 @@ export function AlertDetailDrawer({
   comments: string[]
   onClose: () => void
   onAddComment: (id: string, note: string) => void
-  onIgnore: (id: string) => void
+  onDismiss: (id: string) => void
+  onMergeIntoCase: (id: string) => void
   onRunAnalysis: (id: string) => void
   onPromote: (id: string, templateId: string) => void
   promotionPending: boolean
@@ -289,20 +290,16 @@ export function AlertDetailDrawer({
             fullWidth
             variant="default"
             onClick={() => {
-              onIgnore(alert.id)
+              onDismiss(alert.id)
               close()
             }}
           >
-            Ignore
+            Dismiss
           </Button>
           <Button
             fullWidth
             variant="default"
-            onClick={() =>
-              notifications.show({
-                message: `Pick a target case to merge ${alert.id} into`,
-              })
-            }
+            onClick={() => onMergeIntoCase(alert.id)}
           >
             Merge into case...
           </Button>

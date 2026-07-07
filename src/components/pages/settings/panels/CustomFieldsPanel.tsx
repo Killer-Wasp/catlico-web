@@ -105,9 +105,7 @@ function AddFieldModal({
           data={FIELD_TYPES}
           value={fieldType}
           onChange={(v) =>
-            setFieldType(
-              (v as CustomFieldCreateInput['field_type']) ?? 'string',
-            )
+            setFieldType(v as CustomFieldCreateInput['field_type'])
           }
           allowDeselect={false}
         />

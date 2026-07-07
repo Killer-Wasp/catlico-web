@@ -148,8 +148,9 @@ describe('TokenSearch', () => {
     fireEvent.click(optionByName('Open'))
 
     expect(
-      screen.getByText('status:Open').closest('[data-tag-tone]')?.dataset
-        .tagTone,
+      (screen
+        .getByText('status:Open')
+        .closest('[data-tag-tone]') as HTMLElement | null)?.dataset.tagTone,
     ).toBe('status')
   })
 

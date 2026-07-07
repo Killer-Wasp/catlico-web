@@ -239,6 +239,21 @@ describe('CaseTemplateEditorPage', () => {
     expect(within(table).getByLabelText('Custom field 1 label')).toBeDefined()
   })
 
+  test('renders default tags with the shared removable tag chip', async () => {
+    render(<Harness />)
+
+    expect(
+      await screen.findByDisplayValue('Phishing / credential harvesting'),
+    ).toBeDefined()
+
+    const tagChip = screen.getByText('T1566').closest('[data-tag-tone]')
+
+    expect(tagChip).not.toBeNull()
+    expect(within(tagChip as HTMLElement).getByRole('button', {
+      name: 'Remove T1566',
+    })).toBeDefined()
+  })
+
   test('saves edits and template tags to the backend', async () => {
     render(<Harness />)
 

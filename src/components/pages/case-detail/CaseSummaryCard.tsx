@@ -7,10 +7,10 @@ import { SEV } from '#/lib/domain'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
 import { Tag } from '#/components/Tag/Tag'
 import {
+  ActionIcon,
   Avatar,
   Badge,
   Box,
-  Button,
   Divider,
   Group,
   Menu,
@@ -21,7 +21,13 @@ import {
 } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
-import { Clock3, Download, Play, UserPlus, XCircle } from 'lucide-react'
+import {
+  Clock3,
+  Download,
+  MoreHorizontal,
+  Play,
+  XCircle,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { actionNotice } from './constants'
 import styles from './styles.module.css'
@@ -81,12 +87,14 @@ export function CaseSummaryCard({
             {caseDetail.title}
           </Title>
 
-          <Group gap={8} mb="md" wrap="wrap">
+          <Group
+            data-testid="case-summary-traffic-row"
+            gap={8}
+            mb={caseDetail.tags.length > 0 ? 8 : 'md'}
+            wrap="wrap"
+          >
             <TrafficBadge label="TLP" value={caseDetail.tlp} />
             <TrafficBadge label="PAP" value={caseDetail.pap} />
-            {caseDetail.tags.map((tag) => (
-              <Tag key={tag} label={tag} />
-            ))}
             <Badge
               variant="light"
               color="orange"
@@ -96,70 +104,20 @@ export function CaseSummaryCard({
               {caseDetail.sla}
             </Badge>
           </Group>
+          {caseDetail.tags.length > 0 ? (
+            <Group data-testid="case-summary-tags-row" gap={8} mb="md" wrap="wrap">
+              {caseDetail.tags.map((tag) => (
+                <Tag key={tag} label={tag} />
+              ))}
+            </Group>
+          ) : null}
         </Box>
 
-        <Group gap="sm" visibleFrom="md" wrap="nowrap">
-          <Menu shadow="md" width={260} position="bottom-end">
-            <Menu.Target>
-              <Button
-                variant="default"
-                leftSection={<UserPlus size={16} />}
-                loading={assignMutation.isPending}
-              >
-                Assign
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={
-                  <Avatar size={24} radius="xl" bg="#54463A">
-                    —
-                  </Avatar>
-                }
-                onClick={() => assignMutation.mutate(null)}
-              >
-                Unassigned
-              </Menu.Item>
-              {members?.map((member) => {
-                const [mi, mc] = avatarFor(member.email)
-                return (
-                  <Menu.Item
-                    key={member.id}
-                    leftSection={
-                      <Avatar size={24} radius="xl" bg={mc}>
-                        {mi}
-                      </Avatar>
-                    }
-                    onClick={() => assignMutation.mutate(member.id)}
-                  >
-                    {member.label}
-                  </Menu.Item>
-                )
-              })}
-            </Menu.Dropdown>
-          </Menu>
-          <Button
-            variant="default"
-            leftSection={<Download size={16} />}
-            onClick={() => actionNotice('Report export queued')}
-          >
-            Export report
-          </Button>
-          <Button
-            variant="default"
-            leftSection={<XCircle size={16} />}
-            onClick={() => actionNotice('Close case workflow opened')}
-          >
-            Close case
-          </Button>
-          <Button
-            color="orange"
-            leftSection={<Play size={16} />}
-            onClick={() => actionNotice('Analyzer run queued')}
-          >
-            Run analyzers
-          </Button>
-        </Group>
+        <CaseActionsMenu
+          members={members}
+          assignPending={assignMutation.isPending}
+          onAssign={(assigneeId) => assignMutation.mutate(assigneeId)}
+        />
       </Group>
 
       <Divider my="md" />
@@ -188,51 +146,87 @@ export function CaseSummaryCard({
         </SummaryField>
       </SimpleGrid>
 
-      <Group gap="sm" hiddenFrom="md" mt="lg">
-        <Menu shadow="md" width={260} position="bottom-start">
-          <Menu.Target>
-            <Button
-              variant="default"
-              leftSection={<UserPlus size={16} />}
-              loading={assignMutation.isPending}
-            >
-              Assign
-            </Button>
-          </Menu.Target>
-          <Menu.Dropdown>
+    </Paper>
+  )
+}
+
+function CaseActionsMenu({
+  members,
+  assignPending,
+  onAssign,
+}: {
+  members:
+    | {
+        id: string
+        email: string
+        label: string
+      }[]
+    | undefined
+  assignPending: boolean
+  onAssign: (assigneeId: string | null) => void
+}) {
+  return (
+    <Menu shadow="md" width={280} position="bottom-end" withinPortal>
+      <Menu.Target>
+        <ActionIcon
+          aria-label="Case actions"
+          variant="default"
+          size="lg"
+          loading={assignPending}
+        >
+          <MoreHorizontal size={18} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>Assignee</Menu.Label>
+        <Menu.Item
+          leftSection={
+            <Avatar size={24} radius="xl" bg="#54463A">
+              —
+            </Avatar>
+          }
+          onClick={() => onAssign(null)}
+        >
+          Unassigned
+        </Menu.Item>
+        {members?.map((member) => {
+          const [mi, mc] = avatarFor(member.email)
+          return (
             <Menu.Item
+              key={member.id}
               leftSection={
-                <Avatar size={24} radius="xl" bg="#54463A">
-                  —
+                <Avatar size={24} radius="xl" bg={mc}>
+                  {mi}
                 </Avatar>
               }
-              onClick={() => assignMutation.mutate(null)}
+              onClick={() => onAssign(member.id)}
             >
-              Unassigned
+              {member.label}
             </Menu.Item>
-            {members?.map((member) => {
-              const [mi, mc] = avatarFor(member.email)
-              return (
-                <Menu.Item
-                  key={member.id}
-                  leftSection={
-                    <Avatar size={24} radius="xl" bg={mc}>
-                      {mi}
-                    </Avatar>
-                  }
-                  onClick={() => assignMutation.mutate(member.id)}
-                >
-                  {member.label}
-                </Menu.Item>
-              )
-            })}
-          </Menu.Dropdown>
-        </Menu>
-        <Button color="orange" leftSection={<Play size={16} />}>
+          )
+        })}
+        <Menu.Divider />
+        <Menu.Item
+          leftSection={<Download size={16} />}
+          onClick={() => actionNotice('Report export queued')}
+        >
+          Export report
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<XCircle size={16} />}
+          onClick={() => actionNotice('Close case workflow opened')}
+        >
+          Close case
+        </Menu.Item>
+        <Menu.Item
+          color="orange"
+          leftSection={<Play size={16} />}
+          onClick={() => actionNotice('Analyzer run queued')}
+        >
           Run analyzers
-        </Button>
-      </Group>
-    </Paper>
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   )
 }
 

@@ -1,7 +1,9 @@
 import {
   alertFacetsQueryOptions,
+  AlertAlreadyPromotedError,
   alertKeys,
   alertsQueryOptions,
+  dismissAlert,
   mergeAlertsToCase,
   promoteAlertToCase,
 } from '#/components/Alerts/alertsQueries'
@@ -10,7 +12,11 @@ import type {
   AlertSort,
 } from '#/components/Alerts/alertsQueries'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
-import { caseKeys } from '#/components/Cases/casesQueries'
+import {
+  caseKeys,
+  casesQueryOptions,
+} from '#/components/Cases/casesQueries'
+import type { CaseListFilters } from '#/components/Cases/casesQueries'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 // Reuse the Cases page var scope so both tables share the SOC palette
 // (severity / TLP / MITRE colours, soft borders) defined on `.page`.
@@ -19,7 +25,7 @@ import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import type { FilterClause } from '#/lib/filters'
-import { Box, Button } from '@mantine/core'
+import { Box, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useNavigate } from '@tanstack/react-router'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
@@ -40,6 +46,8 @@ export function AlertsPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null)
+  const [mergeAlertId, setMergeAlertId] = useState<string | null>(null)
+  const [caseSearch, setCaseSearch] = useState('')
   const [alertComments, setAlertComments] = useState<Record<string, string[]>>(
     {},
   )
@@ -53,6 +61,16 @@ export function AlertsPage() {
   ])
   const [tokens, setTokens] = useState<Token[]>([])
   const pageSize = pagination.pageSize
+  const caseSearchFilters = useMemo<CaseListFilters>(() => {
+    const search = caseSearch.trim()
+    return {
+      skip: 0,
+      limit: 10,
+      ...(search
+        ? { clauses: [{ key: 'title', op: 'co', value: search }] }
+        : {}),
+    }
+  }, [caseSearch])
 
   const filters = useMemo<AlertListFilters>(() => {
     const sort = sorting.at(0)
@@ -79,6 +97,10 @@ export function AlertsPage() {
     alertsQueryOptions(filters),
   )
   const { data: facets } = useQuery(alertFacetsQueryOptions())
+  const { data: mergeCases, isFetching: mergeCasesFetching } = useQuery({
+    ...casesQueryOptions(caseSearchFilters),
+    enabled: Boolean(mergeAlertId),
+  })
   const total = data?.total ?? 0
   const alerts = useMemo(
     () => (data?.alerts ?? []).filter((a) => !ignoredIds.has(a.id)),
@@ -103,16 +125,23 @@ export function AlertsPage() {
     void queryClient.invalidateQueries({ queryKey: caseKeys.all })
   }
 
-  const bulkPromoteMutation = useMutation({
+  const mergeAlertsMutation = useMutation({
     mutationFn: mergeAlertsToCase,
     onSuccess: (caseId, variables) => {
       invalidatePromotedResources()
       hideAlerts(variables.alertIds)
+      setMergeAlertId(null)
+      setCaseSearch('')
       notifications.show({
         color: 'teal',
-        message: `Created case #${caseId} from ${variables.alertIds.length} alert${
-          variables.alertIds.length > 1 ? 's' : ''
-        }`,
+        message:
+          variables.targetCaseId != null
+            ? `Merged ${variables.alertIds.length} alert${
+                variables.alertIds.length > 1 ? 's' : ''
+              } into case #${caseId}`
+            : `Created case #${caseId} from ${variables.alertIds.length} alert${
+                variables.alertIds.length > 1 ? 's' : ''
+              }`,
       })
       exitSelectMode()
       void navigate({
@@ -125,6 +154,33 @@ export function AlertsPage() {
         color: 'red',
         message:
           error instanceof Error ? error.message : 'Unable to create case',
+      }),
+  })
+
+  const dismissAlertMutation = useMutation({
+    mutationFn: (alertIds: string[]) =>
+      Promise.all(alertIds.map((id) => dismissAlert(id))),
+    onSuccess: (_result, alertIds) => {
+      void queryClient.invalidateQueries({ queryKey: alertKeys.all })
+      hideAlerts(alertIds)
+      setActiveAlertId((prev) => (prev && alertIds.includes(prev) ? null : prev))
+      setRowSelection((prev) => {
+        const next = { ...(prev as Record<string, boolean>) }
+        for (const id of alertIds) delete next[id]
+        return next
+      })
+      notifications.show({
+        message: `${alertIds.length} alert${
+          alertIds.length > 1 ? 's' : ''
+        } dismissed`,
+      })
+      exitSelectMode()
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to dismiss alert',
       }),
   })
 
@@ -143,12 +199,24 @@ export function AlertsPage() {
         params: { caseId: String(caseId), tab: 'details' },
       })
     },
-    onError: (error) =>
+    onError: (error, variables) => {
+      if (error instanceof AlertAlreadyPromotedError) {
+        invalidatePromotedResources()
+        hideAlerts([variables.alertId])
+        setActiveAlertId(null)
+        notifications.show({
+          color: 'orange',
+          message: `${variables.alertId} was already promoted to case #${error.caseId}`,
+        })
+        return
+      }
+
       notifications.show({
         color: 'red',
         message:
           error instanceof Error ? error.message : 'Unable to promote alert',
-      }),
+      })
+    },
   })
 
   const openAlert = (id: string) => setActiveAlertId(id)
@@ -156,20 +224,14 @@ export function AlertsPage() {
   const runAnalysis = (id: string) =>
     notifications.show({ color: 'blue', message: `Running analysis on ${id}…` })
 
-  const ignoreAlert = (id: string) => {
-    hideAlerts([id])
-    setActiveAlertId((prev) => (prev === id ? null : prev))
-    setRowSelection((prev) => {
-      const next = { ...(prev as Record<string, boolean>) }
-      delete next[id]
-      return next
-    })
-    notifications.show({ message: `Alert ${id} marked as ignored` })
-  }
+  const dismissAlertById = (id: string) => dismissAlertMutation.mutate([id])
 
   const columns = useMemo(
     () =>
-      buildAlertColumns({ onRunAnalysis: runAnalysis, onIgnore: ignoreAlert }),
+      buildAlertColumns({
+        onRunAnalysis: runAnalysis,
+        onDismiss: dismissAlertById,
+      }),
     [],
   )
 
@@ -254,7 +316,7 @@ export function AlertsPage() {
       })
       return
     }
-    bulkPromoteMutation.mutate({
+    mergeAlertsMutation.mutate({
       alertIds: selectedRows.map((row) => row.original.id),
       caseTemplateId: caseTemplates.length > 0 ? caseTemplates[0].apiId : null,
     })
@@ -269,7 +331,7 @@ export function AlertsPage() {
     }))
   }
 
-  const ignoreSelected = () => {
+  const dismissSelected = () => {
     if (selectedCount < 1) {
       notifications.show({
         color: 'red',
@@ -277,11 +339,15 @@ export function AlertsPage() {
       })
       return
     }
-    hideAlerts(selectedRows.map((r) => r.original.id))
-    notifications.show({
-      message: `${selectedCount} alert${selectedCount > 1 ? 's' : ''} marked as ignored`,
+    dismissAlertMutation.mutate(selectedRows.map((r) => r.original.id))
+  }
+
+  const mergeIntoCase = (targetCaseId: string) => {
+    if (!mergeAlertId || mergeAlertsMutation.isPending) return
+    mergeAlertsMutation.mutate({
+      alertIds: [mergeAlertId],
+      targetCaseId: Number(targetCaseId.replace(/^#/, '')),
     })
-    exitSelectMode()
   }
 
   return (
@@ -292,7 +358,8 @@ export function AlertsPage() {
         comments={activeAlert ? (alertComments[activeAlert.id] ?? []) : []}
         onClose={() => setActiveAlertId(null)}
         onAddComment={addAlertComment}
-        onIgnore={ignoreAlert}
+        onDismiss={dismissAlertById}
+        onMergeIntoCase={setMergeAlertId}
         onRunAnalysis={runAnalysis}
         onPromote={(alertId, nextTemplateId) => {
           const selectedTemplate = caseTemplates.find(
@@ -305,6 +372,49 @@ export function AlertsPage() {
         }}
         promotionPending={promoteMutation.isPending}
       />
+      <Modal
+        opened={Boolean(mergeAlertId)}
+        onClose={() => {
+          setMergeAlertId(null)
+          setCaseSearch('')
+        }}
+        title="Merge alert into case"
+      >
+        <Stack gap="md">
+          <TextInput
+            placeholder="Search cases by title"
+            value={caseSearch}
+            onChange={(event) => setCaseSearch(event.currentTarget.value)}
+          />
+          <Stack gap={6}>
+            {(mergeCases?.cases ?? []).map((caseItem) => (
+              <Group key={caseItem.id} justify="space-between" wrap="nowrap">
+                <Box miw={0}>
+                  <Text fw={600} truncate>
+                    {caseItem.title}
+                  </Text>
+                  <Text ff="monospace" fz={12} c="dimmed">
+                    {caseItem.id} · {caseItem.statusName}
+                  </Text>
+                </Box>
+                <Button
+                  size="xs"
+                  variant="default"
+                  loading={mergeAlertsMutation.isPending}
+                  onClick={() => mergeIntoCase(caseItem.id)}
+                >
+                  Merge into {caseItem.id}
+                </Button>
+              </Group>
+            ))}
+            {!mergeCasesFetching && (mergeCases?.cases ?? []).length === 0 ? (
+              <Text c="dimmed" fz={13}>
+                No cases found.
+              </Text>
+            ) : null}
+          </Stack>
+        </Stack>
+      </Modal>
       <TablePanel
         title="All alerts"
         countNoun="alerts"
@@ -328,19 +438,18 @@ export function AlertsPage() {
               color="green"
               onClick={createCase}
               disabled={selectedCount < 1}
-              loading={bulkPromoteMutation.isPending}
+              loading={mergeAlertsMutation.isPending}
             >
               {selectedCount ? `Create case (${selectedCount})` : 'Create case'}
             </Button>
             <Button
               size="xs"
               variant="default"
-              onClick={ignoreSelected}
+              onClick={dismissSelected}
               disabled={selectedCount < 1}
+              loading={dismissAlertMutation.isPending}
             >
-              {selectedCount
-                ? `Mark ignored (${selectedCount})`
-                : 'Mark ignored'}
+              {selectedCount ? `Dismiss (${selectedCount})` : 'Dismiss'}
             </Button>
           </>
         }

@@ -112,6 +112,22 @@ export function SlaPanel() {
     )
   }
 
+  const addPolicy = () => {
+    const existing = new Set(rows.map((row) => row.severity))
+    const severity = [1, 2, 3, 4].find((value) => !existing.has(value))
+    if (!severity) return
+    setRows((current) => [
+      ...current,
+      {
+        severity,
+        ack: '30m',
+        resolve: '4h',
+        escalate: 'Queue',
+        enabled: true,
+      },
+    ])
+  }
+
   const columns = useMemo<ColumnDef<EditableRow>[]>(
     () => [
       {
@@ -195,7 +211,19 @@ export function SlaPanel() {
   }
 
   return (
-    <Panel title="SLA policies" count="per severity">
+    <Panel
+      title="SLA policies"
+      count="per severity"
+      action={
+        <Button
+          variant="default"
+          onClick={addPolicy}
+          disabled={rows.length >= 4}
+        >
+          Add SLA policy
+        </Button>
+      }
+    >
       <SlaTable columns={columns} rows={rows} />
       <Group justify="flex-end" p={18} pt={0}>
         <Button

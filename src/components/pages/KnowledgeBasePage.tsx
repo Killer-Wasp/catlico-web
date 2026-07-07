@@ -48,6 +48,7 @@ import { RichTextField } from './case-template-editor/RichTextField'
 import { fromApi } from './knowledge-base/model'
 import type { KBPage } from './knowledge-base/model'
 import { PageListItem } from './knowledge-base/PageListItem'
+import kbStyles from './knowledge-base/styles.module.css'
 
 function KnowledgeBaseTagsInput({
   value,
@@ -395,7 +396,14 @@ export function KnowledgeBasePage() {
           </Paper>
 
           {selectedPage ? (
-          <Paper radius="md" p={26} shadow="sm" miw={0} mih={520}>
+          <Paper
+            className={kbStyles.detailPanel}
+            data-testid="knowledge-base-detail-panel"
+            radius="md"
+            shadow="sm"
+            miw={0}
+            mih={520}
+          >
             {isEditingSelectedPage ? (
               <Stack gap="md" maw={920}>
                 <Group justify="space-between" align="center">
@@ -510,7 +518,13 @@ export function KnowledgeBasePage() {
             )}
           </Paper>
         ) : (
-          <Paper radius="md" p={26} shadow="sm" miw={0} mih={520}>
+          <Paper
+            className={kbStyles.detailPanel}
+            radius="md"
+            shadow="sm"
+            miw={0}
+            mih={520}
+          >
             <Text c="dimmed" ta="center" mt="xl">
               No pages to display.
             </Text>

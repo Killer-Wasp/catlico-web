@@ -1,5 +1,6 @@
 import type { CaseDetail } from '#/components/Cases/caseDetails.types'
-import { Box, Paper, SimpleGrid, Stack, Text } from '@mantine/core'
+import { Button, Stack, Table, Text } from '@mantine/core'
+import { Plus } from 'lucide-react'
 import { CasePanelHeader } from './CasePanelHeader'
 import styles from './styles.module.css'
 
@@ -10,27 +11,45 @@ export function CustomFieldsPanel({
 }) {
   return (
     <Stack gap="lg" p="lg">
-      <CasePanelHeader label="Custom fields" />
+      <CasePanelHeader
+        label="Custom fields"
+        action={
+          <Button variant="default" leftSection={<Plus size={16} />}>
+            Add Custom field
+          </Button>
+        }
+      />
 
       {customFields.length > 0 ? (
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-          {customFields.map(([label, value]) => (
-            <Box key={label}>
-              <Text className={styles.fieldLabel} mb={4}>
-                {label}
-                {label === 'Data classification' ? (
-                  <Text component="span" c="red">
-                    {' '}
-                    *
-                  </Text>
-                ) : null}
-              </Text>
-              <Paper bg="gray.0" withBorder radius="sm" px="sm" py={8}>
-                <Text>{value}</Text>
-              </Paper>
-            </Box>
-          ))}
-        </SimpleGrid>
+        <Table
+          aria-label="Case custom fields"
+          verticalSpacing="sm"
+          horizontalSpacing={0}
+          highlightOnHover
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th className={styles.fieldLabel} fw={500}>
+                Field
+              </Table.Th>
+              <Table.Th className={styles.fieldLabel} fw={500}>
+                Value
+              </Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {customFields.map(([label, value]) => (
+              <Table.Tr key={label}>
+                <Table.Td>
+                  <Text fw={600}>{label}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text>{value}</Text>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
       ) : (
         <Text c="dimmed" fz={14}>
           No custom fields for this case.

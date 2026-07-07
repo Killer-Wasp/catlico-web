@@ -11,6 +11,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react'
 import {
@@ -133,7 +134,20 @@ const caseDetail: CaseDetail = {
     },
   ],
   comments: [],
-  attachments: [],
+  attachments: [
+    {
+      id: 'attachment-1',
+      linkId: 1,
+      kind: 'PDF',
+      name: 'tenant-blocklist-approval.pdf',
+      size: '92 KB',
+      sizeBytes: 94_208,
+      sha256: 'abc123',
+      contentType: 'application/pdf',
+      author: 'J. Tanaka',
+      time: '10:08',
+    },
+  ],
   shares: 0,
   timeline: [],
   responders: [],
@@ -256,6 +270,39 @@ describe('case summary card', () => {
     expect(container.querySelector('p .mantine-Avatar-root')).toBeNull()
     expect(screen.getByText('J. Tanaka')).toBeDefined()
   })
+
+  test('groups summary actions behind a right-aligned action icon menu', async () => {
+    render(<CaseSummaryHarness />)
+
+    expect(screen.queryByRole('button', { name: /^assign$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /export report/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /close case/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /run analyzers/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /case actions/i }))
+
+    expect(
+      await screen.findByRole('menuitem', { name: /export report/i }),
+    ).toBeDefined()
+    expect(screen.getByText('Close case')).toBeDefined()
+    expect(screen.getByText('Run analyzers')).toBeDefined()
+  })
+
+  test('moves tags onto a row below traffic labels and SLA', () => {
+    render(<CaseSummaryHarness />)
+
+    const trafficRow = screen.getByTestId('case-summary-traffic-row')
+    const tagsRow = screen.getByTestId('case-summary-tags-row')
+
+    expect(within(trafficRow).getByText(/tlp:/i)).toBeDefined()
+    expect(within(trafficRow).getByText(/pap:/i)).toBeDefined()
+    expect(within(trafficRow).getByText(caseDetail.sla)).toBeDefined()
+    expect(within(tagsRow).getByText('T1528')).toBeDefined()
+    expect(
+      trafficRow.compareDocumentPosition(tagsRow) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
 })
 
 describe('case observables tab', () => {
@@ -270,6 +317,19 @@ describe('case observables tab', () => {
       addButton.compareDocumentPosition(table!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  })
+
+  test('renders observables without the old flags and analysis columns', () => {
+    render(<Harness />)
+
+    expect(
+      screen.getByRole('table', { name: /case observables/i }),
+    ).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Type' })).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Value' })).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Added' })).toBeDefined()
+    expect(screen.queryByRole('columnheader', { name: 'Flags' })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Analysis' })).toBeNull()
   })
 
   test('opens an observable detail drawer when an observable row is clicked', async () => {
@@ -299,6 +359,36 @@ describe('case observables tab', () => {
     ).toBeDefined()
     expect(api.get).toHaveBeenCalledWith('observables/obs-2/enrichments')
   })
+
+  test('updates IOC and sighted flags from the observable detail drawer', async () => {
+    render(<Harness />)
+
+    fireEvent.click(
+      screen.getByText('hxxps://cdn-au-billing[.]net/invoice.php'),
+    )
+
+    const drawer = await screen.findByRole('dialog', {
+      name: /observable detail/i,
+    })
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Toggle IOC' }))
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('observables/obs-2', {
+        json: { ioc: false, sighted: false },
+      }),
+    )
+
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Mark sighted' }),
+    )
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('observables/obs-2', {
+        json: { ioc: false, sighted: true },
+      }),
+    )
+  })
 })
 
 describe('case details tab', () => {
@@ -308,6 +398,12 @@ describe('case details tab', () => {
     expect(screen.getByText('OAuth consent grant investigation.')).toBeDefined()
     expect(screen.queryByText('Affected users')).toBeNull()
     expect(screen.queryByText('BILL-2026-Q2')).toBeNull()
+  })
+
+  test('removes rich text side padding while the description is in read mode', () => {
+    render(<CaseTabHarness tab="details" />)
+
+    expect(screen.getByTestId('case-description-read-mode')).toBeDefined()
   })
 })
 
@@ -321,6 +417,17 @@ describe('case custom fields tab', () => {
     expect(screen.getByText('Corporate IT')).toBeDefined()
     expect(screen.getByText('Campaign ID')).toBeDefined()
     expect(screen.getByText('BILL-2026-Q2')).toBeDefined()
+  })
+
+  test('renders custom fields as a case-style table with an add action', () => {
+    render(<CaseTabHarness tab="custom-fields" />)
+
+    expect(screen.getByRole('button', { name: /add custom field/i })).toBeDefined()
+    expect(
+      screen.getByRole('table', { name: /case custom fields/i }),
+    ).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Field' })).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Value' })).toBeDefined()
   })
 })
 
@@ -341,6 +448,34 @@ describe('case tab panel headers', () => {
 })
 
 describe('case tasks tab', () => {
+  test('renders tasks as a case-style table with an add action and no inline add form', () => {
+    render(<CaseTabHarness tab="tasks" />)
+
+    expect(screen.getByRole('button', { name: /^add task$/i })).toBeDefined()
+    expect(screen.getByRole('table', { name: /case tasks/i })).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Task' })).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Status' })).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Due' })).toBeDefined()
+    expect(
+      screen.queryByPlaceholderText(/add a task/i),
+    ).toBeNull()
+  })
+
+  test('does not strike through completed task titles or render row checkboxes', () => {
+    render(
+      <CaseTabHarness
+        tab="tasks"
+      />,
+    )
+
+    const taskTitle = screen.getByText(
+      'Disable malicious app registration tenant-wide',
+    )
+
+    expect(taskTitle.closest('p')?.style.textDecoration).toBe('')
+    expect(screen.queryByRole('checkbox')).toBeNull()
+  })
+
   test('replaces the task list with inline task details when a task row is clicked', async () => {
     render(<CaseTabHarness tab="tasks" />)
 
@@ -454,5 +589,42 @@ describe('case comments tab', () => {
       container.querySelector('[contenteditable="true"].ProseMirror'),
     ).not.toBeNull()
     expect(screen.getByRole('button', { name: /post comment/i })).toBeDefined()
+  })
+
+  test('uses a select control for comment sorting', () => {
+    render(<CaseTabHarness tab="comments" />)
+
+    const sortSelect = screen.getByRole('combobox', {
+      name: /sort comments/i,
+    })
+
+    expect(sortSelect).toBeDefined()
+    expect(screen.queryByRole('button', { name: /newest first/i })).toBeNull()
+  })
+})
+
+describe('case timeline tab', () => {
+  test('does not render the old case log input form', () => {
+    render(<CaseTabHarness tab="timeline" />)
+
+    expect(
+      screen.queryByPlaceholderText(/add a note to the case log/i),
+    ).toBeNull()
+    expect(screen.queryByRole('button', { name: /^post$/i })).toBeNull()
+  })
+})
+
+describe('case attachments tab', () => {
+  test('renders attachments as a two-column table with upload action', () => {
+    render(<CaseTabHarness tab="attachments" />)
+
+    expect(screen.getByRole('button', { name: /upload file/i })).toBeDefined()
+    expect(
+      screen.getByRole('table', { name: /case attachments/i }),
+    ).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'File' })).toBeDefined()
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeDefined()
+    expect(screen.queryByRole('columnheader', { name: /size/i })).toBeNull()
+    expect(screen.getByText('tenant-blocklist-approval.pdf')).toBeDefined()
   })
 })

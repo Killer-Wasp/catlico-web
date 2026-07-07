@@ -103,7 +103,7 @@ export function CaseTabPanel({
         />
       )
     case 'timeline':
-      return <TimelinePanel timeline={caseDetail.timeline} caseId={caseId} />
+      return <TimelinePanel timeline={caseDetail.timeline} />
     case 'sharing':
       return (
         <EmptyTab

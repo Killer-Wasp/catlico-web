@@ -82,9 +82,9 @@ export function SettingsLayout() {
           style={{ position: 'sticky', top: 84, alignSelf: 'flex-start' }}
         >
           <Tabs.List>
-            {settingsSections.map((section) => (
-              <Tabs.Tab key={section} value={section}>
-                {section}
+            {settingsSections.map((settingsSection) => (
+              <Tabs.Tab key={settingsSection} value={settingsSection}>
+                {settingsSection}
               </Tabs.Tab>
             ))}
           </Tabs.List>

@@ -24,7 +24,10 @@ export function TriggerConfig({
     )
   }
   if (draft.trigger === 'manual') {
-    const entities = (draft.triggerConfig.entities as string[]) ?? []
+    const entitiesValue = draft.triggerConfig.entities
+    const entities = Array.isArray(entitiesValue)
+      ? entitiesValue.filter((entity): entity is string => typeof entity === 'string')
+      : []
     return (
       <Stack gap={6}>
         <Text size="sm" fw={600}>

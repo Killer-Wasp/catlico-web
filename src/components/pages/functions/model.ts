@@ -69,7 +69,7 @@ export function fromApi(f: FunctionPublic): FunctionAutomation {
     secrets: f.secrets,
     runCount: f.run_count,
     errorCount: f.error_count,
-    runs: (f.runs ?? []).map((r) => ({
+    runs: f.runs.map((r) => ({
       status: r.status,
       trigger: r.trigger,
       started: new Date(r.started_at).toLocaleTimeString('en-AU', {
