@@ -45,26 +45,41 @@ export function DataTable<T extends RowData>({
   const colSpan = table.getVisibleLeafColumns().length
   const getColumnStyle = (
     columnId: string,
-    meta: { compact?: boolean; grow?: boolean; nowrap?: boolean } | undefined,
+    meta:
+      | {
+          compact?: boolean
+          grow?: boolean
+          minWidth?: number | string
+          nowrap?: boolean
+        }
+      | undefined,
   ): CSSProperties => {
     const compactStyle: CSSProperties = meta?.compact
       ? { paddingInline: '0.5rem' }
       : {}
+    const minWidthStyle: CSSProperties =
+      meta?.minWidth == null ? {} : { minWidth: meta.minWidth }
 
     if (columnId === selectColumnId) {
-      return { width: 40, whiteSpace: 'nowrap', ...compactStyle }
+      return {
+        width: 40,
+        whiteSpace: 'nowrap',
+        ...compactStyle,
+        ...minWidthStyle,
+      }
     }
     if (meta?.grow) {
-      return { width: 'auto' }
+      return { width: 'auto', ...minWidthStyle }
     }
     if (meta?.nowrap) {
       return {
         width: 'max-content',
         whiteSpace: 'nowrap',
         ...compactStyle,
+        ...minWidthStyle,
       }
     }
-    return {}
+    return minWidthStyle
   }
 
   return (

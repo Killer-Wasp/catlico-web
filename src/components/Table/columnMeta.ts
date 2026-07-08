@@ -11,6 +11,8 @@ export type TableColumnMeta = {
   compact?: boolean
   /** Let this column absorb the remaining table width. */
   grow?: boolean
+  /** Preserve readability for content that must not visually collapse. */
+  minWidth?: number | string
 }
 
 // Keep the old name as an alias so existing satisfies sites keep compiling

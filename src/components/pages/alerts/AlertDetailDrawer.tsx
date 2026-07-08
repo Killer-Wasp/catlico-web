@@ -1,27 +1,37 @@
-import type { Alert } from '#/components/Alerts/alerts.types'
+import type { Alert, AlertSimilarCase } from '#/components/Alerts/alerts.types'
+import type {
+  AlertComment,
+  AlertObservableRow,
+} from '#/components/Alerts/alertsQueries'
 import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
-import { fmtAge } from '#/components/Alerts/alerts'
+import { fmtRelativeTime } from '#/components/Alerts/alerts'
 import { SEV, TLP, TLP_COLOR } from '#/lib/domain'
+import { Severity } from '#/components/Severity/Severity'
 import { Tag } from '#/components/Tag/Tag'
+import { TagPickerInput } from '#/components/Tag/TagPickerInput'
 import {
   Badge,
   Box,
   Button,
   Drawer,
   Group,
+  ActionIcon,
+  Menu,
   Select,
   Stack,
+  Table,
   Text,
   Textarea,
   VisuallyHidden,
 } from '@mantine/core'
-import { Play } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { ExternalLink, MoreHorizontal, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import styles from './styles.module.css'
 
 export function AlertDetailDrawer({
   alert,
-  caseTemplates,
+  caseTemplates = [],
   comments,
   onClose,
   onAddComment,
@@ -29,27 +39,55 @@ export function AlertDetailDrawer({
   onMergeIntoCase,
   onRunAnalysis,
   onPromote,
-  promotionPending,
+  promotionPending = false,
+  onSaveTags,
+  savingTags = false,
+  hideActions = false,
+  tags,
+  observables,
+  similarCases,
 }: {
   alert: Alert | null
-  caseTemplates: CaseTemplate[]
-  comments: string[]
+  caseTemplates?: CaseTemplate[]
+  comments: AlertComment[]
+  tags?: string[]
   onClose: () => void
   onAddComment: (id: string, note: string) => void
-  onDismiss: (id: string) => void
-  onMergeIntoCase: (id: string) => void
+  onDismiss?: (id: string) => void
+  onMergeIntoCase?: (id: string) => void
   onRunAnalysis: (id: string) => void
-  onPromote: (id: string, templateId: string) => void
-  promotionPending: boolean
+  onPromote?: (id: string, templateId: string) => void
+  promotionPending?: boolean
+  onSaveTags?: (id: string, tags: string[]) => Promise<unknown> | void
+  savingTags?: boolean
+  /** Hide the promote/dismiss/merge actions — e.g. when viewing an alert
+   *  already linked to a case. */
+  hideActions?: boolean
+  /** When provided, the Observables section renders these as a table (the
+   *  alert-detail endpoint's real observables) instead of `alert.observables`. */
+  observables?: AlertObservableRow[]
+  /** When provided, overrides `alert.similarCases` with cases fetched from the
+   *  API (those sharing an observable with the alert). */
+  similarCases?: AlertSimilarCase[]
 }) {
   const [note, setNote] = useState('')
   const [templateId, setTemplateId] = useState('')
+  const [editingTags, setEditingTags] = useState(false)
+  const [draftTags, setDraftTags] = useState<string[]>([])
 
   useEffect(() => {
     if (!templateId && caseTemplates.length > 0) {
       setTemplateId(caseTemplates[0].id)
     }
   }, [caseTemplates, templateId])
+
+  useEffect(() => {
+    if (!alert) return
+    setEditingTags(false)
+    setDraftTags(tags ?? alert.tags)
+  }, [alert, tags])
+
+  const navigate = useNavigate()
 
   const selectedTemplate =
     caseTemplates.find((template) => template.id === templateId) ??
@@ -64,6 +102,34 @@ export function AlertDetailDrawer({
 
   const tlpName = TLP[alert.tlp]
   const reference = `${alert.src.toLowerCase().replace(/\s+/g, '-')}:${alert.id.toLowerCase()}`
+  const displayedTags = tags ?? alert.tags
+  const tagSuggestions = [
+    ...new Set([
+      ...displayedTags,
+      ...caseTemplates.flatMap((template) => template.tags),
+    ]),
+  ]
+  const similarRows = similarCases ?? alert.similarCases
+  const startEditingTags = () => {
+    setDraftTags(displayedTags)
+    setEditingTags(true)
+  }
+  const saveTags = async () => {
+    await onSaveTags?.(alert.id, draftTags)
+    setEditingTags(false)
+  }
+  const dismiss = () => {
+    onDismiss?.(alert.id)
+    close()
+  }
+  const mergeIntoCase = () => {
+    onMergeIntoCase?.(alert.id)
+    close()
+  }
+  const createCaseWithTemplate = () => {
+    onPromote?.(alert.id, templateId)
+    close()
+  }
 
   return (
     <Drawer
@@ -97,30 +163,85 @@ export function AlertDetailDrawer({
           <Text ff="monospace" fz={11} c="dimmed" mb={6}>
             ALERT {alert.id}
           </Text>
-          <Text fw={700} fz={18} lh={1.25} pr={36}>
-            {alert.title}
-          </Text>
-          <Group gap={7} mt={12} wrap="wrap">
-            <Badge color="red" variant="light" radius="sm" ff="monospace">
-              {SEV[alert.sev].toUpperCase()}
-            </Badge>
-            <Badge
-              color={TLP_COLOR[tlpName]}
-              variant="light"
-              radius="sm"
-              ff="monospace"
-            >
-              TLP:{tlpName.toUpperCase()}
-            </Badge>
-            {alert.tags.map((tag) => (
-              <Tag key={tag} label={tag} />
-            ))}
+          <Group align="flex-start" gap="sm" wrap="nowrap">
+            <Text fw={700} fz={18} lh={1.25} style={{ flex: 1 }}>
+              {alert.title}
+            </Text>
+            {!hideActions && (
+              <Menu position="bottom-end" withinPortal>
+                <Menu.Target>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    aria-label={`Alert actions for ${alert.id}`}
+                  >
+                    <MoreHorizontal size={18} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item onClick={dismiss}>Dismiss</Menu.Item>
+                  <Menu.Item onClick={mergeIntoCase}>
+                    Merge into case...
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            )}
           </Group>
+          <Stack gap="xs" mt={12}>
+            {editingTags ? (
+              <Stack gap="xs">
+                <Box>
+                  <TagPickerInput
+                    label="Tags"
+                    placeholder="e.g. certificate, hygiene"
+                    suggestions={tagSuggestions}
+                    value={draftTags}
+                    onChange={setDraftTags}
+                  />
+                </Box>
+                <Group justify="flex-end">
+                  <Button size="xs" loading={savingTags} onClick={saveTags}>
+                    Save tags
+                  </Button>
+                </Group>
+              </Stack>
+            ) : (
+              <Group gap={6} wrap="wrap" data-testid="alert-drawer-tags">
+                {displayedTags.map((tag) => (
+                  <Tag key={tag} label={tag} />
+                ))}
+                {onSaveTags && (
+                  <button
+                    type="button"
+                    className={styles.addTagButton}
+                    onClick={startEditingTags}
+                  >
+                    + add tag
+                  </button>
+                )}
+              </Group>
+            )}
+            <Group gap={7} wrap="wrap">
+              <Badge color="red" variant="light" radius="sm" ff="monospace">
+                {SEV[alert.sev].toUpperCase()}
+              </Badge>
+              <Badge
+                color={TLP_COLOR[tlpName]}
+                variant="light"
+                radius="sm"
+                ff="monospace"
+              >
+                TLP:{tlpName.toUpperCase()}
+              </Badge>
+            </Group>
+          </Stack>
         </Box>
 
         <DrawerSection title="Details">
           <KeyValue label="Source">{alert.src}</KeyValue>
-          <KeyValue label="First seen">{fmtAge(alert.ageMin)} ago</KeyValue>
+          <KeyValue label="First seen">
+            {fmtRelativeTime(alert.firstSeenAt, alert.ageMin)}
+          </KeyValue>
           <KeyValue label="SLA">
             <Text component="span" c={alert.breach ? 'red.6' : 'green.7'}>
               {alert.breach ? 'breached' : 'within SLA'}
@@ -142,6 +263,7 @@ export function AlertDetailDrawer({
 
         <DrawerSection
           title="Observables"
+          count={(observables ?? alert.observables).length}
           action={
             <Button
               size="xs"
@@ -153,75 +275,77 @@ export function AlertDetailDrawer({
             </Button>
           }
         >
-          <Stack gap={0}>
-            {alert.observables.map((observable) => (
-              <Group
-                key={`${observable.type}:${observable.value}`}
-                py={7}
-                gap={10}
-                wrap="nowrap"
-                style={{ borderBottom: '1px solid var(--line-soft)' }}
-              >
-                <Badge
-                  variant="outline"
-                  color="gray"
-                  radius="sm"
-                  ff="monospace"
-                >
-                  {observable.type}
-                </Badge>
-                <Text fz={13} ff="monospace" truncate>
-                  {observable.value}
-                </Text>
-              </Group>
-            ))}
-          </Stack>
-        </DrawerSection>
-
-        <DrawerSection title="Similar cases">
-          {alert.similarCases.length ? (
+          {observables ? (
+            <ObservableTable rows={observables} />
+          ) : (
             <Stack gap={0}>
-              {alert.similarCases.map((similar) => (
+              {alert.observables.map((observable) => (
                 <Group
-                  key={similar.id}
-                  py={8}
+                  key={`${observable.type}:${observable.value}`}
+                  py={7}
                   gap={10}
                   wrap="nowrap"
                   style={{ borderBottom: '1px solid var(--line-soft)' }}
                 >
-                  <Text ff="monospace" fz={12} c="dimmed">
-                    {similar.id}
-                  </Text>
-                  <Text fz={13} fw={500} truncate style={{ flex: 1 }}>
-                    {similar.title}
-                  </Text>
-                  <Badge size="xs" variant="light" color="blue">
-                    {similar.status}
+                  <Badge
+                    variant="outline"
+                    color="gray"
+                    radius="sm"
+                    ff="monospace"
+                  >
+                    {observable.type}
                   </Badge>
+                  <Text fz={13} ff="monospace" truncate>
+                    {observable.value}
+                  </Text>
                 </Group>
               ))}
             </Stack>
-          ) : (
-            <Text fz={13} c="dimmed">
-              No similar cases found.
-            </Text>
           )}
         </DrawerSection>
 
-        <DrawerSection title={`Comments ${comments.length}`}>
-          <Stack gap={8}>
+        <DrawerSection title="Similar cases" count={similarRows.length}>
+          <SimilarCaseTable
+            rows={similarRows}
+            onOpen={(id) => {
+              close()
+              void navigate({
+                to: '/cases/$caseId/$tab',
+                params: { caseId: id.replace(/^#/, ''), tab: 'details' },
+              })
+            }}
+          />
+        </DrawerSection>
+
+        <DrawerSection title="Comments" count={comments.length}>
+          <Stack gap="md">
             {comments.length ? (
-              comments.map((comment, index) => (
-                <Text key={`${alert.id}-comment-${index}`} fz={13} c="dimmed">
-                  {comment}
-                </Text>
-              ))
+              <Stack gap="xs" className={styles.commentList}>
+                {comments.map((comment) => (
+                  <Box key={comment.id} className={styles.commentItem}>
+                    <Group
+                      justify="space-between"
+                      align="baseline"
+                      gap="sm"
+                      wrap="nowrap"
+                      className={styles.commentMeta}
+                    >
+                      <Text className={styles.commentAuthor}>
+                        {comment.author}
+                      </Text>
+                      <Text className={styles.commentTime}>{comment.time}</Text>
+                    </Group>
+                    <Text className={styles.commentBody}>{comment.body}</Text>
+                  </Box>
+                ))}
+              </Stack>
             ) : (
-              <Text fz={13} c="dimmed">
-                No triage notes yet — they transfer to the case on promotion.
+              <Text className={styles.emptyCommentText}>
+                No triage notes yet. They transfer to the case on promotion.
               </Text>
             )}
             <Textarea
+              className={styles.commentComposer}
               value={note}
               onChange={(event) => setNote(event.currentTarget.value)}
               placeholder="Triage note... transfers to the case on promotion (Ctrl+Enter)"
@@ -235,6 +359,7 @@ export function AlertDetailDrawer({
             />
             <Group justify="flex-end">
               <Button
+                className={styles.commentSubmit}
                 size="xs"
                 variant="default"
                 onClick={() => {
@@ -248,81 +373,187 @@ export function AlertDetailDrawer({
           </Stack>
         </DrawerSection>
 
-        <DrawerSection title="Promote with template">
-          <Select
-            data={caseTemplates.map((template) => ({
-              value: template.id,
-              label: template.name,
-            }))}
-            value={templateId || null}
-            onChange={(value) => setTemplateId(value ?? '')}
-            disabled={caseTemplates.length === 0}
-            placeholder="No templates found"
-            allowDeselect={false}
-          />
-          <Text mt={6} ff="monospace" fz={10} c="dimmed">
-            pre-loads tasks, custom fields, TLP/PAP & tags
-          </Text>
-          {selectedTemplate && (
-            <Group gap={6} mt={8} wrap="wrap">
-              <Tag label={`SEV ${SEV[selectedTemplate.sev].toUpperCase()}`} />
-              <Tag label={`TLP ${TLP[selectedTemplate.tlp].toUpperCase()}`} />
-              <Tag label={`${selectedTemplate.tasks.length} tasks`} />
-              <Tag
-                label={`${selectedTemplate.customFields.length} custom fields`}
+        {!hideActions && (
+          <DrawerSection title="Promote with template">
+            <Group gap={8} wrap="nowrap" align="flex-end">
+              <Select
+                data={caseTemplates.map((template) => ({
+                  value: template.id,
+                  label: template.name,
+                }))}
+                value={templateId || null}
+                onChange={(value) => setTemplateId(value ?? '')}
+                disabled={caseTemplates.length === 0}
+                placeholder="No templates found"
+                allowDeselect={false}
+                style={{ flex: 1 }}
               />
+              <Button
+                component="a"
+                href={
+                  selectedTemplate
+                    ? `/case-templates/${selectedTemplate.id}`
+                    : undefined
+                }
+                target="_blank"
+                rel="noreferrer"
+                size="xs"
+                variant="default"
+                leftSection={<ExternalLink size={12} />}
+                disabled={!selectedTemplate}
+              >
+                View case template
+              </Button>
             </Group>
-          )}
-        </DrawerSection>
-
-        <Group
-          p={16}
-          gap={10}
-          wrap="nowrap"
-          style={{
-            position: 'sticky',
-            bottom: 0,
-            background: 'var(--mantine-color-body)',
-            borderTop: '1px solid var(--line-soft)',
-          }}
-        >
-          <Button
-            fullWidth
-            variant="default"
-            onClick={() => {
-              onDismiss(alert.id)
-              close()
-            }}
-          >
-            Dismiss
-          </Button>
-          <Button
-            fullWidth
-            variant="default"
-            onClick={() => onMergeIntoCase(alert.id)}
-          >
-            Merge into case...
-          </Button>
-          <Button
-            fullWidth
-            color="orange"
-            loading={promotionPending}
-            onClick={() => onPromote(alert.id, templateId)}
-          >
-            Promote to case
-          </Button>
-        </Group>
+            <Text mt={6} ff="monospace" fz={10} c="dimmed">
+              pre-loads tasks, custom fields, TLP/PAP & tags
+            </Text>
+            {selectedTemplate && (
+              <Group gap={6} mt={8} wrap="wrap">
+                <Tag label={`SEV ${SEV[selectedTemplate.sev].toUpperCase()}`} />
+                <Tag label={`TLP ${TLP[selectedTemplate.tlp].toUpperCase()}`} />
+                <Tag label={`${selectedTemplate.tasks.length} tasks`} />
+                <Tag
+                  label={`${selectedTemplate.customFields.length} custom fields`}
+                />
+              </Group>
+            )}
+            <Button
+              fullWidth
+              mt="md"
+              color="orange"
+              loading={promotionPending}
+              disabled={!selectedTemplate}
+              onClick={createCaseWithTemplate}
+            >
+              Create case with template
+            </Button>
+          </DrawerSection>
+        )}
       </Box>
     </Drawer>
   )
 }
 
+function SimilarCaseTable({
+  rows,
+  onOpen,
+}: {
+  rows: AlertSimilarCase[]
+  onOpen: (id: string) => void
+}) {
+  if (rows.length === 0) {
+    return (
+      <Text fz={13} c="dimmed">
+        No similar cases found.
+      </Text>
+    )
+  }
+  return (
+    <Table.ScrollContainer minWidth={0}>
+      <Table verticalSpacing={7} fz={13} highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Case</Table.Th>
+            <Table.Th>Title</Table.Th>
+            <Table.Th>Status</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {rows.map((similar) => (
+            <Table.Tr
+              key={similar.id}
+              onClick={() => onOpen(similar.id)}
+              style={{ cursor: 'pointer' }}
+            >
+              <Table.Td>
+                <Severity id={similar.id} sev={similar.sev} />
+              </Table.Td>
+              <Table.Td>
+                <Text fz={13} fw={500} truncate maw={200}>
+                  {similar.title}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <Badge size="xs" variant="light" color="blue">
+                  {similar.status}
+                </Badge>
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  )
+}
+
+function ObservableTable({ rows }: { rows: AlertObservableRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <Text fz={13} c="dimmed">
+        No observables on this alert.
+      </Text>
+    )
+  }
+  return (
+    <Table.ScrollContainer minWidth={0}>
+      <Table verticalSpacing={7} fz={13}>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Type</Table.Th>
+            <Table.Th>Value</Table.Th>
+            <Table.Th>TLP</Table.Th>
+            <Table.Th>IOC</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {rows.map((observable) => (
+            <Table.Tr key={observable.id}>
+              <Table.Td>
+                <Badge
+                  variant="outline"
+                  color="gray"
+                  radius="sm"
+                  ff="monospace"
+                >
+                  {observable.type}
+                </Badge>
+              </Table.Td>
+              <Table.Td>
+                <Text fz={13} ff="monospace" truncate maw={220}>
+                  {observable.value}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <Text ff="monospace" fz={12} c="dimmed">
+                  {TLP[observable.tlp].toUpperCase()}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                {observable.ioc ? (
+                  <Badge color="red" variant="light" radius="sm" size="sm">
+                    IOC
+                  </Badge>
+                ) : (
+                  <Text c="dimmed">—</Text>
+                )}
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  )
+}
+
 function DrawerSection({
   title,
+  count,
   action,
   children,
 }: {
   title: string
+  count?: number
   action?: React.ReactNode
   children: React.ReactNode
 }) {
@@ -332,6 +563,17 @@ function DrawerSection({
         <Text component="h3" className={styles.columnHeader} m={0}>
           {title}
         </Text>
+        {count != null ? (
+          <Badge
+            size="xs"
+            variant="light"
+            color="gray"
+            radius="xl"
+            data-testid={`drawer-section-${title.toLowerCase().replace(/\s+/g, '-')}-count`}
+          >
+            {count}
+          </Badge>
+        ) : null}
         {action && (
           <Group ml="auto" gap={6}>
             {action}

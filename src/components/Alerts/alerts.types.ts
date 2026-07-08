@@ -12,6 +12,8 @@ export type Alert = {
   tags: string[]
   /** Age of the alert in minutes — drives the "14m" / "1.5h" stamp. */
   ageMin: number
+  /** Backend alert date, used for human relative timestamps in detail views. */
+  firstSeenAt?: string
   /** True once the alert has blown its triage SLA. */
   breach: boolean
   description: string
@@ -27,5 +29,6 @@ export type AlertObservable = {
 export type AlertSimilarCase = {
   id: string
   title: string
+  sev: Severity
   status: string
 }

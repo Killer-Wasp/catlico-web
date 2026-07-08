@@ -1,19 +1,20 @@
 import type {
   Observable,
-  ObservableFlag,
   ObservableType,
 } from '#/components/Observables/observables.types'
-import { ActionIcon, Badge, Checkbox, Group, Menu, Text } from '@mantine/core'
+import { RelativeTime } from '#/components/Time/RelativeTime'
+import { TableTlpBadge } from '#/components/Tlp/TableTlpBadge'
+import { ActionIcon, Badge, Checkbox, Menu, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Play, Settings } from 'lucide-react'
-import { AnalysisPill, TlpPill, TypePill } from './Pills'
+import { AnalysisPill, TypePill } from './Pills'
 import {
-  includesAnyTag as includesAnyFlag,
   includesAnySubstring,
   includesOne as includesOneString,
 } from '#/components/Table/tableFilters'
-import { byAdded, flagLabel } from './tableFns'
+import type { TableColumnMeta } from '#/components/Table/columnMeta'
+import { byAdded } from './tableFns'
 
 export function buildObservableColumns(): ColumnDef<Observable>[] {
   return [
@@ -46,6 +47,7 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       accessorFn: (row) => row.type,
       filterFn: includesOneString,
       enableSorting: false,
+      meta: { minWidth: 96, nowrap: true } satisfies TableColumnMeta,
       cell: (info) => <TypePill type={info.getValue<ObservableType>()} />,
     },
     {
@@ -61,43 +63,15 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       ),
     },
     {
-      id: 'flags',
-      header: 'Flags',
-      accessorFn: (row) => row.flags,
-      filterFn: includesAnyFlag,
-      enableSorting: false,
-      meta: { visibleFrom: 'sm' },
-      cell: (info) => {
-        const flags = info.getValue<ObservableFlag[]>()
-        return flags.length ? (
-          <Group gap={6} wrap="nowrap">
-            {flags.map((flag) => (
-              <Text
-                key={flag}
-                component="span"
-                ff="monospace"
-                fz={11}
-                fw={700}
-                c={flag === 'ioc' ? 'dark.8' : 'yellow.7'}
-              >
-                {flagLabel(flag)}
-              </Text>
-            ))}
-          </Group>
-        ) : (
-          <Text component="span" c="dimmed" ff="monospace" fz={13}>
-            —
-          </Text>
-        )
-      },
-    },
-    {
       id: 'tlp',
       header: 'TLP',
       accessorFn: (row) => row.tlp,
       filterFn: includesOneString,
       enableSorting: false,
-      cell: (info) => <TlpPill tlp={info.getValue<Observable['tlp']>()} />,
+      meta: { minWidth: 64, nowrap: true } satisfies TableColumnMeta,
+      cell: (info) => (
+        <TableTlpBadge tlp={info.getValue<Observable['tlp']>()} />
+      ),
     },
     {
       id: 'source',
@@ -105,7 +79,7 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       accessorFn: (row) => row.source,
       filterFn: includesOneString,
       enableSorting: false,
-      meta: { visibleFrom: 'md' },
+      meta: { minWidth: 88, nowrap: true } satisfies TableColumnMeta,
       cell: (info) => (
         <Badge variant="light" color="gray" radius="sm" ff="monospace">
           {info.getValue<string>()}
@@ -128,15 +102,14 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       enableSorting: true,
       sortingFn: byAdded,
       meta: { visibleFrom: 'sm' },
-      cell: (info) => (
-        <Text
+      cell: ({ row }) => (
+        <RelativeTime
+          iso={row.original.addedAt}
           ff="monospace"
           fz={12}
           c="dimmed"
           style={{ whiteSpace: 'nowrap' }}
-        >
-          {info.getValue<string>()}
-        </Text>
+        />
       ),
     },
     {

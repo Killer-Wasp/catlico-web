@@ -32,10 +32,18 @@ export function formatDue(due: string) {
   return `${day} ${time}`
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function displayAssignee(assignee: string) {
+  if (assignee === 'Unassigned' || UUID_PATTERN.test(assignee)) return null
+  return assignee
+}
+
 export function taskMeta(task: CaseDetailTask) {
   return [
     task.group,
-    task.assignee === 'Unassigned' ? null : task.assignee,
+    displayAssignee(task.assignee),
     task.logs > 0 ? `${task.logs} log${task.logs === 1 ? '' : 's'}` : null,
   ]
     .filter(Boolean)

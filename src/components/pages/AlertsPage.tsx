@@ -12,10 +12,7 @@ import type {
   AlertSort,
 } from '#/components/Alerts/alertsQueries'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
-import {
-  caseKeys,
-  casesQueryOptions,
-} from '#/components/Cases/casesQueries'
+import { caseKeys, casesQueryOptions } from '#/components/Cases/casesQueries'
 import type { CaseListFilters } from '#/components/Cases/casesQueries'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 // Reuse the Cases page var scope so both tables share the SOC palette
@@ -25,14 +22,22 @@ import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
 import type { Token, TokenField } from '#/components/Table/TokenSearch'
 import type { FilterClause } from '#/lib/filters'
-import { Box, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core'
+import {
+  Box,
+  Button,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  TextInput,
+} from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useNavigate } from '@tanstack/react-router'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { SEVERITY_OPTIONS, TLP_OPTIONS } from '#/lib/domain'
 import { useMemo, useState } from 'react'
-import { AlertDetailDrawer } from './alerts/AlertDetailDrawer'
+import { AlertDrawer } from './alerts/AlertDrawer'
 import { buildAlertColumns } from './alerts/alertColumns'
 
 // Sortable columns whose id is a valid backend sort key.
@@ -48,9 +53,6 @@ export function AlertsPage() {
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null)
   const [mergeAlertId, setMergeAlertId] = useState<string | null>(null)
   const [caseSearch, setCaseSearch] = useState('')
-  const [alertComments, setAlertComments] = useState<Record<string, string[]>>(
-    {},
-  )
   // Client-only "ignored"/promoted removals: alerts to hide from the current
   // view without a dedicated backend delete. Cleared on refetch is not needed —
   // promoted alerts stop matching, and ignore is a prototype cosmetic action.
@@ -118,8 +120,6 @@ export function AlertsPage() {
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
-  const activeAlert = alerts.find((alert) => alert.id === activeAlertId) ?? null
-
   const invalidatePromotedResources = () => {
     void queryClient.invalidateQueries({ queryKey: alertKeys.all })
     void queryClient.invalidateQueries({ queryKey: caseKeys.all })
@@ -130,6 +130,7 @@ export function AlertsPage() {
     onSuccess: (caseId, variables) => {
       invalidatePromotedResources()
       hideAlerts(variables.alertIds)
+      setActiveAlertId(null)
       setMergeAlertId(null)
       setCaseSearch('')
       notifications.show({
@@ -163,7 +164,9 @@ export function AlertsPage() {
     onSuccess: (_result, alertIds) => {
       void queryClient.invalidateQueries({ queryKey: alertKeys.all })
       hideAlerts(alertIds)
-      setActiveAlertId((prev) => (prev && alertIds.includes(prev) ? null : prev))
+      setActiveAlertId((prev) =>
+        prev && alertIds.includes(prev) ? null : prev,
+      )
       setRowSelection((prev) => {
         const next = { ...(prev as Record<string, boolean>) }
         for (const id of alertIds) delete next[id]
@@ -322,15 +325,6 @@ export function AlertsPage() {
     })
   }
 
-  const addAlertComment = (id: string, note: string) => {
-    const trimmed = note.trim()
-    if (!trimmed) return
-    setAlertComments((prev) => ({
-      ...prev,
-      [id]: [...(prev[id] ?? []), trimmed],
-    }))
-  }
-
   const dismissSelected = () => {
     if (selectedCount < 1) {
       notifications.show({
@@ -352,12 +346,10 @@ export function AlertsPage() {
 
   return (
     <Box className={classes.page}>
-      <AlertDetailDrawer
-        alert={activeAlert}
+      <AlertDrawer
+        alertId={activeAlertId}
         caseTemplates={caseTemplates}
-        comments={activeAlert ? (alertComments[activeAlert.id] ?? []) : []}
         onClose={() => setActiveAlertId(null)}
-        onAddComment={addAlertComment}
         onDismiss={dismissAlertById}
         onMergeIntoCase={setMergeAlertId}
         onRunAnalysis={runAnalysis}

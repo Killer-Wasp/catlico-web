@@ -7,6 +7,7 @@ import {
 } from '#/components/Cases/casesQueries'
 import type { Pap } from '#/lib/domain'
 import classes from '#/components/Cases/CasesPage.module.css'
+import { TagPickerInput } from '#/components/Tag/TagPickerInput'
 import {
   Anchor,
   Box,
@@ -16,7 +17,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  TagsInput,
   Text,
   Textarea,
   TextInput,
@@ -49,6 +49,10 @@ export function CreateCasePage() {
     caseTemplatesQueryOptions(),
   )
   const templates = templatesResult?.templates ?? []
+  const tagSuggestions = useMemo(
+    () => [...new Set(templates.flatMap((template) => template.tags))].sort(),
+    [templates],
+  )
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -325,12 +329,13 @@ export function CreateCasePage() {
               </Box>
             </SimpleGrid>
 
-            <TagsInput
+            <TagPickerInput
               label={<FieldLabel>Tags</FieldLabel>}
-              placeholder="type a tag and press Enter… (e.g. T1528, identity)"
+              description="pick a suggested tag or type your own (MITRE T-codes auto-style)"
+              placeholder="e.g. T1528, identity"
+              suggestions={tagSuggestions}
               value={tags}
               onChange={setTags}
-              clearable
             />
 
             <Textarea

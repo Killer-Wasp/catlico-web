@@ -1,5 +1,7 @@
 import type { CaseDetailTimelineEvent } from '#/components/Cases/caseDetails.types'
+import { caseTimelineQueryOptions } from '#/components/Cases/casesQueries'
 import { Box, Group, Stack, Text } from '@mantine/core'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CasePanelHeader } from './CasePanelHeader'
 
@@ -27,11 +29,9 @@ function BoldText({ text }: { text: string }) {
   )
 }
 
-export function TimelinePanel({
-  timeline,
-}: {
-  timeline: CaseDetailTimelineEvent[]
-}) {
+export function TimelinePanel({ caseId }: { caseId: string }) {
+  const { data: timeline = [] } = useQuery(caseTimelineQueryOptions(caseId))
+
   const markerColor = (event: CaseDetailTimelineEvent) =>
     event.kind === 'comment'
       ? TIMELINE_MARKER.comment

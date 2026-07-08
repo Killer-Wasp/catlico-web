@@ -25,4 +25,5 @@ export type Observable = {
   source: string
   analysis?: ObservableAnalysis
   added: string
+  addedAt: string
 }

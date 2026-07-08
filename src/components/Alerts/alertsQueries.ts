@@ -16,7 +16,7 @@ import { api } from '#/lib/api/client'
 import { appendClauses } from '#/lib/filters'
 import type { FilterClause } from '#/lib/filters'
 import type { Severity, Tlp } from '#/lib/domain'
-import type { Alert } from './alerts.types'
+import type { Alert, AlertSimilarCase } from './alerts.types'
 import { isHTTPError } from 'ky'
 
 /** Column the alert list is sorted by, server-side. */
@@ -57,6 +57,12 @@ export const alertKeys = {
     [...alertKeys.lists(), filters] as const,
   details: () => [...alertKeys.all, 'detail'] as const,
   detail: (id: string) => [...alertKeys.details(), id] as const,
+  comments: (id: string) => [...alertKeys.detail(id), 'comments'] as const,
+  tags: (id: string) => [...alertKeys.detail(id), 'tags'] as const,
+  observables: (id: string) =>
+    [...alertKeys.detail(id), 'observables'] as const,
+  similarCases: (id: string) =>
+    [...alertKeys.detail(id), 'similar-cases'] as const,
 }
 
 // --- API DTOs --------------------------------------------------------------
@@ -81,6 +87,51 @@ type AlertPublic = {
 
 type CasePublic = {
   id: number
+}
+
+/** Mirrors the backend CommentPublic (app/models/comment.py). */
+type CommentPublic = {
+  id: string
+  message: string
+  created_at: string
+  author_name: string
+}
+
+/** A persisted alert comment, mapped for display. */
+export type AlertComment = {
+  id: string
+  author: string
+  time: string
+  body: string
+}
+
+/** Mirrors the backend ObservablePublic (app/models/observable.py). */
+type ObservablePublic = {
+  id: string
+  observable_type: string
+  data: string
+  tlp: number
+  ioc: boolean
+  sighted: boolean
+}
+
+/** An alert observable, mapped for the drawer's observables table. */
+export type AlertObservableRow = {
+  id: string
+  type: string
+  value: string
+  tlp: Tlp
+  ioc: boolean
+  sighted: boolean
+}
+
+/** Mirrors the backend SimilarCasePublic (app/models/case_.py). */
+type SimilarCasePublic = {
+  id: number
+  title: string
+  severity: number
+  status: string
+  shared_observables: number
 }
 
 export class AlertAlreadyPromotedError extends Error {
@@ -111,6 +162,7 @@ function toAlert(a: AlertPublic): Alert {
     src: a.source,
     tags: [],
     ageMin,
+    firstSeenAt: a.date,
     breach: false,
     description: a.description,
     observables: [],
@@ -144,6 +196,81 @@ async function fetchAlert(id: string): Promise<Alert> {
   const numeric = id.replace(/^AL-/, '')
   const alert = await api.get(`alerts/${numeric}`).json<AlertPublic>()
   return toAlert(alert)
+}
+
+async function fetchAlertComments(id: string): Promise<AlertComment[]> {
+  const numeric = id.replace(/^AL-/, '')
+  const page = await api
+    .get(`alerts/${numeric}/comments`, { searchParams: { sort_order: 'asc' } })
+    .json<Page<CommentPublic>>()
+  return page.items.map((c) => ({
+    id: c.id,
+    author: c.author_name,
+    time: new Date(c.created_at).toLocaleString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    body: c.message,
+  }))
+}
+
+async function fetchAlertTags(id: string): Promise<string[]> {
+  const numeric = id.replace(/^AL-/, '')
+  return api.get(`alerts/${numeric}/tags`).json<string[]>()
+}
+
+export async function setAlertTags({
+  alertId,
+  tags,
+}: {
+  alertId: string
+  tags: string[]
+}): Promise<string[]> {
+  const numeric = alertId.replace(/^AL-/, '')
+  return api.put(`alerts/${numeric}/tags`, { json: { tags } }).json<string[]>()
+}
+
+export async function createAlertComment({
+  alertId,
+  message,
+}: {
+  alertId: string
+  message: string
+}): Promise<void> {
+  const numeric = alertId.replace(/^AL-/, '')
+  await api.post(`alerts/${numeric}/comments`, { json: { message } })
+}
+
+async function fetchAlertObservables(
+  id: string,
+): Promise<AlertObservableRow[]> {
+  const numeric = id.replace(/^AL-/, '')
+  const page = await api
+    .get(`alerts/${numeric}/observables`)
+    .json<Page<ObservablePublic>>()
+  return page.items.map((o) => ({
+    id: o.id,
+    type: o.observable_type,
+    value: o.data,
+    tlp: clamp(o.tlp, 0, 3) as Tlp,
+    ioc: o.ioc,
+    sighted: o.sighted,
+  }))
+}
+
+async function fetchAlertSimilarCases(id: string): Promise<AlertSimilarCase[]> {
+  const numeric = id.replace(/^AL-/, '')
+  const items = await api
+    .get(`alerts/${numeric}/similar-cases`)
+    .json<SimilarCasePublic[]>()
+  return items.map((c) => ({
+    id: `#${c.id}`,
+    title: c.title,
+    sev: clamp(c.severity, 1, 4) as Severity,
+    status: c.status,
+  }))
 }
 
 export async function promoteAlertToCase({
@@ -234,4 +361,28 @@ export const alertQueryOptions = (id: string) =>
   queryOptions({
     queryKey: alertKeys.detail(id),
     queryFn: () => fetchAlert(id),
+  })
+
+export const alertCommentsQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: alertKeys.comments(id),
+    queryFn: () => fetchAlertComments(id),
+  })
+
+export const alertTagsQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: alertKeys.tags(id),
+    queryFn: () => fetchAlertTags(id),
+  })
+
+export const alertObservablesQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: alertKeys.observables(id),
+    queryFn: () => fetchAlertObservables(id),
+  })
+
+export const alertSimilarCasesQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: alertKeys.similarCases(id),
+    queryFn: () => fetchAlertSimilarCases(id),
   })

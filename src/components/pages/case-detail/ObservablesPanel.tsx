@@ -7,11 +7,18 @@ import type {
   ObservableFlag,
   ObservableType,
 } from '#/components/Observables/observables.types'
-import { caseKeys, createCaseObservable } from '#/components/Cases/casesQueries'
+import {
+  caseObservablesQueryOptions,
+  createCaseObservable,
+  invalidateObservableQueries,
+} from '#/components/Cases/casesQueries'
 import { updateObservableFlags } from '#/components/Observables/observablesQueries'
 import { observableTypesQueryOptions } from '#/components/pages/settings/settingsQueries'
 import { ObservableDetailDrawer } from '#/components/pages/ObservablesPage'
 import { addFlag, toggleFlag } from '#/components/pages/observables/tableFns'
+import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import type { TableColumnMeta } from '#/components/Table/columnMeta'
 import { TLP } from '#/lib/domain'
 import type { Tlp } from '#/lib/domain'
 import {
@@ -21,15 +28,14 @@ import {
   Modal,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
 } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { Plus } from 'lucide-react'
-import { useState } from 'react'
-import { CasePanelHeader } from './CasePanelHeader'
-import styles from './styles.module.css'
+import { useMemo, useState } from 'react'
 
 const CASE_OBSERVABLE_TYPE_MAP: Record<string, ObservableType> = {
   domain: 'domain',
@@ -64,8 +70,38 @@ function toObservable(
       ? { analysis: { analyzer: 'Note', verdict: observable.analysis } }
       : {}),
     added: observable.added,
+    addedAt: observable.addedAt,
   }
 }
+
+const COLUMNS: ColumnDef<CaseDetailObservable>[] = [
+  {
+    id: 'type',
+    header: 'Type',
+    meta: { nowrap: true } satisfies TableColumnMeta,
+    cell: ({ row }) => (
+      <Badge variant="default" radius="sm" ff="monospace" fw={500}>
+        {row.original.type}
+      </Badge>
+    ),
+  },
+  {
+    id: 'value',
+    header: 'Value',
+    meta: { grow: true } satisfies TableColumnMeta,
+    cell: ({ row }) => <Text ff="monospace">{row.original.value}</Text>,
+  },
+  {
+    id: 'added',
+    header: 'Added',
+    meta: { ta: 'right', nowrap: true } satisfies TableColumnMeta,
+    cell: ({ row }) => (
+      <Text ff="monospace" fz={13} c="dimmed">
+        {row.original.added}
+      </Text>
+    ),
+  },
+]
 
 export function ObservablesPanel({
   caseDetail,
@@ -87,6 +123,9 @@ export function ObservablesPanel({
   const [newSighted, setNewSighted] = useState(false)
   const queryClient = useQueryClient()
 
+  const { data: caseObservables = [] } = useQuery(
+    caseObservablesQueryOptions(caseId),
+  )
   const { data: obsTypes } = useQuery(observableTypesQueryOptions())
   const nonAttachmentTypes = (obsTypes ?? [])
     .filter((t) => !t.is_attachment)
@@ -102,7 +141,7 @@ export function ObservablesPanel({
         sighted: newSighted,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      invalidateObservableQueries(queryClient, caseId)
       setAddingObservable(false)
       setNewType(null)
       setNewData('')
@@ -113,19 +152,16 @@ export function ObservablesPanel({
   })
 
   const flagMutation = useMutation({
-    mutationFn: ({
-      id,
-      flags,
-    }: {
-      id: string
-      flags: ObservableFlag[]
-    }) =>
+    mutationFn: ({ id, flags }: { id: string; flags: ObservableFlag[] }) =>
       updateObservableFlags(id, {
         ioc: flags.includes('ioc'),
         sighted: flags.includes('sighted'),
       }),
     onSuccess: (_updated, variables) => {
-      setFlagOverrides((current) => ({ ...current, [variables.id]: variables.flags }))
+      setFlagOverrides((current) => ({
+        ...current,
+        [variables.id]: variables.flags,
+      }))
       setActiveObservable((current) =>
         current?.id === variables.id
           ? {
@@ -135,23 +171,35 @@ export function ObservablesPanel({
             }
           : current,
       )
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      invalidateObservableQueries(queryClient, caseId)
     },
   })
 
-  const observables = caseDetail.observables.map((observable) => {
-    const override = flagOverrides[observable.id]
-    return override
-      ? {
-          ...observable,
-          ioc: override.includes('ioc'),
-          sighted: override.includes('sighted'),
-        }
-      : observable
-  })
+  const observables = useMemo(
+    () =>
+      caseObservables.map((observable) => {
+        const override = flagOverrides[observable.id]
+        return override
+          ? {
+              ...observable,
+              ioc: override.includes('ioc'),
+              sighted: override.includes('sighted'),
+            }
+          : observable
+      }),
+    [caseObservables, flagOverrides],
+  )
   const drawerObservable = activeObservable
     ? toObservable(activeObservable, caseDetail)
     : null
+
+  const table = useReactTable({
+    data: observables,
+    columns: COLUMNS,
+    getRowId: (row) => row.id,
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
 
   const requestObservableFlags = (
     observable: Observable,
@@ -230,66 +278,31 @@ export function ObservablesPanel({
         </Stack>
       </Modal>
 
-      <CasePanelHeader
-        label="Observables"
-        action={
+      <TablePanel
+        title="Observables"
+        countNoun="observables"
+        table={table}
+        withFilterBar={false}
+        withPagination={false}
+        actions={
           <Button
             variant="default"
-            leftSection={<Plus size={16} />}
+            size="xs"
+            leftSection={<Plus size={14} />}
             onClick={() => setAddingObservable(true)}
           >
             Add observable
           </Button>
         }
-      />
-
-      <Table
-        aria-label="Case observables"
-        verticalSpacing="sm"
-        horizontalSpacing={0}
-        highlightOnHover
       >
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th className={styles.fieldLabel} fw={500}>
-              Type
-            </Table.Th>
-            <Table.Th className={styles.fieldLabel} fw={500}>
-              Value
-            </Table.Th>
-            <Table.Th className={styles.fieldLabel} fw={500} ta="right">
-              Added
-            </Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {observables.map((observable) => (
-            <Table.Tr
-              key={observable.value}
-              tabIndex={0}
-              onClick={() => setActiveObservable(observable)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') setActiveObservable(observable)
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              <Table.Td>
-                <Badge variant="default" radius="sm" ff="monospace" fw={500}>
-                  {observable.type}
-                </Badge>
-              </Table.Td>
-              <Table.Td>
-                <Text ff="monospace">{observable.value}</Text>
-              </Table.Td>
-              <Table.Td ta="right">
-                <Text ff="monospace" fz={13} c="dimmed">
-                  {observable.added}
-                </Text>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+        <DataTable
+          table={table}
+          minWidth={520}
+          ariaLabel="Case observables"
+          emptyMessage="No observables for this case."
+          onRowClick={(row) => setActiveObservable(row.original)}
+        />
+      </TablePanel>
     </Stack>
   )
 }

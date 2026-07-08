@@ -7,6 +7,7 @@
  *   3. `queryOptions` units (`casesQueryOptions`, `caseQueryOptions`)
  */
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { api, API_BASE } from '#/lib/api/client'
 import { getActiveOrgId } from '#/lib/auth/session'
 import { appendClauses } from '#/lib/filters'
@@ -14,6 +15,7 @@ import type { FilterClause, FilterOp } from '#/lib/filters'
 import type { CaseStatus, Severity, Tlp } from '#/lib/domain'
 import type { MemberPublic } from './caseUsers'
 import type {
+  AlertPublic,
   AuditPublic,
   CasePublic,
   CommentPublic,
@@ -21,8 +23,25 @@ import type {
   TaskPublic,
   WorkLogPublic,
 } from './caseDetails'
-import { compactTime, toCaseDetail, toCaseDetailTaskLog } from './caseDetails'
-import type { CaseDetail, CaseDetailComment } from './caseDetails.types'
+import {
+  compactTime,
+  toCaseDetail,
+  toCaseDetailAttachment,
+  toCaseDetailObservables,
+  toCaseDetailTaskLog,
+  toCaseDetailTaskLogs,
+  toCaseDetailTasks,
+  toCaseDetailTimeline,
+} from './caseDetails'
+import type {
+  CaseDetail,
+  CaseDetailAttachment,
+  CaseDetailComment,
+  CaseDetailObservable,
+  CaseDetailTask,
+  CaseDetailTaskLog,
+  CaseDetailTimelineEvent,
+} from './caseDetails.types'
 import type { Case } from './cases.types'
 
 /** Mirrors the backend AttachmentPublic model. */
@@ -113,9 +132,60 @@ export const caseKeys = {
   details: () => [...caseKeys.all, 'detail'] as const,
   detail: (id: string) => [...caseKeys.details(), id] as const,
   fullDetail: (id: string) => [...caseKeys.detail(id), 'full'] as const,
+  counts: (id: string) => [...caseKeys.detail(id), 'counts'] as const,
+  tasks: (id: string) => [...caseKeys.detail(id), 'tasks'] as const,
+  taskLogs: (id: string, taskId: number) =>
+    [...caseKeys.detail(id), 'tasks', taskId, 'logs'] as const,
+  observables: (id: string) => [...caseKeys.detail(id), 'observables'] as const,
   attachments: (id: string) => [...caseKeys.detail(id), 'attachments'] as const,
+  timeline: (id: string) => [...caseKeys.detail(id), 'timeline'] as const,
+  // With no sortOrder this is the prefix key — invalidating it clears every
+  // sort variant; the queryFn always passes a concrete order.
   comments: (id: string, sortOrder?: string) =>
-    [...caseKeys.detail(id), 'comments', sortOrder ?? 'desc'] as const,
+    sortOrder === undefined
+      ? ([...caseKeys.detail(id), 'comments'] as const)
+      : ([...caseKeys.detail(id), 'comments', sortOrder] as const),
+}
+
+// --- Cache invalidation ------------------------------------------------------
+// Each per-panel section is its own query, so mutations must invalidate the
+// affected section plus the badge counts (and the timeline, which aggregates
+// tasks/comments). These helpers keep those fan-outs in one place.
+
+/** Tasks changed: refresh the tasks list, badge counts, timeline. */
+export function invalidateTaskQueries(qc: QueryClient, caseId: string) {
+  qc.invalidateQueries({ queryKey: caseKeys.tasks(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.counts(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.timeline(caseId) })
+}
+
+/**
+ * A work-log changed: refresh the task's logs and the tasks list (its
+ * `log_count` hint), plus the timeline. `caseKeys.tasks` is a prefix of
+ * `caseKeys.taskLogs`, so invalidating it also clears the open task's logs.
+ */
+export function invalidateWorkLogQueries(qc: QueryClient, caseId: string) {
+  qc.invalidateQueries({ queryKey: caseKeys.tasks(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.timeline(caseId) })
+}
+
+/** Comments changed: refresh the comments list, badge counts, timeline. */
+export function invalidateCommentQueries(qc: QueryClient, caseId: string) {
+  qc.invalidateQueries({ queryKey: caseKeys.comments(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.counts(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.timeline(caseId) })
+}
+
+/** Observables changed: refresh the observables list and badge counts. */
+export function invalidateObservableQueries(qc: QueryClient, caseId: string) {
+  qc.invalidateQueries({ queryKey: caseKeys.observables(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.counts(caseId) })
+}
+
+/** Attachments changed: refresh the attachments list and badge counts. */
+export function invalidateAttachmentQueries(qc: QueryClient, caseId: string) {
+  qc.invalidateQueries({ queryKey: caseKeys.attachments(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.counts(caseId) })
 }
 
 // --- API DTOs --------------------------------------------------------------
@@ -168,6 +238,8 @@ function toCase(c: CasePublic): Case {
     tasksTotal: activeTasks.length,
     created: relativeStamp(c.created_at),
     updated: relativeStamp(c.updated_at ?? c.created_at),
+    createdAt: c.created_at,
+    updatedAt: c.updated_at ?? c.created_at,
     ...(c.duplicate_of_case_id != null
       ? { duplicateOf: `#${c.duplicate_of_case_id}` }
       : {}),
@@ -274,6 +346,11 @@ export async function updateCaseAssignee(
   })
 }
 
+export async function setCaseTags(id: string, tags: string[]): Promise<void> {
+  const numeric = id.replace(/^#/, '')
+  await api.put(`cases/${numeric}/tags`, { json: { tags } })
+}
+
 export async function createCaseTask(
   caseId: string,
   title: string,
@@ -293,7 +370,7 @@ export async function updateTaskDetailFields({
   caseId: number
   taskId: number
   description?: string
-  status?: CaseDetail['tasks'][number]['status']
+  status?: CaseDetailTask['status']
 }) {
   const json: Record<string, string> = {}
   if (description != null) json.description = description
@@ -428,52 +505,112 @@ async function fetchCase(id: string): Promise<Case> {
   return toCase(c)
 }
 
+/**
+ * Fetch the core case for the always-visible summary card, side rail, and
+ * Details tab, plus the alerts promoted into it (shown in the side rail's
+ * "Linked alerts" panel) — fetched concurrently. The heavy per-panel sections
+ * (tasks, observables, comments, attachments, timeline) are fetched lazily by
+ * their own panels — see the per-section query options below.
+ */
 export async function fetchCaseDetail(id: string): Promise<CaseDetail> {
   const numeric = id.replace(/^#/, '')
-  const orgId = getActiveOrgId()
-  const [
-    caseItem,
-    tasks,
-    observables,
-    comments,
-    activity,
-    attachmentsPage,
-    members,
-  ] = await Promise.all([
+  const [caseItem, alerts] = await Promise.all([
     api.get(`cases/${numeric}`).json<CasePublic>(),
-    api.get(`cases/${numeric}/tasks`).json<Page<TaskPublic>>(),
-    api.get(`cases/${numeric}/observables`).json<Page<ObservablePublic>>(),
-    api.get(`cases/${numeric}/comments`).json<Page<CommentPublic>>(),
-    api.get(`cases/${numeric}/activity`).json<Page<AuditPublic>>(),
-    api.get(`cases/${numeric}/attachments`).json<Page<AttachmentPublic>>(),
+    api.get(`cases/${numeric}/alerts`).json<Page<AlertPublic>>(),
+  ])
+  return toCaseDetail(caseItem, alerts.items)
+}
+
+// --- Per-section counts (tab badges) ---------------------------------------
+
+/** Tab-badge counts for a case, mirroring the backend `CaseCounts` model. */
+export type CaseCounts = {
+  tasks: number
+  customFields: number
+  comments: number
+  attachments: number
+  observables: number
+}
+
+async function fetchCaseCounts(id: string): Promise<CaseCounts> {
+  const numeric = id.replace(/^#/, '')
+  const c = await api.get(`cases/${numeric}/counts`).json<{
+    tasks: number
+    custom_fields: number
+    comments: number
+    attachments: number
+    observables: number
+  }>()
+  return {
+    tasks: c.tasks,
+    customFields: c.custom_fields,
+    comments: c.comments,
+    attachments: c.attachments,
+    observables: c.observables,
+  }
+}
+
+// --- Per-panel resources (fetched on demand when a panel mounts) ------------
+
+/**
+ * Tasks for the Tasks panel — the list only (each task carries a server-side
+ * `log_count` hint). A task's work-logs load lazily via `fetchCaseTaskLogs`
+ * when the task is opened, so panel open is a single request.
+ */
+async function fetchCaseTasks(id: string): Promise<CaseDetailTask[]> {
+  const numeric = id.replace(/^#/, '')
+  const tasks = await api.get(`cases/${numeric}/tasks`).json<Page<TaskPublic>>()
+  return toCaseDetailTasks(tasks.items)
+}
+
+/** A single task's work-logs, fetched on demand when the task is opened. */
+async function fetchCaseTaskLogs(
+  id: string,
+  taskId: number,
+): Promise<CaseDetailTaskLog[]> {
+  const numeric = id.replace(/^#/, '')
+  const orgId = getActiveOrgId()
+  const [logs, members] = await Promise.all([
+    api
+      .get(`cases/${numeric}/tasks/${taskId}/logs`)
+      .json<Page<WorkLogPublic>>(),
     orgId
       ? api.get(`organisations/${orgId}/members`).json<MemberPublic[]>()
       : Promise.resolve([]),
   ])
+  return toCaseDetailTaskLogs(logs.items, members)
+}
 
-  const logPages = await Promise.all(
-    tasks.items.map((t) =>
-      api
-        .get(`cases/${numeric}/tasks/${t.id}/logs`)
-        .json<Page<WorkLogPublic>>(),
-    ),
-  )
+/** Observables, mapped for the Observables panel. */
+async function fetchCaseObservables(
+  id: string,
+): Promise<CaseDetailObservable[]> {
+  const numeric = id.replace(/^#/, '')
+  const page = await api
+    .get(`cases/${numeric}/observables`)
+    .json<Page<ObservablePublic>>()
+  return toCaseDetailObservables(page.items)
+}
 
-  const workLogs: Record<string, WorkLogPublic[]> = {}
-  for (let i = 0; i < tasks.items.length; i++) {
-    workLogs[tasks.items[i].id] = logPages[i].items
-  }
-
-  return toCaseDetail({
-    case: caseItem,
-    tasks: tasks.items,
-    observables: observables.items,
-    comments: comments.items,
-    activity: activity.items,
-    attachments: attachmentsPage.items,
+/** Audit activity + comments, merged into the Timeline panel's event stream. */
+async function fetchCaseTimeline(
+  id: string,
+): Promise<CaseDetailTimelineEvent[]> {
+  const numeric = id.replace(/^#/, '')
+  const orgId = getActiveOrgId()
+  const [activity, comments, members] = await Promise.all([
+    api.get(`cases/${numeric}/activity`).json<Page<AuditPublic>>(),
+    api.get(`cases/${numeric}/comments`).json<Page<CommentPublic>>(),
+    orgId
+      ? api.get(`organisations/${orgId}/members`).json<MemberPublic[]>()
+      : Promise.resolve([]),
+  ])
+  return toCaseDetailTimeline(
+    activity.items,
+    comments.items,
+    Number(numeric),
     members,
-    workLogs,
-  })
+  )
 }
 
 // --- query options ---------------------------------------------------------
@@ -507,6 +644,36 @@ export const caseDetailQueryOptions = (id: string) =>
     queryFn: () => fetchCaseDetail(id),
   })
 
+export const caseCountsQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: caseKeys.counts(id),
+    queryFn: () => fetchCaseCounts(id),
+  })
+
+export const caseTasksQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: caseKeys.tasks(id),
+    queryFn: () => fetchCaseTasks(id),
+  })
+
+export const caseTaskLogsQueryOptions = (id: string, taskId: number) =>
+  queryOptions({
+    queryKey: caseKeys.taskLogs(id, taskId),
+    queryFn: () => fetchCaseTaskLogs(id, taskId),
+  })
+
+export const caseObservablesQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: caseKeys.observables(id),
+    queryFn: () => fetchCaseObservables(id),
+  })
+
+export const caseTimelineQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: caseKeys.timeline(id),
+    queryFn: () => fetchCaseTimeline(id),
+  })
+
 export const caseCommentsQueryOptions = (caseId: string, sortOrder = 'desc') =>
   queryOptions({
     queryKey: caseKeys.comments(caseId, sortOrder),
@@ -517,12 +684,12 @@ export const caseCommentsQueryOptions = (caseId: string, sortOrder = 'desc') =>
 
 async function fetchCaseAttachments(
   caseId: string,
-): Promise<AttachmentPublic[]> {
+): Promise<CaseDetailAttachment[]> {
   const numeric = caseId.replace(/^#/, '')
   const page = await api
     .get(`cases/${numeric}/attachments`)
     .json<Page<AttachmentPublic>>()
-  return page.items
+  return page.items.map(toCaseDetailAttachment)
 }
 
 export async function uploadCaseAttachment(

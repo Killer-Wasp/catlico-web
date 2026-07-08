@@ -15,5 +15,7 @@ export type Case = {
   tasksTotal: number
   created: string
   updated: string
+  createdAt: string
+  updatedAt: string
   duplicateOf?: string
 }

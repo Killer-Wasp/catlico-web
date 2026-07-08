@@ -2,7 +2,14 @@ import type {
   CaseDetail,
   CaseDetailTask,
 } from '#/components/Cases/caseDetails.types'
-import { caseKeys, createCaseTask } from '#/components/Cases/casesQueries'
+import {
+  caseTasksQueryOptions,
+  createCaseTask,
+  invalidateTaskQueries,
+} from '#/components/Cases/casesQueries'
+import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import type { TableColumnMeta } from '#/components/Table/columnMeta'
 import {
   Badge,
   Box,
@@ -10,18 +17,78 @@ import {
   Group,
   Modal,
   Stack,
-  Table,
   Text,
   TextInput,
 } from '@mantine/core'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { Flag, Hourglass, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { CasePanelHeader } from './CasePanelHeader'
 import { actionNotice } from './constants'
-import styles from './styles.module.css'
 import { TaskDetailPanel } from './TaskDetailPanel'
 import { formatDue, TASK_STATUS, taskMeta } from './taskHelpers'
+
+const COLUMNS: ColumnDef<CaseDetailTask>[] = [
+  {
+    id: 'task',
+    header: 'Task name',
+    meta: { grow: true } satisfies TableColumnMeta,
+    cell: ({ row }) => {
+      const task = row.original
+      return (
+        <Box miw={0}>
+          <Group gap={6} wrap="nowrap" miw={0}>
+            <Text fw={650} truncate>
+              {task.title}
+            </Text>
+            {task.flagged ? (
+              <Flag
+                size={13}
+                color="var(--sev-high)"
+                fill="var(--sev-high)"
+                style={{ flexShrink: 0 }}
+              />
+            ) : null}
+            <Text ff="monospace" fz={11} c="dimmed" style={{ flexShrink: 0 }}>
+              {taskMeta(task)}
+            </Text>
+          </Group>
+        </Box>
+      )
+    },
+  },
+  {
+    id: 'status',
+    header: 'Status',
+    meta: { nowrap: true } satisfies TableColumnMeta,
+    cell: ({ row }) => (
+      <Badge
+        variant="light"
+        radius="sm"
+        size="sm"
+        tt="uppercase"
+        fw={700}
+        color={TASK_STATUS[row.original.status].color}
+      >
+        {TASK_STATUS[row.original.status].label}
+      </Badge>
+    ),
+  },
+  {
+    id: 'due',
+    header: 'Due',
+    meta: { ta: 'right', nowrap: true } satisfies TableColumnMeta,
+    cell: ({ row }) =>
+      row.original.due ? (
+        <DueBadge
+          due={row.original.due}
+          done={row.original.status === 'completed'}
+        />
+      ) : null,
+  },
+]
 
 export function TasksPanel({
   caseDetail,
@@ -33,18 +100,26 @@ export function TasksPanel({
   const [activeTask, setActiveTask] = useState<CaseDetailTask | null>(null)
   const [addingTask, setAddingTask] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
-  const tasks = caseDetail.tasks
+  const { data: tasks = [] } = useQuery(caseTasksQueryOptions(caseId))
   const queryClient = useQueryClient()
 
   const addTask = useMutation({
     mutationFn: (title: string) => createCaseTask(caseId, title),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      invalidateTaskQueries(queryClient, caseId)
       setNewTaskTitle('')
       setAddingTask(false)
       actionNotice('Task added')
     },
     onError: () => actionNotice('Failed to add task'),
+  })
+
+  const table = useReactTable({
+    data: tasks,
+    columns: COLUMNS,
+    getRowId: (row) => row.id,
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
   })
 
   function submitNewTask() {
@@ -100,96 +175,31 @@ export function TasksPanel({
         </Stack>
       </Modal>
 
-      <CasePanelHeader
-        label="Tasks"
-        action={
+      <TablePanel
+        title="Tasks"
+        countNoun="tasks"
+        table={table}
+        withFilterBar={false}
+        withPagination={false}
+        actions={
           <Button
             variant="default"
-            leftSection={<Plus size={16} />}
+            size="xs"
+            leftSection={<Plus size={14} />}
             onClick={() => setAddingTask(true)}
           >
             Add Task
           </Button>
         }
-      />
-
-      <Table
-        aria-label="Case tasks"
-        verticalSpacing="sm"
-        horizontalSpacing={0}
-        highlightOnHover
       >
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th className={styles.fieldLabel} fw={500}>
-              Task
-            </Table.Th>
-            <Table.Th className={styles.fieldLabel} fw={500}>
-              Status
-            </Table.Th>
-            <Table.Th className={styles.fieldLabel} fw={500} ta="right">
-              Due
-            </Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {tasks.map((task) => {
-            const done = task.status === 'completed'
-            return (
-              <Table.Tr
-                key={task.id}
-                tabIndex={0}
-                onClick={() => setActiveTask(task)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') setActiveTask(task)
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                <Table.Td>
-                  <Box miw={0}>
-                    <Group gap={6} wrap="nowrap" miw={0}>
-                      <Text fw={650} truncate>
-                        {task.title}
-                      </Text>
-                      {task.flagged ? (
-                        <Flag
-                          size={13}
-                          color="var(--sev-high)"
-                          fill="var(--sev-high)"
-                          style={{ flexShrink: 0 }}
-                        />
-                      ) : null}
-                      <Text
-                        ff="monospace"
-                        fz={11}
-                        c="dimmed"
-                        style={{ flexShrink: 0 }}
-                      >
-                        {taskMeta(task)}
-                      </Text>
-                    </Group>
-                  </Box>
-                </Table.Td>
-                <Table.Td>
-                  <Badge
-                    variant="light"
-                    radius="sm"
-                    size="sm"
-                    tt="uppercase"
-                    fw={700}
-                    color={TASK_STATUS[task.status].color}
-                  >
-                    {TASK_STATUS[task.status].label}
-                  </Badge>
-                </Table.Td>
-                <Table.Td ta="right">
-                  {task.due ? <DueBadge due={task.due} done={done} /> : null}
-                </Table.Td>
-              </Table.Tr>
-            )
-          })}
-        </Table.Tbody>
-      </Table>
+        <DataTable
+          table={table}
+          minWidth={520}
+          ariaLabel="Case tasks"
+          emptyMessage="No tasks for this case."
+          onRowClick={(row) => setActiveTask(row.original)}
+        />
+      </TablePanel>
     </Stack>
   )
 }

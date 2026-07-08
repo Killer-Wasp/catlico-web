@@ -6,9 +6,9 @@ import {
 } from './mentionSuggestion'
 import {
   caseCommentsQueryOptions,
-  caseKeys,
   createCaseComment,
   deleteCaseComment,
+  invalidateCommentQueries,
   updateCaseComment,
 } from '#/components/Cases/casesQueries'
 import {
@@ -46,7 +46,7 @@ export function CommentsPanel({ caseId }: { caseId: string }) {
   const deleteComment = useMutation({
     mutationFn: (commentId: string) => deleteCaseComment(commentId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      invalidateCommentQueries(queryClient, caseId)
     },
   })
 
@@ -220,7 +220,7 @@ function CaseCommentEditor({
         editor.commands.clearContent()
         setEmpty(true)
       }
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      invalidateCommentQueries(queryClient, caseId)
     } catch {
       actionNotice(
         editingComment ? 'Failed to update comment' : 'Failed to post comment',

@@ -1,11 +1,12 @@
 import type { Alert } from '#/components/Alerts/alerts.types'
-import { fmtAge, srcColor } from '#/components/Alerts/alerts'
-import { TLP, TLP_COLOR } from '#/lib/domain'
+import { srcColor } from '#/components/Alerts/alerts'
+import { alertTagsQueryOptions } from '#/components/Alerts/alertsQueries'
 import { Severity } from '#/components/Severity/Severity'
 import { Tag } from '#/components/Tag/Tag'
+import { TableTlpBadge } from '#/components/Tlp/TableTlpBadge'
+import { RelativeTime } from '#/components/Time/RelativeTime'
 import {
   ActionIcon,
-  Badge,
   Box,
   Checkbox,
   ColorSwatch,
@@ -21,11 +22,32 @@ import {
   includesAnyTag,
   includesOne,
 } from '#/components/Table/tableFilters'
+import { useQuery } from '@tanstack/react-query'
 import { byAge, byAlertId } from './tableFns'
 
 type AlertColumnHandlers = {
   onRunAnalysis: (id: string) => void
   onDismiss: (id: string) => void
+}
+
+function AlertTitleCell({ alert }: { alert: Alert }) {
+  const { data: fetchedTags } = useQuery(alertTagsQueryOptions(alert.id))
+  const tags = fetchedTags ?? alert.tags
+
+  return (
+    <Box>
+      <Text fw={500} truncate>
+        {alert.title}
+      </Text>
+      {tags.length > 0 ? (
+        <Group gap={6} mt={4} wrap="wrap">
+          {tags.map((tag) => (
+            <Tag key={tag} label={tag} />
+          ))}
+        </Group>
+      ) : null}
+    </Box>
+  )
 }
 
 export function buildAlertColumns({
@@ -74,18 +96,7 @@ export function buildAlertColumns({
       filterFn: includesAnySubstring,
       enableSorting: false,
       meta: { grow: true } satisfies TableColumnMeta,
-      cell: ({ row }) => (
-        <Box>
-          <Text fw={500} truncate>
-            {row.original.title}
-          </Text>
-          <Group gap={6} mt={4} wrap="wrap">
-            {row.original.tags.map((t) => (
-              <Tag key={t} label={t} />
-            ))}
-          </Group>
-        </Box>
-      ),
+      cell: ({ row }) => <AlertTitleCell alert={row.original} />,
     },
     {
       id: 'source',
@@ -114,21 +125,8 @@ export function buildAlertColumns({
       accessorFn: (row) => row.tlp,
       filterFn: includesOne,
       enableSorting: false,
-      meta: { nowrap: true } satisfies TableColumnMeta,
-      cell: ({ row }) => {
-        const tlpName = TLP[row.original.tlp]
-        return (
-          <Badge
-            color={TLP_COLOR[tlpName]}
-            variant="light"
-            radius="sm"
-            size="sm"
-            ff="monospace"
-          >
-            TLP:{tlpName.toUpperCase()}
-          </Badge>
-        )
-      },
+      meta: { minWidth: 64, nowrap: true } satisfies TableColumnMeta,
+      cell: ({ row }) => <TableTlpBadge tlp={row.original.tlp} />,
     },
     {
       id: 'tags',
@@ -154,15 +152,15 @@ export function buildAlertColumns({
       sortingFn: byAge,
       meta: { nowrap: true } satisfies TableColumnMeta,
       cell: ({ row }) => (
-        <Text
+        <RelativeTime
+          iso={row.original.firstSeenAt}
+          fallback={`${row.original.ageMin} minutes ago`}
           ff="monospace"
           fz={11}
           c={row.original.breach ? 'var(--sev-critical)' : 'dimmed'}
           style={{ whiteSpace: 'nowrap' }}
-        >
-          {fmtAge(row.original.ageMin)}
-          {row.original.breach ? ' ⚠' : ''}
-        </Text>
+          suffix={row.original.breach ? ' ⚠' : undefined}
+        />
       ),
     },
     {

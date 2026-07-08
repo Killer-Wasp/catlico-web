@@ -137,7 +137,7 @@ function sectionsForCounts(counts: NavbarCounts): NavSection[] {
   ]
 }
 
-// Active links flip to a high-contrast dark fill; danger links read red.
+// Active links flip to a high-contrast fill; danger links read red.
 // `light-dark()` mirrors theme.ts so both colour schemes stay on-palette.
 function linkStyle(active: boolean, danger?: boolean) {
   const radius = { borderRadius: 'var(--mantine-radius-md)' }
@@ -145,9 +145,9 @@ function linkStyle(active: boolean, danger?: boolean) {
     return {
       ...radius,
       backgroundColor:
-        'light-dark(var(--mantine-color-dark-9), var(--mantine-color-gray-0))',
+        'light-dark(var(--mantine-color-dark-9), var(--mantine-color-dark-6))',
       color:
-        'light-dark(var(--mantine-color-white), var(--mantine-color-dark-9))',
+        'light-dark(var(--mantine-color-white), var(--mantine-color-dark-0))',
     }
   }
   if (danger) {
@@ -339,7 +339,9 @@ export function Navbar({
   const { data: connectors } = useQuery(connectorsQueryOptions())
   const { data: connectorJobs } = useQuery(analyzerJobsQueryOptions())
   const { data: caseTemplates } = useQuery(caseTemplatesQueryOptions())
-  const { data: organisations } = useQuery(accessibleOrganisationsQueryOptions())
+  const { data: organisations } = useQuery(
+    accessibleOrganisationsQueryOptions(),
+  )
   const connectorJobCounts = connectorJobs
     ? countConnectorJobsByTab(connectorJobs)
     : undefined

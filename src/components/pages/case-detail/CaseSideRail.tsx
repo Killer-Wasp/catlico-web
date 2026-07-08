@@ -1,5 +1,9 @@
-import type { CaseDetail } from '#/components/Cases/caseDetails.types'
+import type {
+  CaseDetail,
+  CaseDetailAlert,
+} from '#/components/Cases/caseDetails.types'
 import { Tag } from '#/components/Tag/Tag'
+import { SEV } from '#/lib/domain'
 import {
   ActionIcon,
   Badge,
@@ -9,12 +13,17 @@ import {
   Paper,
   Stack,
   Text,
+  UnstyledButton,
 } from '@mantine/core'
 import { Plus } from 'lucide-react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { actionNotice } from './constants'
+import { AlertDrawer } from '../alerts/AlertDrawer'
 
 export function CaseSideRail({ caseDetail }: { caseDetail: CaseDetail }) {
+  const [activeAlertId, setActiveAlertId] = useState<string | null>(null)
+
   return (
     <Stack gap="md">
       <SideCard
@@ -55,23 +64,14 @@ export function CaseSideRail({ caseDetail }: { caseDetail: CaseDetail }) {
         </Stack>
       </SideCard>
 
-      <SideCard title="Related cases">
+      <SideCard title="Linked alerts">
         <Stack gap={0}>
-          {caseDetail.related.map((related) => (
-            <Group
-              key={related.id}
-              py={8}
-              gap="sm"
-              wrap="nowrap"
-              style={{ borderBottom: '1px solid var(--line-soft)' }}
-            >
-              <Text ff="monospace" fz={13} c="dimmed">
-                {related.id}
-              </Text>
-              <Text fw={600} truncate>
-                {related.title}
-              </Text>
-            </Group>
+          {caseDetail.linkedAlerts.map((alert) => (
+            <LinkedAlertRow
+              key={alert.id}
+              alert={alert}
+              onOpen={() => setActiveAlertId(alert.id)}
+            />
           ))}
         </Stack>
       </SideCard>
@@ -84,7 +84,46 @@ export function CaseSideRail({ caseDetail }: { caseDetail: CaseDetail }) {
           <Tag label="+ technique" />
         </Group>
       </SideCard>
+
+      <AlertDrawer
+        alertId={activeAlertId}
+        onClose={() => setActiveAlertId(null)}
+        hideActions
+      />
     </Stack>
+  )
+}
+
+function LinkedAlertRow({
+  alert,
+  onOpen,
+}: {
+  alert: CaseDetailAlert
+  onOpen: () => void
+}) {
+  return (
+    <UnstyledButton
+      onClick={onOpen}
+      w="100%"
+      aria-label={`Open alert ${alert.id}`}
+    >
+      <Group
+        gap="sm"
+        wrap="nowrap"
+        py={10}
+        style={{ borderBottom: '1px solid var(--line-soft)' }}
+      >
+        <Box
+          w={4}
+          h={22}
+          bg={`var(--sev-${SEV[alert.sev]})`}
+          style={{ borderRadius: 3, flexShrink: 0 }}
+        />
+        <Text ff="monospace" fz={13} c="dimmed">
+          {alert.id}
+        </Text>
+      </Group>
+    </UnstyledButton>
   )
 }
 

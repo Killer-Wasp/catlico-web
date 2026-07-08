@@ -23,8 +23,13 @@ type TablePanelProps<T extends RowData> = {
   /** Extra content after the count pill in the header (e.g. custom stat text). */
   titleExtra?: ReactNode
   table: Table<T>
-  filterFields: FilterField[]
+  /** Token filter fields; only used when the filter bar is shown. */
+  filterFields?: FilterField[]
   filterPlaceholder?: string
+  /** Render the token filter row. Detail-page tables opt out. */
+  withFilterBar?: boolean
+  /** Render the pagination footer. Detail-page tables opt out. */
+  withPagination?: boolean
   /** Available page-size options forwarded to TablePagination. */
   pageSizeOptions?: string[]
   /** Normal (non-select-mode) header action buttons. */
@@ -58,8 +63,10 @@ export function TablePanel<T extends RowData>({
   countLabel,
   titleExtra,
   table,
-  filterFields,
+  filterFields = [],
   filterPlaceholder,
+  withFilterBar = true,
+  withPagination = true,
   pageSizeOptions,
   actions,
   selectActions,
@@ -130,23 +137,27 @@ export function TablePanel<T extends RowData>({
       </Group>
 
       {/* Filter row */}
-      <TableFilterBar
-        table={table}
-        filterFields={filterFields}
-        placeholder={filterPlaceholder}
-        selectable={selectable}
-        selectMode={selectMode}
-        onToggleSelectMode={onToggleSelectMode}
-        filterRowActions={filterRowActions}
-        tokens={tokens}
-        onTokensChange={onTokensChange}
-      />
+      {withFilterBar && (
+        <TableFilterBar
+          table={table}
+          filterFields={filterFields}
+          placeholder={filterPlaceholder}
+          selectable={selectable}
+          selectMode={selectMode}
+          onToggleSelectMode={onToggleSelectMode}
+          filterRowActions={filterRowActions}
+          tokens={tokens}
+          onTokensChange={onTokensChange}
+        />
+      )}
 
       {/* Table body (DataTable or custom loading/error wrapper) */}
       {children}
 
       {/* Pagination footer */}
-      <TablePagination table={table} pageSizeOptions={pageSizeOptions} />
+      {withPagination && (
+        <TablePagination table={table} pageSizeOptions={pageSizeOptions} />
+      )}
     </Paper>
   )
 }

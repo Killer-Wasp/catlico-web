@@ -1,5 +1,6 @@
 import { buildCaseColumns } from '#/components/pages/cases-list/caseColumns'
 import { buildAlertColumns } from '#/components/pages/alerts/alertColumns'
+import { buildObservableColumns } from '#/components/pages/observables/observableColumns'
 import { buildTaskColumns } from '#/components/pages/tasks/taskColumns'
 import { describe, expect, test, vi } from 'vitest'
 
@@ -75,8 +76,11 @@ describe('page table column order', () => {
       caseColumns.find((column) => column.id === 'status')?.meta?.nowrap,
     ).toBe(true)
     expect(
+      caseColumns.find((column) => column.id === 'status')?.meta?.minWidth,
+    ).toBe(112)
+    expect(
       caseColumns.find((column) => column.id === 'status')?.meta?.compact,
-    ).toBe(true)
+    ).toBeUndefined()
     expect(
       caseColumns.find((column) => column.id === 'actions')?.meta?.nowrap,
     ).toBe(true)
@@ -100,7 +104,48 @@ describe('page table column order', () => {
     expect(alertId?.meta?.nowrap).toBe(true)
     expect(alertId?.meta?.compact).toBeUndefined()
     expect(
+      alertColumns.find((column) => column.id === 'tlp')?.meta?.minWidth,
+    ).toBe(64)
+    expect(
       alertColumns.find((column) => column.id === 'actions')?.meta?.nowrap,
     ).toBe(true)
+  })
+
+  test('keeps observable type and TLP readable while hiding flags from the table', () => {
+    const observableColumns = buildObservableColumns()
+
+    expect(observableColumns.map((column) => column.id)).toEqual([
+      'select',
+      'type',
+      'value',
+      'tlp',
+      'source',
+      'analysis',
+      'added',
+      'actions',
+    ])
+    expect(
+      observableColumns.find((column) => column.id === 'type')?.meta?.nowrap,
+    ).toBe(true)
+    expect(
+      observableColumns.find((column) => column.id === 'type')?.meta?.minWidth,
+    ).toBe(96)
+    expect(
+      observableColumns.find((column) => column.id === 'tlp')?.meta?.nowrap,
+    ).toBe(true)
+    expect(
+      observableColumns.find((column) => column.id === 'tlp')?.meta?.minWidth,
+    ).toBe(64)
+    expect(
+      observableColumns.find((column) => column.id === 'source')?.meta?.nowrap,
+    ).toBe(true)
+    expect(
+      observableColumns.find((column) => column.id === 'source')?.meta
+        ?.minWidth,
+    ).toBe(88)
+    expect(
+      observableColumns.find((column) => column.id === 'source')?.meta
+        ?.visibleFrom,
+    ).toBeUndefined()
   })
 })

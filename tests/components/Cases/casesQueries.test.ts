@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
 import {
   caseFacetsQueryOptions,
+  caseTaskLogsQueryOptions,
+  caseTasksQueryOptions,
   casesQueryOptions,
   createTaskWorkLog,
   fetchCaseDetail,
   updateTaskWorkLog,
 } from '#/components/Cases/casesQueries'
+import type {
+  CaseDetailTask,
+  CaseDetailTaskLog,
+} from '#/components/Cases/caseDetails.types'
 import { api } from '#/lib/api/client'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -36,7 +42,7 @@ describe('case detail queries', () => {
     vi.mocked(api.post).mockReset()
   })
 
-  test('fetches a case detail by fanning out to backend child-resource endpoints', async () => {
+  test('fetches only the core case + linked alerts (no heavy child-resource fan-out)', async () => {
     const calls: string[] = []
     vi.mocked(api.get).mockImplementation((input) => {
       const endpoint = String(input)
@@ -67,30 +73,85 @@ describe('case detail queries', () => {
           created_at: '2026-06-12T09:12:00Z',
           updated_at: null,
         },
-        'cases/1842/tasks': page([
+        'cases/1842/alerts': page([]),
+      }
+      return {
+        json: async () => payloads[endpoint],
+      } satisfies JsonResponse as ReturnType<typeof api.get>
+    })
+
+    const detail = await fetchCaseDetail('1842')
+
+    // The heavy sections (tasks, observables, comments, attachments, timeline)
+    // are now lazy per-panel queries; opening a case is just case + alerts.
+    expect(calls).toEqual(['cases/1842', 'cases/1842/alerts'])
+    expect(detail).toMatchObject({
+      id: '#1842',
+      title: 'OAuth consent grant',
+      assignee: 'Unassigned',
+    })
+  })
+
+  test('the tasks query fetches the task list only (no per-task work-log fan-out)', async () => {
+    const calls: string[] = []
+    vi.mocked(api.get).mockImplementation((input) => {
+      calls.push(String(input))
+      return {
+        json: async () =>
+          page([
+            {
+              id: 1,
+              case_id: 1842,
+              organisation_id: 'org-1',
+              title: 'Revoke refresh tokens and reset credentials',
+              group: 'Contain',
+              description: 'Revoke active sessions.',
+              status: 'Waiting',
+              assignee_id: null,
+              order: 0,
+              flagged: false,
+              log_count: 2,
+              start_date: null,
+              due_date: null,
+              end_date: null,
+              created_at: '2026-06-12T09:12:00Z',
+              updated_at: null,
+            },
+          ]),
+      } satisfies JsonResponse as ReturnType<typeof api.get>
+    })
+
+    const tasks = await runQueryFn<CaseDetailTask[]>(
+      caseTasksQueryOptions('1842'),
+    )
+
+    // Only the list — logs load lazily when a task is opened.
+    expect(calls).toEqual(['cases/1842/tasks'])
+    // The server's log_count becomes the list's "N logs" hint.
+    expect(tasks).toMatchObject([
+      { id: 'T-1842-1', apiId: 1, caseId: 1842, logs: 2 },
+    ])
+  })
+
+  test('the task-logs query fans out to logs and members, only when opened', async () => {
+    const calls: string[] = []
+    vi.mocked(api.get).mockImplementation((input) => {
+      const endpoint = String(input)
+      calls.push(endpoint)
+      const payloads: Record<string, unknown> = {
+        'cases/1842/tasks/4/logs': page([
           {
             id: 1,
+            public_id: 'TL-1842-4-1',
             case_id: 1842,
-            organisation_id: 'org-1',
-            title: 'Revoke refresh tokens and reset credentials',
-            group: 'Contain',
-            description: 'Revoke active sessions.',
-            status: 'Waiting',
-            assignee_id: null,
-            order: 0,
-            flagged: false,
-            start_date: null,
-            due_date: null,
-            end_date: null,
-            created_at: '2026-06-12T09:12:00Z',
+            task_id: 4,
+            message: 'Contained.',
+            created_by: 'user-1',
+            created_at: '2026-06-12T10:08:00Z',
             updated_at: null,
+            attachments: [],
           },
         ]),
-        'cases/1842/observables': page([]),
-        'cases/1842/comments': page([]),
-        'cases/1842/activity': page([]),
-        'cases/1842/attachments': page([]),
-        'cases/1842/tasks/1/logs': page([]),
         'organisations/origin-soc/members': [
           {
             id: 'membership-1',
@@ -107,33 +168,15 @@ describe('case detail queries', () => {
       } satisfies JsonResponse as ReturnType<typeof api.get>
     })
 
-    const detail = await fetchCaseDetail('1842')
+    const logs = await runQueryFn<CaseDetailTaskLog[]>(
+      caseTaskLogsQueryOptions('1842', 4),
+    )
 
     expect(calls).toEqual([
-      'cases/1842',
-      'cases/1842/tasks',
-      'cases/1842/observables',
-      'cases/1842/comments',
-      'cases/1842/activity',
-      'cases/1842/attachments',
+      'cases/1842/tasks/4/logs',
       'organisations/origin-soc/members',
-      'cases/1842/tasks/1/logs',
     ])
-    expect(detail).toMatchObject({
-      id: '#1842',
-      title: 'OAuth consent grant',
-      assignee: 'Unassigned',
-      tasks: [
-        {
-          id: 'T-1842-1',
-          apiId: 1,
-          caseId: 1842,
-        },
-      ],
-      observables: [],
-      comments: [],
-      timeline: [],
-    })
+    expect(logs).toMatchObject([{ apiId: 1, taskId: 4, body: 'Contained.' }])
   })
 
   test('creates work logs, uploads attachments, and updates existing work logs', async () => {
@@ -275,7 +318,12 @@ describe('case list query', () => {
 
     expect(result.total).toBe(42)
     expect(result.cases).toHaveLength(1)
-    expect(result.cases[0]).toMatchObject({ id: '#7', title: 'matched' })
+    expect(result.cases[0]).toMatchObject({
+      id: '#7',
+      title: 'matched',
+      createdAt: '2026-06-12T09:12:00Z',
+      updatedAt: '2026-06-12T09:12:00Z',
+    })
 
     const p = captured as URLSearchParams
     // Each clause becomes a repeated `filter=key~op~value` param, in order.

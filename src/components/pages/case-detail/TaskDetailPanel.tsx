@@ -1,10 +1,13 @@
 import type {
   CaseDetail,
   CaseDetailTask,
+  CaseDetailTaskLog,
 } from '#/components/Cases/caseDetails.types'
 import {
-  caseKeys,
+  caseTaskLogsQueryOptions,
   createTaskWorkLog,
+  invalidateTaskQueries,
+  invalidateWorkLogQueries,
   updateTaskDetailFields,
   updateTaskWorkLog,
 } from '#/components/Cases/casesQueries'
@@ -20,7 +23,7 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAssigneeStringOptions } from '#/components/Assign/assigneeOptions'
 import { ArrowLeft, Flag, Paperclip, Pencil } from 'lucide-react'
 import { useState } from 'react'
@@ -55,6 +58,12 @@ export function TaskDetailPanel({
   const [editingDescription, setEditingDescription] = useState(false)
   const [savingDescription, setSavingDescription] = useState(false)
 
+  // Work-logs are fetched here — this panel only mounts once a task is opened,
+  // so the logs request fires exactly when the analyst opens the task details.
+  const { data: workLogs = [] } = useQuery(
+    caseTaskLogsQueryOptions(caseId, task.apiId),
+  )
+
   async function saveDescription(markdown: string) {
     setSavingDescription(true)
     try {
@@ -64,7 +73,7 @@ export function TaskDetailPanel({
         description: markdown,
       })
       onTaskChange({ description: markdown })
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      invalidateTaskQueries(queryClient, caseId)
       setEditingDescription(false)
       actionNotice('Task description saved')
     } finally {
@@ -80,7 +89,7 @@ export function TaskDetailPanel({
       taskId: task.apiId,
       status,
     })
-    queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+    invalidateTaskQueries(queryClient, caseId)
     actionNotice(`Task status set to ${TASK_STATUS[status].label}`)
   }
 
@@ -207,11 +216,7 @@ export function TaskDetailPanel({
         )}
       </CaseDrawerSection>
 
-      <TaskWorkLogsSection
-        task={task}
-        caseId={caseId}
-        onTaskChange={onTaskChange}
-      />
+      <TaskWorkLogsSection task={task} caseId={caseId} workLogs={workLogs} />
     </Box>
   )
 }
@@ -219,11 +224,11 @@ export function TaskDetailPanel({
 function TaskWorkLogsSection({
   task,
   caseId,
-  onTaskChange,
+  workLogs,
 }: {
   task: CaseDetailTask
   caseId: string
-  onTaskChange: (patch: Partial<CaseDetailTask>) => void
+  workLogs: CaseDetailTaskLog[]
 }) {
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
@@ -232,18 +237,14 @@ function TaskWorkLogsSection({
   async function saveNewLog(markdown: string) {
     setSavingNew(true)
     try {
-      const log = await createTaskWorkLog({
+      await createTaskWorkLog({
         caseId: task.caseId,
         taskId: task.apiId,
         bodyMarkdown: markdown,
         files,
       })
-      onTaskChange({
-        workLogs: [...task.workLogs, log],
-        logs: task.workLogs.length + 1,
-      })
       setFiles([])
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      invalidateWorkLogQueries(queryClient, caseId)
       actionNotice('Work log saved')
     } finally {
       setSavingNew(false)
@@ -251,16 +252,15 @@ function TaskWorkLogsSection({
   }
 
   return (
-    <CaseDrawerSection title={`Work logs ${task.workLogs.length}`}>
+    <CaseDrawerSection title={`Work logs ${workLogs.length}`}>
       <Stack gap="sm">
-        {task.workLogs.length ? (
-          task.workLogs.map((log) => (
+        {workLogs.length ? (
+          workLogs.map((log) => (
             <TaskWorkLogCard
               key={log.id}
               task={task}
               log={log}
               caseId={caseId}
-              onTaskChange={onTaskChange}
             />
           ))
         ) : (
@@ -287,12 +287,10 @@ function TaskWorkLogCard({
   task,
   log,
   caseId,
-  onTaskChange,
 }: {
   task: CaseDetailTask
-  log: CaseDetailTask['workLogs'][number]
+  log: CaseDetailTaskLog
   caseId: string
-  onTaskChange: (patch: Partial<CaseDetailTask>) => void
 }) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
@@ -301,18 +299,13 @@ function TaskWorkLogCard({
   async function save(markdown: string) {
     setSaving(true)
     try {
-      const updated = await updateTaskWorkLog({
+      await updateTaskWorkLog({
         caseId: task.caseId,
         taskId: task.apiId,
         logId: log.apiId,
         bodyMarkdown: markdown,
       })
-      onTaskChange({
-        workLogs: task.workLogs.map((item) =>
-          item.id === log.id ? { ...item, ...updated } : item,
-        ),
-      })
-      queryClient.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
+      invalidateWorkLogQueries(queryClient, caseId)
       setEditing(false)
       actionNotice('Work log updated')
     } finally {

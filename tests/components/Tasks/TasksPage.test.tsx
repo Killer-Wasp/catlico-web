@@ -56,7 +56,7 @@ const taskDto = {
   order: 0,
   flagged: false,
   start_date: null,
-  due_date: '2026-06-21T06:00:00Z',
+  due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   end_date: null,
   created_at: '2026-06-21T01:00:00Z',
   updated_at: null,
@@ -126,6 +126,7 @@ describe('TasksPage', () => {
     render(<Harness />)
 
     expect(await screen.findByText('Revoke refresh tokens')).toBeDefined()
+    expect(screen.getByText('in a day')).toBeDefined()
     expect(screen.getByPlaceholderText(/Filter tasks/i)).toBeDefined()
     // Server-side now: the list is fetched with a paginated searchParams window.
     const listCall = vi

@@ -53,7 +53,7 @@ const observableItems = [
     sighted: true,
     ignore_similarity: false,
     organisation_id: 'org-1',
-    created_at: '2026-06-12T09:18:00Z',
+    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     updated_at: null,
   },
   {
@@ -293,6 +293,7 @@ describe('ObservablesPage', () => {
     render(<Harness />)
 
     expect(await screen.findByText('login-paylink.support')).toBeDefined()
+    expect(screen.getByText('2 hours ago')).toBeDefined()
     expect(
       screen.getByRole('button', { name: '+ Add observable' }),
     ).toBeDefined()
@@ -305,7 +306,9 @@ describe('ObservablesPage', () => {
         'Filter observables — pick a field, then a value',
       ),
     ).toBeDefined()
-    expect(screen.getAllByText('TLP:AMBER').length).toBeGreaterThan(0)
+    expect(screen.getAllByLabelText('TLP:AMBER').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('domain').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('columnheader', { name: 'Flags' })).toBeNull()
     expect(screen.getByText('Note VT 12/93')).toBeDefined()
     expect(screen.getByText('1-8 of 8')).toBeDefined()
 

@@ -23,7 +23,15 @@ import {
   waitFor,
 } from '@testing-library/react'
 import type React from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from 'vitest'
 import { accessibleOrganisationsQueryOptions } from '#/components/pages/settings/settingsQueries'
 
 vi.mock('@tanstack/react-router', () => ({
@@ -100,6 +108,7 @@ function renderNavbar({
         tlp: 2,
         source: 'feed',
         added: '10:00',
+        addedAt: '2026-07-07T10:00:00Z',
       },
       {
         id: 'observable-2',
@@ -109,6 +118,7 @@ function renderNavbar({
         tlp: 1,
         source: '#1842',
         added: '10:05',
+        addedAt: '2026-07-07T10:05:00Z',
       },
     ],
   } satisfies ObservablesResult)
@@ -198,9 +208,7 @@ describe('Navbar', () => {
 
     renderNavbar({ onToggle })
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Collapse navigation' }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
 
     expect(screen.getByText('Collapse navigation')).toBeDefined()
     expect(onToggle).toHaveBeenCalledTimes(1)

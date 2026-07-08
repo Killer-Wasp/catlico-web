@@ -1,5 +1,7 @@
 import type { CaseDetail } from '#/components/Cases/caseDetails.types'
-import { Group, Paper, Stack, Tabs, Text } from '@mantine/core'
+import { caseCountsQueryOptions } from '#/components/Cases/casesQueries'
+import { Badge, Group, Paper, Stack, Tabs, Text } from '@mantine/core'
+import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -28,35 +30,49 @@ export function CaseBody({
     ? (lastSegment as CaseTab)
     : 'details'
 
-  const tabDefs: { value: CaseTab; label: string }[] = [
+  // Badge counts come from the lightweight counts endpoint, not from
+  // materialising each section's full list. Undefined while loading ⇒ no badge.
+  const { data: counts } = useQuery(caseCountsQueryOptions(caseId))
+
+  const tabDefs: { value: CaseTab; label: string; count?: number }[] = [
     { value: 'details', label: 'Details' },
     {
       value: 'custom-fields',
-      label: `Custom fields ${caseDetail.customFields.length}`,
+      label: 'Custom fields',
+      count: counts?.customFields,
     },
-    { value: 'tasks', label: `Tasks ${caseDetail.tasks.length}` },
+    { value: 'tasks', label: 'Tasks', count: counts?.tasks },
     {
       value: 'observables',
-      label: `Observables ${caseDetail.observables.length}`,
+      label: 'Observables',
+      count: counts?.observables,
     },
-    { value: 'comments', label: `Comments ${caseDetail.comments.length}` },
+    { value: 'comments', label: 'Comments', count: counts?.comments },
     {
       value: 'attachments',
-      label: `Attachments ${caseDetail.attachments.length}`,
+      label: 'Attachments',
+      count: counts?.attachments,
     },
     { value: 'timeline', label: 'Timeline' },
-    { value: 'sharing', label: `Sharing ${caseDetail.shares}` },
+    { value: 'sharing', label: 'Sharing', count: caseDetail.shares },
   ]
 
   return (
     <Paper radius="md" withBorder>
       <Tabs value={activeTab} color="orange">
         <Tabs.List px="md">
-          {tabDefs.map(({ value, label }) => (
+          {tabDefs.map(({ value, label, count }) => (
             <Tabs.Tab
               key={value}
               value={value}
               p="md"
+              rightSection={
+                count === undefined ? undefined : (
+                  <Badge variant="default" color="gray" radius="xl" size="sm">
+                    {count}
+                  </Badge>
+                )
+              }
               renderRoot={(props) => (
                 <Link
                   to="/cases/$caseId/$tab"
@@ -96,14 +112,9 @@ export function CaseTabPanel({
     case 'comments':
       return <CommentsPanel caseId={caseId} />
     case 'attachments':
-      return (
-        <AttachmentsPanel
-          attachments={caseDetail.attachments}
-          caseId={caseId}
-        />
-      )
+      return <AttachmentsPanel caseId={caseId} />
     case 'timeline':
-      return <TimelinePanel timeline={caseDetail.timeline} />
+      return <TimelinePanel caseId={caseId} />
     case 'sharing':
       return (
         <EmptyTab

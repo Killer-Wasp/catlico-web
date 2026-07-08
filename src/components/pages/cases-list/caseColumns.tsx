@@ -4,6 +4,7 @@ import type { CaseStatus } from '#/lib/domain'
 import { Severity } from '#/components/Severity/Severity'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
 import { Tag } from '#/components/Tag/Tag'
+import { RelativeTime } from '#/components/Time/RelativeTime'
 import {
   ActionIcon,
   Avatar,
@@ -91,7 +92,7 @@ export function buildCaseColumns({
       accessorFn: (row) => row.status,
       filterFn: includesOne,
       enableSorting: false,
-      meta: { compact: true, nowrap: true } satisfies TableColumnMeta,
+      meta: { minWidth: 112, nowrap: true } satisfies TableColumnMeta,
       cell: (info) => (
         <StatusBadge
           status={info.getValue<CaseStatus>()}
@@ -199,15 +200,14 @@ export function buildCaseColumns({
       enableSorting: true,
       sortingFn: byCreated,
       meta: { visibleFrom: 'lg', nowrap: true } satisfies TableColumnMeta,
-      cell: (info) => (
-        <Text
+      cell: ({ row }) => (
+        <RelativeTime
+          iso={row.original.createdAt}
           ff="monospace"
           fz={11}
           c="dimmed"
           style={{ whiteSpace: 'nowrap' }}
-        >
-          {info.getValue<string>()}
-        </Text>
+        />
       ),
     },
     {
@@ -218,15 +218,14 @@ export function buildCaseColumns({
       enableSorting: true,
       sortingFn: byUpdated,
       meta: { nowrap: true } satisfies TableColumnMeta,
-      cell: (info) => (
-        <Text
+      cell: ({ row }) => (
+        <RelativeTime
+          iso={row.original.updatedAt}
           ff="monospace"
           fz={11}
           c="dimmed"
           style={{ whiteSpace: 'nowrap' }}
-        >
-          {info.getValue<string>()}
-        </Text>
+        />
       ),
     },
     {

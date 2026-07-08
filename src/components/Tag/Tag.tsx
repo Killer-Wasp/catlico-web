@@ -5,6 +5,7 @@ import classes from './Tag.module.css'
 type TagProps = {
   /** Tag label, e.g. "T1059" or "phishing". */
   label: string
+  size?: 'xs' | 'sm'
   tone?:
     | 'neutral'
     | 'status'
@@ -26,15 +27,18 @@ const isMitreTag = (tag: string) => /^T\d/.test(tag)
  */
 export function Tag({
   label,
+  size = 'sm',
   tone = 'neutral',
   onRemove,
   removeLabel,
 }: TagProps) {
   const mitre = isMitreTag(label)
   const toneClass = tone === 'neutral' ? '' : ` ${classes[tone]}`
+  const sizeClass = size === 'xs' ? '' : ` ${classes[size]}`
   return (
     <Box
-      className={`${classes.tag}${toneClass}${mitre ? ` ${classes.mitre}` : ''}`}
+      className={`${classes.tag}${sizeClass}${toneClass}${mitre ? ` ${classes.mitre}` : ''}`}
+      data-size={size}
       data-tag-tone={tone}
     >
       <span>{label}</span>

@@ -16,6 +16,11 @@
   );
 }
 
+.sm {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
 .remove {
   display: inline-flex;
   align-items: center;

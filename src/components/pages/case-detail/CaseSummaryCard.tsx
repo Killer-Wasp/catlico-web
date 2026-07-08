@@ -1,27 +1,35 @@
 import type { CaseDetail } from '#/components/Cases/caseDetails.types'
 import { avatarFor } from '#/components/Cases/cases'
 import { trafficLabel } from '#/components/Cases/caseDetails'
-import { caseKeys, updateCaseAssignee } from '#/components/Cases/casesQueries'
+import {
+  caseKeys,
+  setCaseTags,
+  updateCaseAssignee,
+} from '#/components/Cases/casesQueries'
 import { mentionableUsersQueryOptions } from './mentionSuggestion'
 import { SEV } from '#/lib/domain'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
 import { Tag } from '#/components/Tag/Tag'
+import { TagPickerInput } from '#/components/Tag/TagPickerInput'
 import {
   ActionIcon,
   Avatar,
   Badge,
   Box,
+  Button,
   Divider,
   Group,
   Menu,
   Paper,
-  SimpleGrid,
+  Stack,
   Text,
   Title,
+  UnstyledButton,
 } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import {
+  ChevronDown,
   Clock3,
   Download,
   MoreHorizontal,
@@ -29,6 +37,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { actionNotice } from './constants'
 import styles from './styles.module.css'
 
@@ -42,6 +51,13 @@ export function CaseSummaryCard({
   const queryClient = useQueryClient()
   const [initials, color] = avatarFor(caseDetail.assignee)
   const { data: members } = useQuery(mentionableUsersQueryOptions())
+  const [editingTags, setEditingTags] = useState(false)
+  const [draftTags, setDraftTags] = useState(caseDetail.tags)
+
+  useEffect(() => {
+    setEditingTags(false)
+    setDraftTags(caseDetail.tags)
+  }, [caseDetail.id, caseDetail.tags])
 
   const assignMutation = useMutation({
     mutationFn: (assigneeId: string | null) =>
@@ -52,6 +68,21 @@ export function CaseSummaryCard({
     },
     onError: () => {
       notifications.show({ color: 'red', message: 'Failed to update assignee' })
+    },
+  })
+
+  const tagsMutation = useMutation({
+    mutationFn: (tags: string[]) => setCaseTags(caseId, tags),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: caseKeys.fullDetail(caseId),
+      })
+      void queryClient.invalidateQueries({ queryKey: caseKeys.lists() })
+      setEditingTags(false)
+      notifications.show({ color: 'green', message: 'Case tags updated' })
+    },
+    onError: () => {
+      notifications.show({ color: 'red', message: 'Failed to update tags' })
     },
   })
 
@@ -87,10 +118,52 @@ export function CaseSummaryCard({
             {caseDetail.title}
           </Title>
 
+          {editingTags ? (
+            <Stack gap="xs" mb="md">
+              <TagPickerInput
+                label="Tags"
+                placeholder="e.g. finance, T1566"
+                suggestions={caseDetail.tags}
+                value={draftTags}
+                onChange={setDraftTags}
+              />
+              <Group justify="flex-end">
+                <Button
+                  size="xs"
+                  loading={tagsMutation.isPending}
+                  onClick={() => tagsMutation.mutate(draftTags)}
+                >
+                  Save tags
+                </Button>
+              </Group>
+            </Stack>
+          ) : (
+            <Group
+              data-testid="case-summary-tags-row"
+              gap={8}
+              mb="md"
+              wrap="wrap"
+            >
+              {caseDetail.tags.map((tag) => (
+                <Tag key={tag} label={tag} size="sm" />
+              ))}
+              <button
+                type="button"
+                className={styles.addTagButton}
+                onClick={() => {
+                  setDraftTags(caseDetail.tags)
+                  setEditingTags(true)
+                }}
+              >
+                + add tag
+              </button>
+            </Group>
+          )}
+
           <Group
             data-testid="case-summary-traffic-row"
             gap={8}
-            mb={caseDetail.tags.length > 0 ? 8 : 'md'}
+            mb="md"
             wrap="wrap"
           >
             <TrafficBadge label="TLP" value={caseDetail.tlp} />
@@ -104,57 +177,60 @@ export function CaseSummaryCard({
               {caseDetail.sla}
             </Badge>
           </Group>
-          {caseDetail.tags.length > 0 ? (
-            <Group data-testid="case-summary-tags-row" gap={8} mb="md" wrap="wrap">
-              {caseDetail.tags.map((tag) => (
-                <Tag key={tag} label={tag} />
-              ))}
-            </Group>
-          ) : null}
         </Box>
 
-        <CaseActionsMenu
-          members={members}
-          assignPending={assignMutation.isPending}
-          onAssign={(assigneeId) => assignMutation.mutate(assigneeId)}
-        />
+        <CaseActionsMenu />
       </Group>
 
       <Divider my="md" />
 
-      <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 6 }} spacing="md">
-        <SummaryField label="Assignee">
-          <Group gap={8} wrap="nowrap">
-            <Avatar size={28} radius="xl" color="orange" bg={color}>
-              {initials}
-            </Avatar>
-            <Text fw={700}>{caseDetail.assignee}</Text>
-          </Group>
-        </SummaryField>
-        <SummaryField label="Opened">{caseDetail.opened}</SummaryField>
-        <SummaryField label="Source">{caseDetail.source}</SummaryField>
-        <SummaryField label="Business unit">
-          {caseDetail.businessUnit}
-        </SummaryField>
-        <SummaryField label="Tasks">
-          {caseDetail.tasksDone} / {caseDetail.tasksTotal} done
-        </SummaryField>
-        <SummaryField label="Observables">
-          {caseDetail.observables.length} &middot;{' '}
-          {caseDetail.observables.filter((observable) => observable.ioc).length}{' '}
-          IOC
-        </SummaryField>
-      </SimpleGrid>
+      <Group gap="xl" wrap="wrap" data-testid="case-summary-footer">
+        <AssigneeMenu
+          assignee={caseDetail.assignee}
+          initials={initials}
+          color={color}
+          members={members}
+          assignPending={assignMutation.isPending}
+          onAssign={(assigneeId) => assignMutation.mutate(assigneeId)}
+        />
 
+        <Divider orientation="vertical" visibleFrom="xs" />
+
+        <SummaryField label="Opened">
+          {caseDetail.opened}
+          <Text span c="dimmed" fw={500} fz="sm" ml={6}>
+            {caseDetail.openedAgo}
+          </Text>
+        </SummaryField>
+        {caseDetail.updated != null ? (
+          <SummaryField label="Last updated">
+            {caseDetail.updated}
+            {caseDetail.updatedAgo != null ? (
+              <Text span c="dimmed" fw={500} fz="sm" ml={6}>
+                {caseDetail.updatedAgo}
+              </Text>
+            ) : null}
+          </SummaryField>
+        ) : null}
+        {caseDetail.closed != null ? (
+          <SummaryField label="Closed">{caseDetail.closed}</SummaryField>
+        ) : null}
+      </Group>
     </Paper>
   )
 }
 
-function CaseActionsMenu({
+function AssigneeMenu({
+  assignee,
+  initials,
+  color,
   members,
   assignPending,
   onAssign,
 }: {
+  assignee: string
+  initials: string
+  color: string
   members:
     | {
         id: string
@@ -166,19 +242,34 @@ function CaseActionsMenu({
   onAssign: (assigneeId: string | null) => void
 }) {
   return (
-    <Menu shadow="md" width={280} position="bottom-end" withinPortal>
+    <Menu shadow="md" width={280} position="bottom-start" withinPortal>
       <Menu.Target>
-        <ActionIcon
-          aria-label="Case actions"
-          variant="default"
-          size="lg"
-          loading={assignPending}
+        <UnstyledButton
+          aria-label="Change assignee"
+          disabled={assignPending}
+          style={{ opacity: assignPending ? 0.6 : undefined }}
         >
-          <MoreHorizontal size={18} />
-        </ActionIcon>
+          <Group gap={10} wrap="nowrap">
+            <Avatar size={36} radius="xl" color="orange" bg={color}>
+              {initials}
+            </Avatar>
+            <Box>
+              <Text className={styles.fieldLabel} mb={2}>
+                Assignee
+              </Text>
+              <Group gap={4} wrap="nowrap">
+                <Text fw={700}>{assignee}</Text>
+                <ChevronDown
+                  size={14}
+                  color="var(--mantine-color-dimmed)"
+                  aria-hidden
+                />
+              </Group>
+            </Box>
+          </Group>
+        </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>Assignee</Menu.Label>
         <Menu.Item
           leftSection={
             <Avatar size={24} radius="xl" bg="#54463A">
@@ -205,7 +296,20 @@ function CaseActionsMenu({
             </Menu.Item>
           )
         })}
-        <Menu.Divider />
+      </Menu.Dropdown>
+    </Menu>
+  )
+}
+
+function CaseActionsMenu() {
+  return (
+    <Menu shadow="md" width={280} position="bottom-end" withinPortal>
+      <Menu.Target>
+        <ActionIcon aria-label="Case actions" variant="default" size="lg">
+          <MoreHorizontal size={18} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
         <Menu.Item
           leftSection={<Download size={16} />}
           onClick={() => actionNotice('Report export queued')}
@@ -213,17 +317,18 @@ function CaseActionsMenu({
           Export report
         </Menu.Item>
         <Menu.Item
-          leftSection={<XCircle size={16} />}
-          onClick={() => actionNotice('Close case workflow opened')}
-        >
-          Close case
-        </Menu.Item>
-        <Menu.Item
           color="orange"
           leftSection={<Play size={16} />}
           onClick={() => actionNotice('Analyzer run queued')}
         >
           Run analyzers
+        </Menu.Item>
+        <Menu.Divider />
+        <Menu.Item
+          leftSection={<XCircle size={16} />}
+          onClick={() => actionNotice('Close case workflow opened')}
+        >
+          Close case
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>

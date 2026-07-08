@@ -1,3 +1,5 @@
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
 import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
 import { TLP } from '#/lib/domain'
 import type { MemberPublic } from './caseUsers'
@@ -5,9 +7,15 @@ import { memberDisplayNameById } from './caseUsers'
 import type { AttachmentPublic } from './casesQueries'
 import type {
   CaseDetail,
+  CaseDetailAttachment,
+  CaseDetailObservable,
+  CaseDetailTask,
   CaseDetailTaskLog,
   CaseDetailTaskStatus,
+  CaseDetailTimelineEvent,
 } from './caseDetails.types'
+
+dayjs.extend(relativeTime)
 
 export type CaseTaskSummary = {
   id: string
@@ -53,11 +61,21 @@ export type TaskPublic = {
   assignee_id: string | null
   order: number
   flagged: boolean
+  /** Live work-log count from the list endpoint (for the "N logs" hint). */
+  log_count?: number
   start_date: string | null
   due_date: string | null
   end_date: string | null
   created_at: string
   updated_at: string | null
+}
+
+/** Slim view of the backend AlertPublic — the fields the case's linked-alerts panel needs. */
+export type AlertPublic = {
+  id: number
+  title: string
+  severity: number
+  tlp: number
 }
 
 export type ObservablePublic = {
@@ -123,26 +141,15 @@ export type WorkLogPublic = {
   attachments?: WorkLogAttachmentPublic[]
 }
 
-export type CaseDetailResources = {
-  case: CasePublic
-  tasks: TaskPublic[]
-  observables: ObservablePublic[]
-  comments: CommentPublic[]
-  activity: AuditPublic[]
-  attachments?: AttachmentPublic[]
-  members?: MemberPublic[]
-  workLogs?: Record<string, WorkLogPublic[]>
-}
-
 function formatBlobSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function toCaseDetailAttachment(
+export function toCaseDetailAttachment(
   a: AttachmentPublic,
-): CaseDetail['attachments'][number] {
+): CaseDetailAttachment {
   const ext = a.name.includes('.')
     ? a.name.split('.').pop()!.toUpperCase()
     : (a.content_type.split('/')[1]?.toUpperCase() ?? 'FILE')
@@ -290,14 +297,115 @@ function timelineLink(event: AuditPublic, caseId: number): string | undefined {
   }
 }
 
-export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
-  const { case: caseItem, tasks, observables, comments, activity } = resources
-  const displayNameByUserId = memberDisplayNameById(resources.members)
+/**
+ * Map the `tasks` panel's rows, fetched on demand. Work-logs are NOT loaded
+ * here — the list shows only the server's `log_count` hint; a task's logs load
+ * lazily when it is opened (see `toCaseDetailTaskLogs`).
+ */
+export function toCaseDetailTasks(tasks: TaskPublic[]): CaseDetailTask[] {
+  return tasks.map((task) => ({
+    id: taskPublicId(task),
+    apiId: task.id,
+    caseId: task.case_id,
+    title: task.title,
+    group: task.group || 'General',
+    status: taskStatus(task.status),
+    assignee: task.assignee_id ?? 'Unassigned',
+    flagged: task.flagged,
+    due: task.due_date,
+    start: task.start_date,
+    end: task.end_date,
+    description: task.description,
+    logs: task.log_count ?? 0,
+  }))
+}
+
+/** Map a task's work-logs, fetched on demand when the task is opened. */
+export function toCaseDetailTaskLogs(
+  logs: WorkLogPublic[],
+  members?: MemberPublic[],
+): CaseDetailTaskLog[] {
+  const displayNameByUserId = memberDisplayNameById(members)
+  return logs.map((log) => toCaseDetailTaskLog(log, displayNameByUserId))
+}
+
+/** Map the `observables` panel's rows, fetched on demand. */
+export function toCaseDetailObservables(
+  observables: ObservablePublic[],
+): CaseDetailObservable[] {
+  return observables.map((observable) => ({
+    id: observable.id,
+    type: observable.observable_type,
+    value: observable.data,
+    ioc: observable.ioc,
+    sighted: observable.sighted,
+    analysis: observable.message || '-',
+    added: compactTime(observable.created_at),
+    addedAt: observable.created_at,
+  }))
+}
+
+/**
+ * Merge audit activity and comments into the `timeline` panel's newest-first
+ * event stream, fetched on demand.
+ */
+export function toCaseDetailTimeline(
+  activity: AuditPublic[],
+  comments: CommentPublic[],
+  caseNumericId: number,
+  members?: MemberPublic[],
+): CaseDetailTimelineEvent[] {
+  const displayNameByUserId = memberDisplayNameById(members)
+  return [
+    ...activity.map((event) => ({
+      when: compactTime(event.created_at),
+      text: auditText(event),
+      who: resolvedActor(event.actor, displayNameByUserId),
+      tone: event.action === 'delete' ? ('warn' as const) : undefined,
+      kind: 'audit' as const,
+      createdAt: event.created_at,
+      link: timelineLink(event, caseNumericId),
+    })),
+    ...comments.map((comment) => ({
+      when: compactTime(comment.created_at),
+      text: comment.message,
+      who: comment.author_name,
+      kind: 'comment' as const,
+      createdAt: comment.created_at,
+    })),
+  ].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )
+}
+
+/** Map a promoted alert to the side-rail's linked-alert row shape. */
+export function toCaseDetailAlert(
+  alert: AlertPublic,
+): CaseDetail['linkedAlerts'][number] {
+  return {
+    id: `AL-${alert.id}`,
+    title: alert.title,
+    sev: clamp(alert.severity, 1, 4) as Severity,
+    tlp: clamp(alert.tlp, 0, 3) as Tlp,
+  }
+}
+
+/**
+ * Map a backend `CasePublic` to the core `CaseDetail` shown by the always-visible
+ * summary card, side rail, and Details tab. Linked alerts live in the always-visible
+ * side rail, so they're passed in alongside the case; the heavy per-panel sections
+ * (tasks, observables, comments, attachments, timeline) are fetched lazily by their
+ * own panels — see `toCaseDetailTasks`/`toCaseDetailObservables`/`toCaseDetailTimeline`.
+ */
+export function toCaseDetail(
+  caseItem: CasePublic,
+  alerts: AlertPublic[] = [],
+): CaseDetail {
   const status = STATUS_MAP[caseItem.status] ?? {
     id: 'open' as const,
     name: caseItem.status,
   }
-  const activeTasks = tasks.filter((task) => task.status !== 'Cancelled')
+  const openedIso = caseItem.start_date ?? caseItem.created_at
 
   return {
     id: `#${caseItem.id}`,
@@ -309,78 +417,20 @@ export function toCaseDetail(resources: CaseDetailResources): CaseDetail {
     title: caseItem.title,
     assignee: caseItem.assignee_email ?? 'Unassigned',
     tags: caseItem.tags,
-    tasksDone: activeTasks.filter((task) => task.status === 'Completed').length,
-    tasksTotal: activeTasks.length,
-    opened: compactDateTime(caseItem.start_date ?? caseItem.created_at),
+    opened: compactDateTime(openedIso),
+    openedAgo: dayjs(openedIso).fromNow(),
+    updated:
+      caseItem.updated_at == null ? null : compactDateTime(caseItem.updated_at),
+    updatedAgo:
+      caseItem.updated_at == null ? null : dayjs(caseItem.updated_at).fromNow(),
+    closed:
+      caseItem.end_date == null ? null : compactDateTime(caseItem.end_date),
     sla: 'No SLA set',
-    source: 'Backend',
-    businessUnit:
-      caseItem.custom_fields.business_unit == null
-        ? 'Unspecified'
-        : String(caseItem.custom_fields.business_unit),
     descriptionMarkdown: caseItem.description,
     summary: caseItem.summary?.trim() || null,
     customFields: customFieldRows(caseItem.custom_fields),
-    linkedAlerts: [],
-    tasks: tasks.map((task) => {
-      const workLogs = (resources.workLogs?.[task.id] ?? []).map((log) =>
-        toCaseDetailTaskLog(log, displayNameByUserId),
-      )
-      return {
-        id: taskPublicId(task),
-        apiId: task.id,
-        caseId: task.case_id,
-        title: task.title,
-        group: task.group || 'General',
-        status: taskStatus(task.status),
-        assignee: task.assignee_id ?? 'Unassigned',
-        flagged: task.flagged,
-        due: task.due_date,
-        start: task.start_date,
-        end: task.end_date,
-        description: task.description,
-        logs: workLogs.length,
-        workLogs,
-      }
-    }),
-    observables: observables.map((observable) => ({
-      id: observable.id,
-      type: observable.observable_type,
-      value: observable.data,
-      ioc: observable.ioc,
-      sighted: observable.sighted,
-      analysis: observable.message || '-',
-      added: compactTime(observable.created_at),
-    })),
-    comments: comments.map((comment) => ({
-      id: comment.id,
-      author: comment.author_name,
-      time: compactTime(comment.created_at),
-      body: comment.message,
-    })),
-    attachments: (resources.attachments ?? []).map(toCaseDetailAttachment),
+    linkedAlerts: alerts.map(toCaseDetailAlert),
     shares: 0,
-    timeline: [
-      ...activity.map((event) => ({
-        when: compactTime(event.created_at),
-        text: auditText(event),
-        who: resolvedActor(event.actor, displayNameByUserId),
-        tone: (event.action === 'delete' ? 'warn' as const : undefined),
-        kind: 'audit' as const,
-        createdAt: event.created_at,
-        link: timelineLink(event, caseItem.id),
-      })),
-      ...comments.map((comment) => ({
-        when: compactTime(comment.created_at),
-        text: comment.message,
-        who: comment.author_name,
-        kind: 'comment' as const,
-        createdAt: comment.created_at,
-      })),
-    ].sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    ),
     responders: [],
     related: [
       ...caseItem.merged_from.map((id) => ({

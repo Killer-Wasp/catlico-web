@@ -1,60 +1,63 @@
 import type { CaseDetail } from '#/components/Cases/caseDetails.types'
-import { Button, Stack, Table, Text } from '@mantine/core'
+import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import type { TableColumnMeta } from '#/components/Table/columnMeta'
+import { Button, Stack, Text } from '@mantine/core'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { Plus } from 'lucide-react'
-import { CasePanelHeader } from './CasePanelHeader'
-import styles from './styles.module.css'
+
+type CustomField = CaseDetail['customFields'][number]
+
+const COLUMNS: ColumnDef<CustomField>[] = [
+  {
+    id: 'field',
+    header: 'Field',
+    meta: { nowrap: true } satisfies TableColumnMeta,
+    cell: ({ row }) => <Text fw={600}>{row.original[0]}</Text>,
+  },
+  {
+    id: 'value',
+    header: 'Value',
+    meta: { grow: true } satisfies TableColumnMeta,
+    cell: ({ row }) => <Text>{row.original[1]}</Text>,
+  },
+]
 
 export function CustomFieldsPanel({
   customFields,
 }: {
   customFields: CaseDetail['customFields']
 }) {
+  const table = useReactTable({
+    data: customFields,
+    columns: COLUMNS,
+    getRowId: (row) => row[0],
+    enableSorting: false,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
   return (
-    <Stack gap="lg" p="lg">
-      <CasePanelHeader
-        label="Custom fields"
-        action={
-          <Button variant="default" leftSection={<Plus size={16} />}>
+    <Stack gap="md" p="lg">
+      <TablePanel
+        title="Custom fields"
+        countNoun="fields"
+        table={table}
+        withFilterBar={false}
+        withPagination={false}
+        actions={
+          <Button variant="default" size="xs" leftSection={<Plus size={14} />}>
             Add Custom field
           </Button>
         }
-      />
-
-      {customFields.length > 0 ? (
-        <Table
-          aria-label="Case custom fields"
-          verticalSpacing="sm"
-          horizontalSpacing={0}
-          highlightOnHover
-        >
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th className={styles.fieldLabel} fw={500}>
-                Field
-              </Table.Th>
-              <Table.Th className={styles.fieldLabel} fw={500}>
-                Value
-              </Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {customFields.map(([label, value]) => (
-              <Table.Tr key={label}>
-                <Table.Td>
-                  <Text fw={600}>{label}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text>{value}</Text>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      ) : (
-        <Text c="dimmed" fz={14}>
-          No custom fields for this case.
-        </Text>
-      )}
+      >
+        <DataTable
+          table={table}
+          minWidth={420}
+          ariaLabel="Case custom fields"
+          emptyMessage="No custom fields for this case."
+        />
+      </TablePanel>
     </Stack>
   )
 }

@@ -22,8 +22,9 @@ export type CaseDetailTask = {
   start: string | null
   end: string | null
   description: string
+  /** Live work-log count for the list's "N logs" hint; the logs themselves are
+   * fetched on demand when the task is opened. */
   logs: number
-  workLogs: CaseDetailTaskLog[]
 }
 
 export type CaseDetailTaskLog = {
@@ -56,6 +57,7 @@ export type CaseDetailObservable = {
   sighted: boolean
   analysis: string
   added: string
+  addedAt: string
 }
 
 export type CaseDetailAlert = {
@@ -107,24 +109,19 @@ export type CaseDetail = {
   title: string
   assignee: string
   tags: string[]
-  tasksDone: number
-  tasksTotal: number
   opened: string
+  openedAgo: string
+  updated: string | null
+  updatedAgo: string | null
+  closed: string | null
   sla: string
-  source: string
-  businessUnit: string
   /** Case description as Markdown (CommonMark), edited and rendered via Tiptap. */
   descriptionMarkdown: string
   /** Analyst working hypothesis (the case summary), shown below the description. */
   summary: string | null
   customFields: [string, string][]
   linkedAlerts: CaseDetailAlert[]
-  tasks: CaseDetailTask[]
-  observables: CaseDetailObservable[]
-  comments: CaseDetailComment[]
-  attachments: CaseDetailAttachment[]
   shares: number
-  timeline: CaseDetailTimelineEvent[]
   responders: { action: string; provider: string }[]
   related: { id: string; title: string }[]
   ttps: string[]

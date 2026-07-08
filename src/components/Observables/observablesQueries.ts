@@ -133,6 +133,7 @@ function toObservable(dto: ObservablePublic): Observable {
       ? { analysis: { analyzer: 'Note', verdict: dto.message } }
       : {}),
     added: compactTime(dto.created_at),
+    addedAt: dto.created_at,
   }
 }
 

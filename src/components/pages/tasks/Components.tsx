@@ -4,12 +4,12 @@ import {
   TASK_STATUS_LABEL,
   avatarFor,
 } from '#/components/Tasks/tasks'
+import {
+  localDateTimeLabel,
+  relativeTimeLabel,
+} from '#/components/Time/RelativeTime'
 import { Avatar, Badge, Text, Tooltip } from '@mantine/core'
 import { Clock3 } from 'lucide-react'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
-
-dayjs.extend(relativeTime)
 
 export function Assignee({ name }: { name?: string }) {
   if (!name) {
@@ -37,8 +37,8 @@ export function Assignee({ name }: { name?: string }) {
 
 export function DuePill({ task }: { task: Task }) {
   const urgent = task.urgent || task.overdue
-  const label = task.dueAt ? dayjs(task.dueAt).fromNow() : task.due
-  return (
+  const label = relativeTimeLabel(task.dueAt, task.due)
+  const badge = (
     <Badge
       variant="light"
       color={task.overdue ? 'red' : urgent ? 'red' : 'gray'}
@@ -55,6 +55,14 @@ export function DuePill({ task }: { task: Task }) {
     >
       {label}
     </Badge>
+  )
+
+  if (!task.dueAt) return badge
+
+  return (
+    <Tooltip label={localDateTimeLabel(task.dueAt)} withArrow>
+      {badge}
+    </Tooltip>
   )
 }
 

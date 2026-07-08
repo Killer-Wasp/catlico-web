@@ -1,5 +1,14 @@
 // @vitest-environment jsdom
-import type { CaseDetail } from '#/components/Cases/caseDetails.types'
+import type {
+  CaseDetail,
+  CaseDetailAttachment,
+  CaseDetailComment,
+  CaseDetailObservable,
+  CaseDetailTask,
+  CaseDetailTaskLog,
+  CaseDetailTimelineEvent,
+} from '#/components/Cases/caseDetails.types'
+import { caseKeys } from '#/components/Cases/casesQueries'
 import { CaseSummaryCard } from '#/components/pages/case-detail/CaseSummaryCard'
 import { CaseTabPanel } from '#/components/pages/CaseDetailPage'
 import { api } from '#/lib/api/client'
@@ -29,6 +38,7 @@ vi.mock('#/lib/api/client', () => ({
     get: vi.fn(),
     patch: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
   },
 }))
 
@@ -72,12 +82,12 @@ const caseDetail: CaseDetail = {
   title: 'OAuth consent grant — privileged account compromise',
   assignee: 'J. Tanaka',
   tags: ['T1528', 'identity', 'bec'],
-  tasksDone: 3,
-  tasksTotal: 7,
   opened: 'Today 09:12',
+  openedAgo: '3h ago',
+  updated: 'Today 11:40',
+  updatedAgo: '32m ago',
+  closed: null,
   sla: '3h 18m to SLA',
-  source: 'Defender XDR',
-  businessUnit: 'Corporate IT',
   descriptionMarkdown: 'OAuth consent grant investigation.',
   summary: 'Containment is underway.',
   customFields: [
@@ -86,73 +96,101 @@ const caseDetail: CaseDetail = {
     ['Campaign ID', 'BILL-2026-Q2'],
   ],
   linkedAlerts: [],
-  tasks: [
-    {
-      id: 'T-1842-4',
-      apiId: 4,
-      caseId: 1842,
-      title: 'Disable malicious app registration tenant-wide',
-      group: 'Contain',
-      status: 'inprogress',
-      assignee: 'J. Tanaka',
-      flagged: false,
-      due: '2026-06-12T13:00:00Z',
-      start: '2026-06-12T10:00:00Z',
-      end: null,
-      description:
-        'Block the app registration and add it to the blocked apps policy.',
-      logs: 1,
-      workLogs: [
-        {
-          id: 'wl-1842-4-1',
-          apiId: 1,
-          caseId: 1842,
-          taskId: 4,
-          author: 'J. Tanaka',
-          time: '12 June, 10:08 am',
-          body: 'App registration disabled in our tenant. Waiting on cross-tenant confirmation.',
-          attachments: [
-            {
-              id: 'att-1',
-              name: 'tenant-blocklist-approval.pdf',
-              size: '92 KB',
-            },
-          ],
-        },
-      ],
-    },
-  ],
-  observables: [
-    {
-      id: 'obs-2',
-      type: 'url',
-      value: 'hxxps://cdn-au-billing[.]net/invoice.php',
-      ioc: true,
-      sighted: false,
-      analysis: 'URLscan complete',
-      added: '09:21',
-    },
-  ],
-  comments: [],
-  attachments: [
-    {
-      id: 'attachment-1',
-      linkId: 1,
-      kind: 'PDF',
-      name: 'tenant-blocklist-approval.pdf',
-      size: '92 KB',
-      sizeBytes: 94_208,
-      sha256: 'abc123',
-      contentType: 'application/pdf',
-      author: 'J. Tanaka',
-      time: '10:08',
-    },
-  ],
   shares: 0,
-  timeline: [],
   responders: [],
   related: [],
   ttps: [],
+}
+
+// Each panel now fetches its own section; the harness seeds these fixtures into
+// the query cache (staleTime: Infinity) so panels read them without an API call.
+const tasksFixture: CaseDetailTask[] = [
+  {
+    id: 'T-1842-4',
+    apiId: 4,
+    caseId: 1842,
+    title: 'Disable malicious app registration tenant-wide',
+    group: 'Contain',
+    status: 'inprogress',
+    assignee: 'J. Tanaka',
+    flagged: false,
+    due: '2026-06-12T13:00:00Z',
+    start: '2026-06-12T10:00:00Z',
+    end: null,
+    description:
+      'Block the app registration and add it to the blocked apps policy.',
+    logs: 1,
+  },
+]
+
+// A task's work-logs load lazily when it is opened; seeded under the task-logs key.
+const taskLogsFixture: CaseDetailTaskLog[] = [
+  {
+    id: 'wl-1842-4-1',
+    apiId: 1,
+    caseId: 1842,
+    taskId: 4,
+    author: 'J. Tanaka',
+    time: '12 June, 10:08 am',
+    body: 'App registration disabled in our tenant. Waiting on cross-tenant confirmation.',
+    attachments: [
+      {
+        id: 'att-1',
+        name: 'tenant-blocklist-approval.pdf',
+        size: '92 KB',
+      },
+    ],
+  },
+]
+
+const observablesFixture: CaseDetailObservable[] = [
+  {
+    id: 'obs-2',
+    type: 'url',
+    value: 'hxxps://cdn-au-billing[.]net/invoice.php',
+    ioc: true,
+    sighted: false,
+    analysis: 'URLscan complete',
+    added: '09:21',
+    addedAt: '2026-06-12T09:21:00Z',
+  },
+]
+
+const commentsFixture: CaseDetailComment[] = []
+
+const attachmentsFixture: CaseDetailAttachment[] = [
+  {
+    id: 'attachment-1',
+    linkId: 1,
+    kind: 'PDF',
+    name: 'tenant-blocklist-approval.pdf',
+    size: '92 KB',
+    sizeBytes: 94_208,
+    sha256: 'abc123',
+    contentType: 'application/pdf',
+    author: 'J. Tanaka',
+    time: '10:08',
+  },
+]
+
+const timelineFixture: CaseDetailTimelineEvent[] = []
+
+// Backend-shaped observable for the one query that gets refetched: updating a
+// flag invalidates the observables list. Mirrors observablesFixture's obs-2.
+const observablePageItem = {
+  id: 'obs-2',
+  case_id: 1842,
+  alert_id: null,
+  observable_type: 'url',
+  data: 'hxxps://cdn-au-billing[.]net/invoice.php',
+  message: 'URLscan complete',
+  tlp: 2,
+  ioc: true,
+  sighted: false,
+  ignore_similarity: false,
+  organisation_id: 'org-1',
+  created_at: '2026-06-12T09:21:00Z',
+  updated_at: null,
 }
 
 beforeAll(() => {
@@ -199,6 +237,21 @@ function CaseSummaryHarness() {
   )
 }
 
+function seededClient() {
+  // staleTime: Infinity keeps the seeded panel data from refetching on mount, so
+  // each panel renders synchronously from the cache in tests.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+  })
+  queryClient.setQueryData(caseKeys.tasks('1842'), tasksFixture)
+  queryClient.setQueryData(caseKeys.taskLogs('1842', 4), taskLogsFixture)
+  queryClient.setQueryData(caseKeys.observables('1842'), observablesFixture)
+  queryClient.setQueryData(caseKeys.comments('1842', 'desc'), commentsFixture)
+  queryClient.setQueryData(caseKeys.attachments('1842'), attachmentsFixture)
+  queryClient.setQueryData(caseKeys.timeline('1842'), timelineFixture)
+  return queryClient
+}
+
 function CaseTabHarness({
   tab,
 }: {
@@ -212,9 +265,8 @@ function CaseTabHarness({
     | 'tasks'
     | 'timeline'
 }) {
-  const queryClient = new QueryClient()
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={seededClient()}>
       <MantineProvider>
         <Notifications />
         <CaseTabPanel tab={tab} caseDetail={caseDetail} caseId="1842" />
@@ -227,24 +279,34 @@ beforeEach(() => {
   vi.mocked(api.get).mockReset()
   vi.mocked(api.patch).mockReset()
   vi.mocked(api.post).mockReset()
+  vi.mocked(api.put).mockReset()
   vi.mocked(api.get).mockImplementation((input) => {
     const endpoint = String(input)
+    const json = (value: unknown) =>
+      ({ json: async () => value }) satisfies JsonResponse as ReturnType<
+        typeof api.get
+      >
+    const page = (items: unknown[]) =>
+      json({ items, total: items.length, skip: 0, limit: 100 })
     if (endpoint === 'observable-types/') {
-      return {
-        json: async () => [
-          { name: 'domain', is_attachment: false },
-          { name: 'url', is_attachment: false },
-          { name: 'ip', is_attachment: false },
-          { name: 'mail', is_attachment: false },
-          { name: 'hash', is_attachment: false },
-          { name: 'file', is_attachment: true },
-          { name: 'other', is_attachment: false },
-        ],
-      } satisfies JsonResponse as ReturnType<typeof api.get>
+      return json([
+        { name: 'domain', is_attachment: false },
+        { name: 'url', is_attachment: false },
+        { name: 'ip', is_attachment: false },
+        { name: 'mail', is_attachment: false },
+        { name: 'hash', is_attachment: false },
+        { name: 'file', is_attachment: true },
+        { name: 'other', is_attachment: false },
+      ])
     }
-    return {
-      json: async () => enrichmentOverview,
-    } satisfies JsonResponse as ReturnType<typeof api.get>
+    // Seeded queries don't refetch on mount; these cover the refetch after a
+    // flag-update invalidation and any defensive fetch.
+    if (endpoint === 'cases/1842/observables') return page([observablePageItem])
+    if (endpoint === 'cases/1842/tasks') return page([])
+    if (endpoint === 'cases/1842/comments') return page([])
+    if (endpoint === 'cases/1842/activity') return page([])
+    if (endpoint === 'cases/1842/attachments') return page([])
+    return json(enrichmentOverview)
   })
   vi.mocked(api.patch).mockReturnValue({
     json: async () => ({}),
@@ -259,6 +321,9 @@ beforeEach(() => {
       attachments: [],
     }),
   } satisfies JsonResponse as ReturnType<typeof api.post>)
+  vi.mocked(api.put).mockReturnValue({
+    json: async () => ({}),
+  } satisfies JsonResponse as ReturnType<typeof api.put>)
 })
 
 afterEach(cleanup)
@@ -288,7 +353,7 @@ describe('case summary card', () => {
     expect(screen.getByText('Run analyzers')).toBeDefined()
   })
 
-  test('moves tags onto a row below traffic labels and SLA', () => {
+  test('moves editable tags above traffic labels and SLA', () => {
     render(<CaseSummaryHarness />)
 
     const trafficRow = screen.getByTestId('case-summary-traffic-row')
@@ -299,9 +364,35 @@ describe('case summary card', () => {
     expect(within(trafficRow).getByText(caseDetail.sla)).toBeDefined()
     expect(within(tagsRow).getByText('T1528')).toBeDefined()
     expect(
-      trafficRow.compareDocumentPosition(tagsRow) &
+      within(tagsRow)
+        .getByText('identity')
+        .closest('[data-tag-tone]')
+        ?.getAttribute('data-size'),
+    ).toBe('sm')
+    expect(
+      tagsRow.compareDocumentPosition(trafficRow) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+    expect(
+      within(tagsRow).getByRole('button', { name: '+ add tag' }),
+    ).toBeDefined()
+  })
+
+  test('edits case summary tags with the reusable tag picker', async () => {
+    render(<CaseSummaryHarness />)
+
+    fireEvent.click(screen.getByRole('button', { name: '+ add tag' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tags' }), {
+      target: { value: 'finance' },
+    })
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Tags' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save tags' }))
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('cases/1842/tags', {
+        json: { tags: ['T1528', 'identity', 'bec', 'finance'] },
+      }),
+    )
   })
 })
 
@@ -422,7 +513,9 @@ describe('case custom fields tab', () => {
   test('renders custom fields as a case-style table with an add action', () => {
     render(<CaseTabHarness tab="custom-fields" />)
 
-    expect(screen.getByRole('button', { name: /add custom field/i })).toBeDefined()
+    expect(
+      screen.getByRole('button', { name: /add custom field/i }),
+    ).toBeDefined()
     expect(
       screen.getByRole('table', { name: /case custom fields/i }),
     ).toBeDefined()
@@ -453,20 +546,17 @@ describe('case tasks tab', () => {
 
     expect(screen.getByRole('button', { name: /^add task$/i })).toBeDefined()
     expect(screen.getByRole('table', { name: /case tasks/i })).toBeDefined()
-    expect(screen.getByRole('columnheader', { name: 'Task' })).toBeDefined()
+    expect(
+      screen.getByRole('columnheader', { name: 'Task name' }),
+    ).toBeDefined()
+    expect(screen.queryByRole('columnheader', { name: 'Task' })).toBeNull()
     expect(screen.getByRole('columnheader', { name: 'Status' })).toBeDefined()
     expect(screen.getByRole('columnheader', { name: 'Due' })).toBeDefined()
-    expect(
-      screen.queryByPlaceholderText(/add a task/i),
-    ).toBeNull()
+    expect(screen.queryByPlaceholderText(/add a task/i)).toBeNull()
   })
 
   test('does not strike through completed task titles or render row checkboxes', () => {
-    render(
-      <CaseTabHarness
-        tab="tasks"
-      />,
-    )
+    render(<CaseTabHarness tab="tasks" />)
 
     const taskTitle = screen.getByText(
       'Disable malicious app registration tenant-wide',
@@ -622,8 +712,14 @@ describe('case attachments tab', () => {
     expect(
       screen.getByRole('table', { name: /case attachments/i }),
     ).toBeDefined()
-    expect(screen.getByRole('columnheader', { name: 'File' })).toBeDefined()
-    expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeDefined()
+    const attachmentsTable = screen.getByRole('table', {
+      name: /case attachments/i,
+    })
+    const headers = within(attachmentsTable).getAllByRole('columnheader')
+    expect(headers).toHaveLength(2)
+    expect(headers[0]?.textContent).toBe('File')
+    // Actions column is icon-only with a blank header, like the cases list.
+    expect(headers[1]?.textContent).toBe('')
     expect(screen.queryByRole('columnheader', { name: /size/i })).toBeNull()
     expect(screen.getByText('tenant-blocklist-approval.pdf')).toBeDefined()
   })
