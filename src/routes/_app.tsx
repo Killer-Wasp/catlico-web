@@ -4,6 +4,7 @@ import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { Navbar } from '#/components/Navbar/Navbar'
 import { Header } from '#/components/Header/Header'
 import { isAuthenticated } from '#/lib/auth/session'
+import { sanitizeReturnUrl } from '#/lib/auth/redirects'
 
 // Pathless layout route. Everything nested under `_app` is rendered
 // inside this shell. Routes that should be exempt (e.g. /login) live
@@ -16,9 +17,12 @@ import { isAuthenticated } from '#/lib/auth/session'
 // sees the real token.
 export const Route = createFileRoute('/_app')({
   ssr: false,
-  beforeLoad: () => {
+  beforeLoad: ({ location }) => {
     if (!isAuthenticated()) {
-      throw redirect({ to: '/login' })
+      throw redirect({
+        to: '/login',
+        search: { returnUrl: sanitizeReturnUrl(location.href) },
+      })
     }
   },
   component: AppLayout,

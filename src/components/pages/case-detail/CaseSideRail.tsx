@@ -119,8 +119,11 @@ function LinkedAlertRow({
           bg={`var(--sev-${SEV[alert.sev]})`}
           style={{ borderRadius: 3, flexShrink: 0 }}
         />
-        <Text ff="monospace" fz={13} c="dimmed">
+        <Text ff="monospace" fz={13} c="dimmed" style={{ flexShrink: 0 }}>
           {alert.id}
+        </Text>
+        <Text fz={13} truncate>
+          {alert.title}
         </Text>
       </Group>
     </UnstyledButton>

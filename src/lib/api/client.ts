@@ -21,6 +21,7 @@ import {
   getRefreshToken,
   setAccessToken,
 } from '#/lib/auth/session'
+import { redirectToLogin } from '#/lib/auth/redirects'
 
 /** Base URL for the API. Override per-environment via `VITE_API_BASE_URL`. */
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
@@ -86,15 +87,22 @@ export const api = ky.create({
     ],
     afterResponse: [
       async ({ request, response, retryCount }) => {
-        if (response.status !== 401 || retryCount > 0 || !getRefreshToken()) {
+        if (response.status !== 401) {
           return
         }
-        if (await refreshAccessToken()) {
+
+        if (
+          retryCount === 0 &&
+          getRefreshToken() &&
+          (await refreshAccessToken())
+        ) {
           const headers = new Headers(request.headers)
           headers.set('Authorization', `Bearer ${getAccessToken()}`)
           return ky.retry({ request: new Request(request, { headers }) })
         }
+
         clearSession()
+        redirectToLogin()
       },
     ],
   },

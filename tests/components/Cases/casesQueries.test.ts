@@ -4,6 +4,7 @@ import {
   caseTaskLogsQueryOptions,
   caseTasksQueryOptions,
   casesQueryOptions,
+  closeCase,
   createTaskWorkLog,
   fetchCaseDetail,
   updateTaskWorkLog,
@@ -380,6 +381,24 @@ describe('case list query', () => {
       assignees: ['a@b.com'],
       unassigned: true,
       tagKeys: { tlp: ['amber', 'red'] },
+    })
+  })
+})
+
+describe('case mutations', () => {
+  beforeEach(() => {
+    vi.mocked(api.patch).mockReset()
+  })
+
+  test('closes a case by patching the backend status to Resolved', async () => {
+    vi.mocked(api.patch).mockReturnValue({
+      json: async () => ({}),
+    } satisfies JsonResponse as ReturnType<typeof api.patch>)
+
+    await closeCase('#1842')
+
+    expect(api.patch).toHaveBeenCalledWith('cases/1842', {
+      json: { status: 'Resolved' },
     })
   })
 })

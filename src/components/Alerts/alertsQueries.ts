@@ -63,6 +63,8 @@ export const alertKeys = {
     [...alertKeys.detail(id), 'observables'] as const,
   similarCases: (id: string) =>
     [...alertKeys.detail(id), 'similar-cases'] as const,
+  linkedCases: (id: string) =>
+    [...alertKeys.detail(id), 'linked-cases'] as const,
 }
 
 // --- API DTOs --------------------------------------------------------------
@@ -132,6 +134,14 @@ type SimilarCasePublic = {
   severity: number
   status: string
   shared_observables: number
+}
+
+/** Mirrors the backend LinkedCasePublic (app/models/case_.py). */
+type LinkedCasePublic = {
+  id: number
+  title: string
+  severity: number
+  status: string
 }
 
 export class AlertAlreadyPromotedError extends Error {
@@ -273,6 +283,19 @@ async function fetchAlertSimilarCases(id: string): Promise<AlertSimilarCase[]> {
   }))
 }
 
+async function fetchAlertLinkedCases(id: string): Promise<AlertSimilarCase[]> {
+  const numeric = id.replace(/^AL-/, '')
+  const items = await api
+    .get(`alerts/${numeric}/linked-cases`)
+    .json<LinkedCasePublic[]>()
+  return items.map((c) => ({
+    id: `#${c.id}`,
+    title: c.title,
+    sev: clamp(c.severity, 1, 4) as Severity,
+    status: c.status,
+  }))
+}
+
 export async function promoteAlertToCase({
   alertId,
   caseTemplateId,
@@ -385,4 +408,10 @@ export const alertSimilarCasesQueryOptions = (id: string) =>
   queryOptions({
     queryKey: alertKeys.similarCases(id),
     queryFn: () => fetchAlertSimilarCases(id),
+  })
+
+export const alertLinkedCasesQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: alertKeys.linkedCases(id),
+    queryFn: () => fetchAlertLinkedCases(id),
   })

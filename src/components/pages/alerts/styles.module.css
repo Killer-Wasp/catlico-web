@@ -103,3 +103,12 @@
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: 2px;
 }
+
+.templateSelect input,
+.templateLink {
+  min-height: 2.25rem;
+}
+
+.templateLink {
+  align-self: stretch;
+}

@@ -46,6 +46,7 @@ export function AlertDetailDrawer({
   tags,
   observables,
   similarCases,
+  linkedCases,
 }: {
   alert: Alert | null
   caseTemplates?: CaseTemplate[]
@@ -69,6 +70,9 @@ export function AlertDetailDrawer({
   /** When provided, overrides `alert.similarCases` with cases fetched from the
    *  API (those sharing an observable with the alert). */
   similarCases?: AlertSimilarCase[]
+  /** Cases the alert is directly linked to (via `Alert.case_id`), fetched from
+   *  the API — rendered as "Linked case", symmetric to a case's linked alerts. */
+  linkedCases?: AlertSimilarCase[]
 }) {
   const [note, setNote] = useState('')
   const [templateId, setTemplateId] = useState('')
@@ -98,6 +102,14 @@ export function AlertDetailDrawer({
     onClose()
   }
 
+  const openCase = (id: string) => {
+    close()
+    void navigate({
+      to: '/cases/$caseId/$tab',
+      params: { caseId: id.replace(/^#/, ''), tab: 'details' },
+    })
+  }
+
   if (!alert) return null
 
   const tlpName = TLP[alert.tlp]
@@ -110,6 +122,7 @@ export function AlertDetailDrawer({
     ]),
   ]
   const similarRows = similarCases ?? alert.similarCases
+  const linkedRows = linkedCases ?? []
   const startEditingTags = () => {
     setDraftTags(displayedTags)
     setEditingTags(true)
@@ -304,17 +317,14 @@ export function AlertDetailDrawer({
           )}
         </DrawerSection>
 
+        {linkedRows.length > 0 && (
+          <DrawerSection title="Linked case" count={linkedRows.length}>
+            <SimilarCaseTable rows={linkedRows} onOpen={openCase} />
+          </DrawerSection>
+        )}
+
         <DrawerSection title="Similar cases" count={similarRows.length}>
-          <SimilarCaseTable
-            rows={similarRows}
-            onOpen={(id) => {
-              close()
-              void navigate({
-                to: '/cases/$caseId/$tab',
-                params: { caseId: id.replace(/^#/, ''), tab: 'details' },
-              })
-            }}
-          />
+          <SimilarCaseTable rows={similarRows} onOpen={openCase} />
         </DrawerSection>
 
         <DrawerSection title="Comments" count={comments.length}>
@@ -377,6 +387,7 @@ export function AlertDetailDrawer({
           <DrawerSection title="Promote with template">
             <Group gap={8} wrap="nowrap" align="flex-end">
               <Select
+                className={styles.templateSelect}
                 data={caseTemplates.map((template) => ({
                   value: template.id,
                   label: template.name,
@@ -389,6 +400,7 @@ export function AlertDetailDrawer({
                 style={{ flex: 1 }}
               />
               <Button
+                className={styles.templateLink}
                 component="a"
                 href={
                   selectedTemplate
@@ -397,7 +409,6 @@ export function AlertDetailDrawer({
                 }
                 target="_blank"
                 rel="noreferrer"
-                size="xs"
                 variant="default"
                 leftSection={<ExternalLink size={12} />}
                 disabled={!selectedTemplate}

@@ -346,6 +346,13 @@ export async function updateCaseAssignee(
   })
 }
 
+export async function closeCase(id: string): Promise<void> {
+  const numeric = id.replace(/^#/, '')
+  await api.patch(`cases/${numeric}`, {
+    json: { status: 'Resolved' },
+  })
+}
+
 export async function setCaseTags(id: string, tags: string[]): Promise<void> {
   const numeric = id.replace(/^#/, '')
   await api.put(`cases/${numeric}/tags`, { json: { tags } })

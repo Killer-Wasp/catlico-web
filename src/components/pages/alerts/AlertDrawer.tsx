@@ -1,6 +1,7 @@
 import {
   alertCommentsQueryOptions,
   alertKeys,
+  alertLinkedCasesQueryOptions,
   alertObservablesQueryOptions,
   alertQueryOptions,
   alertSimilarCasesQueryOptions,
@@ -64,6 +65,10 @@ export function AlertDrawer({
     ...alertSimilarCasesQueryOptions(alertId ?? ''),
     enabled,
   })
+  const { data: linkedCases } = useQuery({
+    ...alertLinkedCasesQueryOptions(alertId ?? ''),
+    enabled,
+  })
 
   const addComment = useMutation({
     mutationFn: createAlertComment,
@@ -114,6 +119,7 @@ export function AlertDrawer({
       savingTags={saveTags.isPending}
       observables={observables ?? []}
       similarCases={similarCases ?? []}
+      linkedCases={linkedCases ?? []}
       caseTemplates={caseTemplates}
       onClose={onClose}
       onAddComment={(id, note) => {

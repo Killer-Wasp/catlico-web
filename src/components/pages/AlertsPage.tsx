@@ -32,7 +32,7 @@ import {
   TextInput,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { useNavigate } from '@tanstack/react-router'
+import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { SEVERITY_OPTIONS, TLP_OPTIONS } from '#/lib/domain'
@@ -50,7 +50,13 @@ export function AlertsPage() {
   const caseTemplates = caseTemplatesResult?.templates ?? []
   const [selectMode, setSelectMode] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
-  const [activeAlertId, setActiveAlertId] = useState<string | null>(null)
+  // The open alert lives in the URL (`/alerts/$alertId`) so the drawer is
+  // linkable and auto-opens on a direct visit. `strict: false` reads the param
+  // from the `$alertId` child match without narrowing to it.
+  const { alertId: activeAlertId = null } = useParams({ strict: false })
+  const openAlert = (id: string) =>
+    void navigate({ to: '/alerts/$alertId', params: { alertId: id } })
+  const closeAlert = () => void navigate({ to: '/alerts' })
   const [mergeAlertId, setMergeAlertId] = useState<string | null>(null)
   const [caseSearch, setCaseSearch] = useState('')
   // Client-only "ignored"/promoted removals: alerts to hide from the current
@@ -130,7 +136,6 @@ export function AlertsPage() {
     onSuccess: (caseId, variables) => {
       invalidatePromotedResources()
       hideAlerts(variables.alertIds)
-      setActiveAlertId(null)
       setMergeAlertId(null)
       setCaseSearch('')
       notifications.show({
@@ -164,9 +169,7 @@ export function AlertsPage() {
     onSuccess: (_result, alertIds) => {
       void queryClient.invalidateQueries({ queryKey: alertKeys.all })
       hideAlerts(alertIds)
-      setActiveAlertId((prev) =>
-        prev && alertIds.includes(prev) ? null : prev,
-      )
+      if (activeAlertId && alertIds.includes(activeAlertId)) closeAlert()
       setRowSelection((prev) => {
         const next = { ...(prev as Record<string, boolean>) }
         for (const id of alertIds) delete next[id]
@@ -192,7 +195,6 @@ export function AlertsPage() {
     onSuccess: (caseId, variables) => {
       invalidatePromotedResources()
       hideAlerts([variables.alertId])
-      setActiveAlertId(null)
       notifications.show({
         color: 'orange',
         message: `${variables.alertId} promoted to case #${caseId}`,
@@ -206,7 +208,7 @@ export function AlertsPage() {
       if (error instanceof AlertAlreadyPromotedError) {
         invalidatePromotedResources()
         hideAlerts([variables.alertId])
-        setActiveAlertId(null)
+        closeAlert()
         notifications.show({
           color: 'orange',
           message: `${variables.alertId} was already promoted to case #${error.caseId}`,
@@ -221,8 +223,6 @@ export function AlertsPage() {
       })
     },
   })
-
-  const openAlert = (id: string) => setActiveAlertId(id)
 
   const runAnalysis = (id: string) =>
     notifications.show({ color: 'blue', message: `Running analysis on ${id}…` })
@@ -349,7 +349,7 @@ export function AlertsPage() {
       <AlertDrawer
         alertId={activeAlertId}
         caseTemplates={caseTemplates}
-        onClose={() => setActiveAlertId(null)}
+        onClose={closeAlert}
         onDismiss={dismissAlertById}
         onMergeIntoCase={setMergeAlertId}
         onRunAnalysis={runAnalysis}
@@ -364,6 +364,9 @@ export function AlertsPage() {
         }}
         promotionPending={promoteMutation.isPending}
       />
+      {/* `/alerts/$alertId` renders nothing here — it only carries the open
+          alert in the URL, which the drawer above reads via route params. */}
+      <Outlet />
       <Modal
         opened={Boolean(mergeAlertId)}
         onClose={() => {

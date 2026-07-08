@@ -18,7 +18,7 @@ import { useState } from 'react'
 import { isHTTPError } from 'ky'
 import { login } from '#/lib/auth/session'
 
-export function LoginPage() {
+export function LoginPage({ returnUrl = '/' }: { returnUrl?: string }) {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -30,7 +30,7 @@ export function LoginPage() {
     setError(null)
     try {
       await login(email, password)
-      await navigate({ to: '/' })
+      await navigate({ href: returnUrl })
     } catch (err) {
       setError(
         isHTTPError(err) && err.response.status === 401

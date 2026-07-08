@@ -353,6 +353,21 @@ describe('case summary card', () => {
     expect(screen.getByText('Run analyzers')).toBeDefined()
   })
 
+  test('closes the case through the summary actions menu', async () => {
+    render(<CaseSummaryHarness />)
+
+    fireEvent.click(screen.getByRole('button', { name: /case actions/i }))
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: /close case/i }),
+    )
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('cases/1842', {
+        json: { status: 'Resolved' },
+      }),
+    )
+  })
+
   test('moves editable tags above traffic labels and SLA', () => {
     render(<CaseSummaryHarness />)
 

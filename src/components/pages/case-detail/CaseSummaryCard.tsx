@@ -3,6 +3,7 @@ import { avatarFor } from '#/components/Cases/cases'
 import { trafficLabel } from '#/components/Cases/caseDetails'
 import {
   caseKeys,
+  closeCase,
   setCaseTags,
   updateCaseAssignee,
 } from '#/components/Cases/casesQueries'
@@ -83,6 +84,20 @@ export function CaseSummaryCard({
     },
     onError: () => {
       notifications.show({ color: 'red', message: 'Failed to update tags' })
+    },
+  })
+
+  const closeCaseMutation = useMutation({
+    mutationFn: () => closeCase(caseId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: caseKeys.detail(caseId),
+      })
+      void queryClient.invalidateQueries({ queryKey: caseKeys.lists() })
+      notifications.show({ color: 'green', message: 'Case closed' })
+    },
+    onError: () => {
+      notifications.show({ color: 'red', message: 'Failed to close case' })
     },
   })
 
@@ -179,7 +194,11 @@ export function CaseSummaryCard({
           </Group>
         </Box>
 
-        <CaseActionsMenu />
+        <CaseActionsMenu
+          closeDisabled={caseDetail.status !== 'open'}
+          closePending={closeCaseMutation.isPending}
+          onCloseCase={() => closeCaseMutation.mutate()}
+        />
       </Group>
 
       <Divider my="md" />
@@ -301,7 +320,15 @@ function AssigneeMenu({
   )
 }
 
-function CaseActionsMenu() {
+function CaseActionsMenu({
+  closeDisabled,
+  closePending,
+  onCloseCase,
+}: {
+  closeDisabled: boolean
+  closePending: boolean
+  onCloseCase: () => void
+}) {
   return (
     <Menu shadow="md" width={280} position="bottom-end" withinPortal>
       <Menu.Target>
@@ -325,8 +352,10 @@ function CaseActionsMenu() {
         </Menu.Item>
         <Menu.Divider />
         <Menu.Item
+          color="red"
+          disabled={closeDisabled || closePending}
           leftSection={<XCircle size={16} />}
-          onClick={() => actionNotice('Close case workflow opened')}
+          onClick={onCloseCase}
         >
           Close case
         </Menu.Item>

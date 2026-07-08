@@ -24,12 +24,14 @@ import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
 import { Route as AppCasesIndexRouteImport } from './routes/_app/cases/index'
 import { Route as AppCaseTemplatesIndexRouteImport } from './routes/_app/case-templates/index'
+import { Route as AppAlertsIndexRouteImport } from './routes/_app/alerts.index'
 import { Route as AppSettingsSectionRouteImport } from './routes/_app/settings.$section'
 import { Route as AppKnowledgeBasePageIdRouteImport } from './routes/_app/knowledge-base/$pageId'
 import { Route as AppFunctionsNewRouteImport } from './routes/_app/functions/new'
 import { Route as AppCasesCreateRouteImport } from './routes/_app/cases/create'
 import { Route as AppCasesCaseIdRouteImport } from './routes/_app/cases/$caseId'
 import { Route as AppCaseTemplatesTemplateIdRouteImport } from './routes/_app/case-templates/$templateId'
+import { Route as AppAlertsAlertIdRouteImport } from './routes/_app/alerts.$alertId'
 import { Route as AppCasesCaseIdIndexRouteImport } from './routes/_app/cases/$caseId/index'
 import { Route as AppCasesCaseIdTabRouteImport } from './routes/_app/cases/$caseId/$tab'
 
@@ -107,6 +109,11 @@ const AppCaseTemplatesIndexRoute = AppCaseTemplatesIndexRouteImport.update({
   path: '/case-templates/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAlertsIndexRoute = AppAlertsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAlertsRoute,
+} as any)
 const AppSettingsSectionRoute = AppSettingsSectionRouteImport.update({
   id: '/$section',
   path: '/$section',
@@ -138,6 +145,11 @@ const AppCaseTemplatesTemplateIdRoute =
     path: '/case-templates/$templateId',
     getParentRoute: () => AppRoute,
   } as any)
+const AppAlertsAlertIdRoute = AppAlertsAlertIdRouteImport.update({
+  id: '/$alertId',
+  path: '/$alertId',
+  getParentRoute: () => AppAlertsRoute,
+} as any)
 const AppCasesCaseIdIndexRoute = AppCasesCaseIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -152,7 +164,7 @@ const AppCasesCaseIdTabRoute = AppCasesCaseIdTabRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
-  '/alerts': typeof AppAlertsRoute
+  '/alerts': typeof AppAlertsRouteWithChildren
   '/connector-jobs': typeof AppConnectorJobsRoute
   '/connectors': typeof AppConnectorsRoute
   '/functions': typeof AppFunctionsRouteWithChildren
@@ -161,12 +173,14 @@ export interface FileRoutesByFullPath {
   '/organisations': typeof AppOrganisationsRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRoute
+  '/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/cases/create': typeof AppCasesCreateRoute
   '/functions/new': typeof AppFunctionsNewRoute
   '/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/settings/$section': typeof AppSettingsSectionRoute
+  '/alerts/': typeof AppAlertsIndexRoute
   '/case-templates/': typeof AppCaseTemplatesIndexRoute
   '/cases/': typeof AppCasesIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
@@ -175,7 +189,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/alerts': typeof AppAlertsRoute
   '/connector-jobs': typeof AppConnectorJobsRoute
   '/connectors': typeof AppConnectorsRoute
   '/functions': typeof AppFunctionsRouteWithChildren
@@ -184,11 +197,13 @@ export interface FileRoutesByTo {
   '/organisations': typeof AppOrganisationsRoute
   '/tasks': typeof AppTasksRoute
   '/': typeof AppIndexRoute
+  '/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/create': typeof AppCasesCreateRoute
   '/functions/new': typeof AppFunctionsNewRoute
   '/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/settings/$section': typeof AppSettingsSectionRoute
+  '/alerts': typeof AppAlertsIndexRoute
   '/case-templates': typeof AppCaseTemplatesIndexRoute
   '/cases': typeof AppCasesIndexRoute
   '/settings': typeof AppSettingsIndexRoute
@@ -199,7 +214,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
-  '/_app/alerts': typeof AppAlertsRoute
+  '/_app/alerts': typeof AppAlertsRouteWithChildren
   '/_app/connector-jobs': typeof AppConnectorJobsRoute
   '/_app/connectors': typeof AppConnectorsRoute
   '/_app/functions': typeof AppFunctionsRouteWithChildren
@@ -209,12 +224,14 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/_app/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/_app/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/_app/cases/create': typeof AppCasesCreateRoute
   '/_app/functions/new': typeof AppFunctionsNewRoute
   '/_app/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/_app/settings/$section': typeof AppSettingsSectionRoute
+  '/_app/alerts/': typeof AppAlertsIndexRoute
   '/_app/case-templates/': typeof AppCaseTemplatesIndexRoute
   '/_app/cases/': typeof AppCasesIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
@@ -235,12 +252,14 @@ export interface FileRouteTypes {
     | '/organisations'
     | '/settings'
     | '/tasks'
+    | '/alerts/$alertId'
     | '/case-templates/$templateId'
     | '/cases/$caseId'
     | '/cases/create'
     | '/functions/new'
     | '/knowledge-base/$pageId'
     | '/settings/$section'
+    | '/alerts/'
     | '/case-templates/'
     | '/cases/'
     | '/settings/'
@@ -249,7 +268,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
-    | '/alerts'
     | '/connector-jobs'
     | '/connectors'
     | '/functions'
@@ -258,11 +276,13 @@ export interface FileRouteTypes {
     | '/organisations'
     | '/tasks'
     | '/'
+    | '/alerts/$alertId'
     | '/case-templates/$templateId'
     | '/cases/create'
     | '/functions/new'
     | '/knowledge-base/$pageId'
     | '/settings/$section'
+    | '/alerts'
     | '/case-templates'
     | '/cases'
     | '/settings'
@@ -282,12 +302,14 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/tasks'
     | '/_app/'
+    | '/_app/alerts/$alertId'
     | '/_app/case-templates/$templateId'
     | '/_app/cases/$caseId'
     | '/_app/cases/create'
     | '/_app/functions/new'
     | '/_app/knowledge-base/$pageId'
     | '/_app/settings/$section'
+    | '/_app/alerts/'
     | '/_app/case-templates/'
     | '/_app/cases/'
     | '/_app/settings/'
@@ -407,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCaseTemplatesIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/alerts/': {
+      id: '/_app/alerts/'
+      path: '/'
+      fullPath: '/alerts/'
+      preLoaderRoute: typeof AppAlertsIndexRouteImport
+      parentRoute: typeof AppAlertsRoute
+    }
     '/_app/settings/$section': {
       id: '/_app/settings/$section'
       path: '/$section'
@@ -449,6 +478,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCaseTemplatesTemplateIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/alerts/$alertId': {
+      id: '/_app/alerts/$alertId'
+      path: '/$alertId'
+      fullPath: '/alerts/$alertId'
+      preLoaderRoute: typeof AppAlertsAlertIdRouteImport
+      parentRoute: typeof AppAlertsRoute
+    }
     '/_app/cases/$caseId/': {
       id: '/_app/cases/$caseId/'
       path: '/'
@@ -465,6 +501,20 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AppAlertsRouteChildren {
+  AppAlertsAlertIdRoute: typeof AppAlertsAlertIdRoute
+  AppAlertsIndexRoute: typeof AppAlertsIndexRoute
+}
+
+const AppAlertsRouteChildren: AppAlertsRouteChildren = {
+  AppAlertsAlertIdRoute: AppAlertsAlertIdRoute,
+  AppAlertsIndexRoute: AppAlertsIndexRoute,
+}
+
+const AppAlertsRouteWithChildren = AppAlertsRoute._addFileChildren(
+  AppAlertsRouteChildren,
+)
 
 interface AppFunctionsRouteChildren {
   AppFunctionsNewRoute: typeof AppFunctionsNewRoute
@@ -518,7 +568,7 @@ const AppCasesCaseIdRouteWithChildren = AppCasesCaseIdRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
-  AppAlertsRoute: typeof AppAlertsRoute
+  AppAlertsRoute: typeof AppAlertsRouteWithChildren
   AppConnectorJobsRoute: typeof AppConnectorJobsRoute
   AppConnectorsRoute: typeof AppConnectorsRoute
   AppFunctionsRoute: typeof AppFunctionsRouteWithChildren
@@ -536,7 +586,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppAlertsRoute: AppAlertsRoute,
+  AppAlertsRoute: AppAlertsRouteWithChildren,
   AppConnectorJobsRoute: AppConnectorJobsRoute,
   AppConnectorsRoute: AppConnectorsRoute,
   AppFunctionsRoute: AppFunctionsRouteWithChildren,
