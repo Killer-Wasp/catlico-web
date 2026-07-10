@@ -7,7 +7,6 @@ export type SettingsSection =
   | 'Observable types'
   | 'Taxonomies & tags'
   | 'Notifications'
-  | 'Connectors'
   | 'SLA policies'
   | 'API keys'
   | 'Integrations'
@@ -25,7 +24,6 @@ export const settingsSections: SettingsSection[] = [
   'Observable types',
   'Taxonomies & tags',
   'Notifications',
-  'Connectors',
   'SLA policies',
   'API keys',
   'Integrations',

@@ -1,7 +1,5 @@
 import {
-  fetchObservableEnrichments,
   fetchObservables,
-  observableEnrichmentsQueryOptions,
   observablesQueryOptions,
 } from '#/components/Observables/observablesQueries'
 import { api } from '#/lib/api/client'
@@ -100,50 +98,6 @@ describe('observables queries', () => {
       'observables',
       'list',
       { sort: '', order: 'desc', skip: 0, limit: 10 },
-    ])
-  })
-
-  test('fetches the enrichment overview for an observable', async () => {
-    const overview = {
-      jobs: [
-        {
-          id: 'job-1',
-          observable_id: 'obs-1',
-          connector_name: 'maxmind',
-          connector_version: '0.1.0',
-          status: 'success',
-          verdict: 'info',
-          error: null,
-          from_cache: false,
-          queued_at: '2026-06-12T09:21:00Z',
-          ended_at: '2026-06-12T09:21:01Z',
-        },
-      ],
-      tags: [
-        {
-          connector_name: 'maxmind',
-          namespace: 'MaxMind',
-          predicate: 'Location',
-          value: 'United States',
-          level: 'info',
-        },
-      ],
-    }
-    vi.mocked(api.get).mockImplementation((input) => {
-      expect(String(input)).toBe('observables/obs-1/enrichments')
-      return {
-        json: async () => overview,
-      } satisfies JsonResponse as ReturnType<typeof api.get>
-    })
-
-    expect(await fetchObservableEnrichments('obs-1')).toEqual(overview)
-  })
-
-  test('keys enrichment queries by observable id', () => {
-    expect(observableEnrichmentsQueryOptions('obs-9').queryKey).toEqual([
-      'observables',
-      'enrichments',
-      'obs-9',
     ])
   })
 })

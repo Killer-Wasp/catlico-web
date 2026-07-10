@@ -293,7 +293,7 @@ describe('SettingsPage', () => {
     )
   })
 
-  test('renders backend-backed members, roles, custom fields, and connectors', async () => {
+  test('renders backend-backed members, roles, and custom fields', async () => {
     render(<Harness />)
 
     fireEvent.click(await screen.findByRole('tab', { name: 'Users & roles' }))
@@ -313,8 +313,8 @@ describe('SettingsPage', () => {
     expect(await screen.findByText('Backend case reference')).toBeDefined()
     expect(screen.getByText('backend_case_reference')).toBeDefined()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Connectors' }))
-    expect(await screen.findByText(/have been replaced by the new Plugins system/)).toBeDefined()
+    // The Connectors settings tab was removed with the konnect retirement.
+    expect(screen.queryByRole('tab', { name: 'Connectors' })).toBeNull()
   })
 
   test('creates, manages, and deletes organisations from the Organisations page', async () => {

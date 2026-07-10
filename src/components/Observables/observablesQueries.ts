@@ -55,36 +55,6 @@ export const observableKeys = {
   lists: () => [...observableKeys.all, 'list'] as const,
   list: (filters: ObservableListFilters = DEFAULT_OBSERVABLE_FILTERS) =>
     [...observableKeys.lists(), filters] as const,
-  enrichments: (id: string) =>
-    [...observableKeys.all, 'enrichments', id] as const,
-}
-
-export type EnrichmentVerdict = 'info' | 'safe' | 'suspicious' | 'malicious'
-
-export type EnrichmentJob = {
-  id: string
-  observable_id: string
-  connector_name: string
-  connector_version: string
-  status: string
-  verdict: EnrichmentVerdict | null
-  error: string | null
-  from_cache: boolean
-  queued_at: string
-  ended_at: string | null
-}
-
-export type ReportTag = {
-  connector_name: string
-  namespace: string
-  predicate: string
-  value: string
-  level: EnrichmentVerdict
-}
-
-export type EnrichmentOverview = {
-  jobs: EnrichmentJob[]
-  tags: ReportTag[]
 }
 
 const TYPE_MAP: Record<string, ObservableType> = {
@@ -169,18 +139,6 @@ export const observableFacetsQueryOptions = () =>
   queryOptions({
     queryKey: [...observableKeys.all, 'facets'] as const,
     queryFn: fetchObservableFacets,
-  })
-
-export async function fetchObservableEnrichments(
-  id: string,
-): Promise<EnrichmentOverview> {
-  return api.get(`observables/${id}/enrichments`).json<EnrichmentOverview>()
-}
-
-export const observableEnrichmentsQueryOptions = (id: string) =>
-  queryOptions({
-    queryKey: observableKeys.enrichments(id),
-    queryFn: () => fetchObservableEnrichments(id),
   })
 
 export async function updateObservableFlags(

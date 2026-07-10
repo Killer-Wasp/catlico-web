@@ -3,7 +3,6 @@ import { Box, Group, Tabs, Text, Title } from '@mantine/core'
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
 import { AuditLogPanel } from './settings/panels/AuditLogPanel'
-import { ConnectorsPanel } from './settings/panels/ConnectorsPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
 import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
 import { MyAccountPanel } from './settings/panels/MyAccountPanel'
@@ -30,7 +29,6 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'Observable types') return <ObservableTypesPanel />
   if (section === 'Taxonomies & tags') return <TaxonomiesPanel />
   if (section === 'Notifications') return <NotificationsPanel />
-  if (section === 'Connectors') return <ConnectorsPanel />
   if (section === 'SLA policies') return <SlaPanel />
   if (section === 'API keys') return <ApiKeysPanel />
   if (section === 'Integrations') return <IntegrationsPanel />

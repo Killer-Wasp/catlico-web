@@ -454,16 +454,9 @@ describe('case observables tab', () => {
       within(drawer).getAllByText('hxxps://cdn-au-billing[.]net/invoice.php')
         .length,
     ).toBeGreaterThan(0)
-    expect(await within(drawer).findByText('RecordedFuture')).toBeDefined()
-    expect(within(drawer).getAllByText('SUSPICIOUS').length).toBeGreaterThan(0)
-    expect(
-      within(drawer).getByText('RecordedFuture:risk-score=89'),
-    ).toBeDefined()
-    expect(within(drawer).queryByText('URLscan.io')).toBeNull()
     expect(
       within(drawer).getByRole('button', { name: /export to misp/i }),
     ).toBeDefined()
-    expect(api.get).toHaveBeenCalledWith('observables/obs-2/enrichments')
   })
 
   test('updates IOC and sighted flags from the observable detail drawer', async () => {

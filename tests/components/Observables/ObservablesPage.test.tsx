@@ -373,7 +373,7 @@ describe('ObservablesPage', () => {
     expect(screen.getByText('1-2 of 2')).toBeDefined()
   })
 
-  test('opens an observable detail modal and renders its fetched enrichment', async () => {
+  test('opens an observable detail modal and renders its properties', async () => {
     render(<Harness />)
 
     expect(await screen.findByText('203.0.113.47')).toBeDefined()
@@ -385,11 +385,6 @@ describe('ObservablesPage', () => {
     expect(screen.getByText('OBSERVABLE · ip')).toBeDefined()
     expect(screen.getAllByText('203.0.113.47').length).toBeGreaterThan(1)
     expect(screen.getByText(/properties/i)).toBeDefined()
-
-    // Enrichment is fetched per-observable and renders the real verdict + taxonomy.
-    expect(await screen.findByText('AbuseIPDB')).toBeDefined()
-    expect(screen.getAllByText('MALICIOUS').length).toBeGreaterThan(0)
-    expect(screen.getByText('AbuseIPDB:abuse-score=97%')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Toggle IOC' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'Mark sighted' })).toBeDefined()
     expect(
@@ -425,34 +420,6 @@ describe('ObservablesPage', () => {
     expect(
       within(modal).getByRole('button', { name: 'Mark sighted' }),
     ).toHaveProperty('disabled', true)
-  })
-
-  test('reruns enrichment when Run analyzers is clicked', async () => {
-    render(<Harness />)
-
-    expect(await screen.findByText('203.0.113.47')).toBeDefined()
-    fireEvent.click(screen.getByText('203.0.113.47'))
-    const modal = screen.getByRole('dialog', { name: /observable detail/i })
-    await within(modal).findByText('AbuseIPDB')
-
-    const enrichmentCallsBefore = vi
-      .mocked(api.get)
-      .mock.calls.filter(([input]) =>
-        String(input).includes('/enrichments'),
-      ).length
-
-    fireEvent.click(
-      within(modal).getByRole('button', { name: 'Run analyzers' }),
-    )
-
-    await waitFor(() => {
-      const enrichmentCallsAfter = vi
-        .mocked(api.get)
-        .mock.calls.filter(([input]) =>
-          String(input).includes('/enrichments'),
-        ).length
-      expect(enrichmentCallsAfter).toBeGreaterThan(enrichmentCallsBefore)
-    })
   })
 
   test('shows a backend error instead of falling back to fixture observables', async () => {
