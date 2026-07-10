@@ -198,7 +198,10 @@ export function SearchPalette({
     searchQueryOptions(debounced, { limit: 5, groupObservables: true }),
   )
   const rows = useMemo(() => rowsForTab(tab, data), [tab, data])
-  useEffect(() => setActive(0), [rows.length, tab])
+  // Reset on the rows themselves, not their count: two different result sets
+  // can be the same length, and a stale index would point Enter at a row the
+  // user never looked at.
+  useEffect(() => setActive(0), [rows, tab])
 
   const tabOrder: PaletteTab[] = ['all', ...SEARCH_TYPES]
 
