@@ -1,3 +1,4 @@
+import { openSearchPalette } from '#/components/Search/SearchPalette'
 import { UserAvatar } from '#/components/Users/UserAvatar'
 import { userDisplayName } from '#/components/Users/usersQueries'
 import { logout } from '#/lib/auth/session'
@@ -86,6 +87,17 @@ export function Header() {
       />
 
       <div className={classes.actions}>
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="lg"
+          radius="md"
+          aria-label="Search (⌘K)"
+          onClick={openSearchPalette}
+        >
+          <Search size={18} />
+        </ActionIcon>
+
         <Popover width={380} position="bottom-end" offset={10} shadow="xl">
           <Popover.Target>
             <Indicator

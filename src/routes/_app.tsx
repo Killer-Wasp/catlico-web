@@ -3,6 +3,7 @@ import { useLocalStorage } from '@mantine/hooks'
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { Navbar } from '#/components/Navbar/Navbar'
 import { Header } from '#/components/Header/Header'
+import { SearchPalette } from '#/components/Search/SearchPalette'
 import { isAuthenticated } from '#/lib/auth/session'
 import { sanitizeReturnUrl } from '#/lib/auth/redirects'
 
@@ -37,26 +38,29 @@ function AppLayout() {
   })
 
   return (
-    <AppShell
-      navbar={{ width: collapsed ? 80 : 275, breakpoint: 'sm' }}
-      padding={0}
-    >
-      <AppShell.Navbar>
-        <Navbar
-          collapsed={collapsed}
-          onToggle={() => setCollapsed((value) => !value)}
-        />
-      </AppShell.Navbar>
-
-      <AppShell.Main
-        style={{
-          backgroundColor:
-            'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))',
-        }}
+    <>
+      <AppShell
+        navbar={{ width: collapsed ? 80 : 275, breakpoint: 'sm' }}
+        padding={0}
       >
-        <Header />
-        <Outlet />
-      </AppShell.Main>
-    </AppShell>
+        <AppShell.Navbar>
+          <Navbar
+            collapsed={collapsed}
+            onToggle={() => setCollapsed((value) => !value)}
+          />
+        </AppShell.Navbar>
+
+        <AppShell.Main
+          style={{
+            backgroundColor:
+              'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))',
+          }}
+        >
+          <Header />
+          <Outlet />
+        </AppShell.Main>
+      </AppShell>
+      <SearchPalette />
+    </>
   )
 }
