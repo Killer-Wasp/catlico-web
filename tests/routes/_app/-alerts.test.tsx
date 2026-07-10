@@ -26,7 +26,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
-import { Suspense } from 'react'
+import { Suspense, useSyncExternalStore } from 'react'
 import {
   afterEach,
   beforeAll,
@@ -36,6 +36,18 @@ import {
   test,
   vi,
 } from 'vitest'
+
+// Stand in for the router's URL-backed alert param. `AlertsPage` reads the open
+// alert from `useParams` and opens it via `navigate`, so the mock keeps a tiny
+// store that `navigate` writes and `useParams` subscribes to (via
+// useSyncExternalStore, so writes re-render the page) — mirroring the real
+// `/alerts/$alertId` <-> `/alerts` round trip the component relies on.
+let routeParams: { alertId?: string } = {}
+const paramListeners = new Set<() => void>()
+function setRouteParams(next: { alertId?: string }) {
+  routeParams = next
+  for (const listener of paramListeners) listener()
+}
 
 const navigate = vi.fn()
 
@@ -55,6 +67,15 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
       </a>
     ),
     useNavigate: () => navigate,
+    useParams: () =>
+      useSyncExternalStore(
+        (onStoreChange) => {
+          paramListeners.add(onStoreChange)
+          return () => paramListeners.delete(onStoreChange)
+        },
+        () => routeParams,
+      ),
+    Outlet: () => null,
   }
 })
 
@@ -258,6 +279,17 @@ afterEach(cleanup)
 
 beforeEach(() => {
   navigate.mockReset()
+  // Mirror the real router: navigating to `/alerts/$alertId` opens the drawer,
+  // navigating back to `/alerts` closes it. Set fresh each test since
+  // `mockReset` clears the implementation.
+  setRouteParams({})
+  navigate.mockImplementation((opts?: { to?: string; params?: { alertId?: string } }) => {
+    if (opts?.to === '/alerts/$alertId') {
+      setRouteParams({ alertId: opts.params?.alertId })
+    } else if (opts?.to === '/alerts') {
+      setRouteParams({})
+    }
+  })
   vi.mocked(api.get).mockReset()
   vi.mocked(api.patch).mockReset()
   vi.mocked(api.post).mockReset()

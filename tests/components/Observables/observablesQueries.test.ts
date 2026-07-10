@@ -80,6 +80,7 @@ describe('observables queries', () => {
         source: '#1842',
         analysis: { analyzer: 'Note', verdict: 'URLscan complete' },
         added: expect.any(String),
+        addedAt: '2026-06-12T09:21:00Z',
       },
       {
         id: 'd9476d0d-9042-4574-9f1f-1f907a1eddd1',
@@ -89,6 +90,7 @@ describe('observables queries', () => {
         tlp: 1,
         source: 'AL-9102',
         added: expect.any(String),
+        addedAt: '2026-06-12T09:30:00Z',
       },
     ])
   })
