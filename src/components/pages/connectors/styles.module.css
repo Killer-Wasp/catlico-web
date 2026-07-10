@@ -1,8 +1,0 @@
-/* Connector card typography. Replaces the metricLabelProps Mantine
-   style object. */
-.metricLabel {
-  font-family: var(--mantine-font-family-monospace);
-  font-size: 0.6875rem;
-  color: var(--mantine-color-dimmed);
-  line-height: 1.25;
-}

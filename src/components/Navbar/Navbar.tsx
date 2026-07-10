@@ -3,17 +3,18 @@ import {
   BookOpen,
   Briefcase,
   Building2,
-  Cable,
   ClipboardList,
   Eye,
   Gauge,
   Grid3x3,
   LayoutDashboard,
   ListTodo,
-  ListFilter,
   PanelLeftClose,
   PanelLeftOpen,
+  Play,
+  Puzzle,
   ScrollText,
+  Server,
   Settings,
   SquareFunction,
 } from 'lucide-react'
@@ -34,11 +35,11 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
 import { casesQueryOptions } from '#/components/Cases/casesQueries'
-import { connectorsQueryOptions } from '#/components/Connectors/connectors'
+import { pluginsQueryOptions } from '#/components/Plugins/plugins'
 import {
-  analyzerJobsQueryOptions,
-  countConnectorJobsByTab,
-} from '#/components/Connectors/connectorJobs'
+  pluginRunsQueryOptions,
+} from '#/components/Plugins/pluginRuns'
+import { pluginRunnersQueryOptions } from '#/components/Plugins/pluginRunners'
 import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
 import {
   OPEN_TASK_FILTERS,
@@ -67,8 +68,9 @@ type NavbarCounts = {
   cases?: number
   tasks?: number
   observables?: number
-  connectors?: number
-  connectorJobs?: number
+  plugins?: number
+  pluginRuns?: number
+  pluginRunners?: number
   caseTemplates: number
 }
 
@@ -101,16 +103,22 @@ function sectionsForCounts(counts: NavbarCounts): NavSection[] {
         },
         { icon: Grid3x3, label: 'ATT&CK matrix' },
         {
-          icon: Cable,
-          label: 'Connectors',
-          to: '/connectors',
-          badge: counts.connectors,
+          icon: Puzzle,
+          label: 'Plugins',
+          to: '/plugins',
+          badge: counts.plugins,
         },
         {
-          icon: ListFilter,
-          label: 'Analyzer jobs',
-          to: '/connector-jobs',
-          badge: counts.connectorJobs,
+          icon: Play,
+          label: 'Plugin runs',
+          to: '/plugin-runs',
+          badge: counts.pluginRuns,
+        },
+        {
+          icon: Server,
+          label: 'Plugin runners',
+          to: '/plugin-runners',
+          badge: counts.pluginRunners,
         },
       ],
     },
@@ -336,24 +344,23 @@ export function Navbar({
   // Server-side count of open tasks (the list itself is paginated, so counting
   // fetched rows would only see one page).
   const { data: openTasks } = useQuery(tasksQueryOptions(OPEN_TASK_FILTERS))
-  const { data: connectors } = useQuery(connectorsQueryOptions())
-  const { data: connectorJobs } = useQuery(analyzerJobsQueryOptions())
+  const { data: plugins } = useQuery(pluginsQueryOptions())
+  const { data: pluginRunsData } = useQuery(
+    pluginRunsQueryOptions({ limit: 1 }),
+  )
+  const { data: pluginRunners } = useQuery(pluginRunnersQueryOptions())
   const { data: caseTemplates } = useQuery(caseTemplatesQueryOptions())
   const { data: organisations } = useQuery(
     accessibleOrganisationsQueryOptions(),
   )
-  const connectorJobCounts = connectorJobs
-    ? countConnectorJobsByTab(connectorJobs)
-    : undefined
   const sections = sectionsForCounts({
     tasks: openTasks?.total,
     alerts: alerts?.total,
     cases: cases?.total,
     observables: observables?.total,
-    connectors: connectors?.length,
-    connectorJobs: connectorJobCounts
-      ? connectorJobCounts.queued + connectorJobCounts.running
-      : undefined,
+    plugins: plugins?.length,
+    pluginRuns: pluginRunsData?.total,
+    pluginRunners: pluginRunners?.length,
     caseTemplates: caseTemplates?.total ?? 0,
   })
   const organisationOptions = (organisations ?? []).map((organisation) => ({

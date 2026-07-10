@@ -14,12 +14,13 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppPluginsRouteImport } from './routes/_app/plugins'
+import { Route as AppPluginRunsRouteImport } from './routes/_app/plugin-runs'
+import { Route as AppPluginRunnersRouteImport } from './routes/_app/plugin-runners'
 import { Route as AppOrganisationsRouteImport } from './routes/_app/organisations'
 import { Route as AppObservablesRouteImport } from './routes/_app/observables'
 import { Route as AppKnowledgeBaseRouteImport } from './routes/_app/knowledge-base'
 import { Route as AppFunctionsRouteImport } from './routes/_app/functions'
-import { Route as AppConnectorsRouteImport } from './routes/_app/connectors'
-import { Route as AppConnectorJobsRouteImport } from './routes/_app/connector-jobs'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
 import { Route as AppCasesIndexRouteImport } from './routes/_app/cases/index'
@@ -59,6 +60,21 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPluginsRoute = AppPluginsRouteImport.update({
+  id: '/plugins',
+  path: '/plugins',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPluginRunsRoute = AppPluginRunsRouteImport.update({
+  id: '/plugin-runs',
+  path: '/plugin-runs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPluginRunnersRoute = AppPluginRunnersRouteImport.update({
+  id: '/plugin-runners',
+  path: '/plugin-runners',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppOrganisationsRoute = AppOrganisationsRouteImport.update({
   id: '/organisations',
   path: '/organisations',
@@ -77,16 +93,6 @@ const AppKnowledgeBaseRoute = AppKnowledgeBaseRouteImport.update({
 const AppFunctionsRoute = AppFunctionsRouteImport.update({
   id: '/functions',
   path: '/functions',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppConnectorsRoute = AppConnectorsRouteImport.update({
-  id: '/connectors',
-  path: '/connectors',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppConnectorJobsRoute = AppConnectorJobsRouteImport.update({
-  id: '/connector-jobs',
-  path: '/connector-jobs',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAlertsRoute = AppAlertsRouteImport.update({
@@ -165,12 +171,13 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/alerts': typeof AppAlertsRouteWithChildren
-  '/connector-jobs': typeof AppConnectorJobsRoute
-  '/connectors': typeof AppConnectorsRoute
   '/functions': typeof AppFunctionsRouteWithChildren
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
   '/organisations': typeof AppOrganisationsRoute
+  '/plugin-runners': typeof AppPluginRunnersRoute
+  '/plugin-runs': typeof AppPluginRunsRoute
+  '/plugins': typeof AppPluginsRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRoute
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
@@ -189,12 +196,13 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/connector-jobs': typeof AppConnectorJobsRoute
-  '/connectors': typeof AppConnectorsRoute
   '/functions': typeof AppFunctionsRouteWithChildren
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
   '/organisations': typeof AppOrganisationsRoute
+  '/plugin-runners': typeof AppPluginRunnersRoute
+  '/plugin-runs': typeof AppPluginRunsRoute
+  '/plugins': typeof AppPluginsRoute
   '/tasks': typeof AppTasksRoute
   '/': typeof AppIndexRoute
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
@@ -215,12 +223,13 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/alerts': typeof AppAlertsRouteWithChildren
-  '/_app/connector-jobs': typeof AppConnectorJobsRoute
-  '/_app/connectors': typeof AppConnectorsRoute
   '/_app/functions': typeof AppFunctionsRouteWithChildren
   '/_app/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/_app/observables': typeof AppObservablesRoute
   '/_app/organisations': typeof AppOrganisationsRoute
+  '/_app/plugin-runners': typeof AppPluginRunnersRoute
+  '/_app/plugin-runs': typeof AppPluginRunsRoute
+  '/_app/plugins': typeof AppPluginsRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRoute
   '/_app/': typeof AppIndexRoute
@@ -244,12 +253,13 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/alerts'
-    | '/connector-jobs'
-    | '/connectors'
     | '/functions'
     | '/knowledge-base'
     | '/observables'
     | '/organisations'
+    | '/plugin-runners'
+    | '/plugin-runs'
+    | '/plugins'
     | '/settings'
     | '/tasks'
     | '/alerts/$alertId'
@@ -268,12 +278,13 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
-    | '/connector-jobs'
-    | '/connectors'
     | '/functions'
     | '/knowledge-base'
     | '/observables'
     | '/organisations'
+    | '/plugin-runners'
+    | '/plugin-runs'
+    | '/plugins'
     | '/tasks'
     | '/'
     | '/alerts/$alertId'
@@ -293,12 +304,13 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/_app/alerts'
-    | '/_app/connector-jobs'
-    | '/_app/connectors'
     | '/_app/functions'
     | '/_app/knowledge-base'
     | '/_app/observables'
     | '/_app/organisations'
+    | '/_app/plugin-runners'
+    | '/_app/plugin-runs'
+    | '/_app/plugins'
     | '/_app/settings'
     | '/_app/tasks'
     | '/_app/'
@@ -359,6 +371,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/plugins': {
+      id: '/_app/plugins'
+      path: '/plugins'
+      fullPath: '/plugins'
+      preLoaderRoute: typeof AppPluginsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/plugin-runs': {
+      id: '/_app/plugin-runs'
+      path: '/plugin-runs'
+      fullPath: '/plugin-runs'
+      preLoaderRoute: typeof AppPluginRunsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/plugin-runners': {
+      id: '/_app/plugin-runners'
+      path: '/plugin-runners'
+      fullPath: '/plugin-runners'
+      preLoaderRoute: typeof AppPluginRunnersRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/organisations': {
       id: '/_app/organisations'
       path: '/organisations'
@@ -385,20 +418,6 @@ declare module '@tanstack/react-router' {
       path: '/functions'
       fullPath: '/functions'
       preLoaderRoute: typeof AppFunctionsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/connectors': {
-      id: '/_app/connectors'
-      path: '/connectors'
-      fullPath: '/connectors'
-      preLoaderRoute: typeof AppConnectorsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/connector-jobs': {
-      id: '/_app/connector-jobs'
-      path: '/connector-jobs'
-      fullPath: '/connector-jobs'
-      preLoaderRoute: typeof AppConnectorJobsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/alerts': {
@@ -569,12 +588,13 @@ const AppCasesCaseIdRouteWithChildren = AppCasesCaseIdRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppAlertsRoute: typeof AppAlertsRouteWithChildren
-  AppConnectorJobsRoute: typeof AppConnectorJobsRoute
-  AppConnectorsRoute: typeof AppConnectorsRoute
   AppFunctionsRoute: typeof AppFunctionsRouteWithChildren
   AppKnowledgeBaseRoute: typeof AppKnowledgeBaseRouteWithChildren
   AppObservablesRoute: typeof AppObservablesRoute
   AppOrganisationsRoute: typeof AppOrganisationsRoute
+  AppPluginRunnersRoute: typeof AppPluginRunnersRoute
+  AppPluginRunsRoute: typeof AppPluginRunsRoute
+  AppPluginsRoute: typeof AppPluginsRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTasksRoute: typeof AppTasksRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -587,12 +607,13 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAlertsRoute: AppAlertsRouteWithChildren,
-  AppConnectorJobsRoute: AppConnectorJobsRoute,
-  AppConnectorsRoute: AppConnectorsRoute,
   AppFunctionsRoute: AppFunctionsRouteWithChildren,
   AppKnowledgeBaseRoute: AppKnowledgeBaseRouteWithChildren,
   AppObservablesRoute: AppObservablesRoute,
   AppOrganisationsRoute: AppOrganisationsRoute,
+  AppPluginRunnersRoute: AppPluginRunnersRoute,
+  AppPluginRunsRoute: AppPluginRunsRoute,
+  AppPluginsRoute: AppPluginsRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTasksRoute: AppTasksRoute,
   AppIndexRoute: AppIndexRoute,

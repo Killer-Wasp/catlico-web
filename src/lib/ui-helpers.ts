@@ -1,31 +1,4 @@
-import type {
-  ConnectorKind,
-  ConnectorTab,
-  TlpLevel,
-} from '#/components/Connectors/connectors.types'
 import { useEffect, useState } from 'react'
-
-export const TAB_OPTIONS: { value: ConnectorTab; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'analyzers', label: 'Analyzers' },
-  { value: 'responders', label: 'Responders' },
-  { value: 'disabled', label: 'Disabled' },
-]
-
-export const KIND_COLOR: Record<ConnectorKind, string> = {
-  analyzer: 'violet',
-  responder: 'orange',
-}
-
-export const TLP_LEVEL_COLOR: Record<TlpLevel, string> = {
-  GREEN: 'green',
-  AMBER: 'yellow',
-  RED: 'red',
-}
-
-export function isConnectorTab(value: string | null): value is ConnectorTab {
-  return TAB_OPTIONS.some((tab) => tab.value === value)
-}
 
 export function useStamp() {
   const [stamp, setStamp] = useState('')

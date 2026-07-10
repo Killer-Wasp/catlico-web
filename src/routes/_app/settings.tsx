@@ -1,5 +1,5 @@
 import { SettingsLayout } from '#/components/pages/SettingsPage'
-import { connectorsQueryOptions } from '#/components/Connectors/connectors'
+import { pluginsQueryOptions } from '#/components/Plugins/plugins'
 import {
   customFieldsQueryOptions,
   organisationMembersQueryOptions,
@@ -13,7 +13,7 @@ export const Route = createFileRoute('/_app/settings')({
       context.queryClient.ensureQueryData(organisationProfileQueryOptions()),
       context.queryClient.ensureQueryData(organisationMembersQueryOptions()),
       context.queryClient.ensureQueryData(customFieldsQueryOptions()),
-      context.queryClient.ensureQueryData(connectorsQueryOptions()),
+      context.queryClient.ensureQueryData(pluginsQueryOptions()),
     ]),
   component: SettingsLayout,
 })

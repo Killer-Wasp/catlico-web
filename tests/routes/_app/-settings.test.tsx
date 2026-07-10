@@ -200,22 +200,7 @@ beforeEach(() => {
         skip: 0,
         limit: 100,
       },
-      connectors: [
-        {
-          name: 'misp-backend',
-          display_name: 'MISP Backend',
-          connector_type: 'analyzer',
-          version: '1.0.0',
-          data_types: ['domain'],
-          description: 'Backend MISP connector',
-          manifest: {},
-          available: true,
-          max_runtime_seconds: 60,
-          enabled: true,
-          settings: {},
-          has_secrets: false,
-        },
-      ],
+      plugins: [],
       'api-keys/': [],
       'sla-policies/': {
         items: [],
@@ -329,7 +314,7 @@ describe('SettingsPage', () => {
     expect(screen.getByText('backend_case_reference')).toBeDefined()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Connectors' }))
-    expect(await screen.findByText('MISP Backend')).toBeDefined()
+    expect(await screen.findByText(/have been replaced by the new Plugins system/)).toBeDefined()
   })
 
   test('creates, manages, and deletes organisations from the Organisations page', async () => {

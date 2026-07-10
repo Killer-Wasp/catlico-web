@@ -4,8 +4,9 @@ import type { AlertsResult } from '#/components/Alerts/alertsQueries'
 import { alertsQueryOptions } from '#/components/Alerts/alertsQueries'
 import type { CasesResult } from '#/components/Cases/casesQueries'
 import { casesQueryOptions } from '#/components/Cases/casesQueries'
-import { connectorsQueryOptions } from '#/components/Connectors/connectors'
-import { analyzerJobsQueryOptions } from '#/components/Connectors/connectorJobs'
+import { pluginsQueryOptions } from '#/components/Plugins/plugins'
+import { pluginRunsQueryOptions } from '#/components/Plugins/pluginRuns'
+import { pluginRunnersQueryOptions } from '#/components/Plugins/pluginRunners'
 import type { ObservablesResult } from '#/components/Observables/observablesQueries'
 import { observablesQueryOptions } from '#/components/Observables/observablesQueries'
 import type { TasksResult } from '#/components/Tasks/tasksQueries'
@@ -122,8 +123,12 @@ function renderNavbar({
       },
     ],
   } satisfies ObservablesResult)
-  queryClient.setQueryData(connectorsQueryOptions().queryKey, [])
-  queryClient.setQueryData(analyzerJobsQueryOptions().queryKey, [])
+  queryClient.setQueryData(pluginsQueryOptions().queryKey, [])
+  queryClient.setQueryData(
+    pluginRunsQueryOptions({ limit: 1 }).queryKey,
+    { runs: [], total: 0 },
+  )
+  queryClient.setQueryData(pluginRunnersQueryOptions().queryKey, [])
   // The navbar badge reads the server-side open-tasks count (total), not rows.
   queryClient.setQueryData(tasksQueryOptions(OPEN_TASK_FILTERS).queryKey, {
     total: 1,
@@ -173,9 +178,9 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /Cases\s+0/i })).toBeDefined()
     expect(screen.getByRole('link', { name: /Tasks\s+1/i })).toBeDefined()
     expect(screen.getByRole('link', { name: /Observables\s+2/i })).toBeDefined()
-    expect(screen.getByRole('link', { name: /Connectors\s+0/i })).toBeDefined()
+    expect(screen.getByRole('link', { name: /Plugins\s+0/i })).toBeDefined()
     expect(
-      screen.getByRole('link', { name: /Analyzer jobs\s+0/i }),
+      screen.getByRole('link', { name: /Plugin runs\s+0/i }),
     ).toBeDefined()
 
     expect(screen.queryByRole('link', { name: /Alerts\s+10/i })).toBeNull()
