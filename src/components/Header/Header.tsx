@@ -22,6 +22,7 @@ import {
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core'
+import { useHotkeys } from '@mantine/hooks'
 import { Bell, Building2, LogOut, Moon, Search, Sun, UserCog } from 'lucide-react'
 import { useState } from 'react'
 import classes from './Header.module.css'
@@ -62,6 +63,10 @@ export function Header() {
   const { data: currentUser } = useQuery(currentUserQueryOptions())
   const navigate = useNavigate()
 
+  // The "/" shortcut the search box advertises. Mantine's useHotkeys ignores
+  // keystrokes typed into inputs, so this only fires from the page at large.
+  useHotkeys([['/', openSearchPalette]])
+
   const markRead = (index: number) =>
     setNotifications((prev) =>
       prev.map((item, itemIndex) =>
@@ -80,23 +85,23 @@ export function Header() {
     <div className={classes.header}>
       <TextInput
         className={classes.search}
-        placeholder="Search cases, alerts, observables… (e.g. type:ip 203.0.113.*)"
+        placeholder="Search cases, alerts, observables, tasks, comments…"
         leftSection={<Search size={16} />}
         rightSection={<kbd className={classes.kbd}>/</kbd>}
         aria-label="Search"
+        readOnly
+        role="button"
+        style={{ cursor: 'pointer' }}
+        onClick={openSearchPalette}
+        onFocus={(e) => {
+          // The box is a launcher, not a field: open the palette and drop
+          // focus so tabbing back here can re-open it.
+          e.currentTarget.blur()
+          openSearchPalette()
+        }}
       />
 
       <div className={classes.actions}>
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          size="lg"
-          radius="md"
-          aria-label="Search (⌘K)"
-          onClick={openSearchPalette}
-        >
-          <Search size={18} />
-        </ActionIcon>
 
         <Popover width={380} position="bottom-end" offset={10} shadow="xl">
           <Popover.Target>

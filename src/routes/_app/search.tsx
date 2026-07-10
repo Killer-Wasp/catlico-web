@@ -141,6 +141,17 @@ function SearchPage() {
 
   const total = counts?.[type] ?? 0
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // A hand-edited or stale `?page=` past the end shows "no matches" over a tab
+  // that has results earlier. Once counts are known, correct the URL to the
+  // last real page (replace, so it doesn't wedge the Back button). Gated on
+  // countsData so we never clamp against the `total = 0` default while loading.
+  useEffect(() => {
+    if (countsData && page > pages) {
+      navigate({ to: '.', search: (prev) => ({ ...prev, page: pages }), replace: true })
+    }
+  }, [countsData, page, pages, navigate])
+
   // Emptiness is driven by the *main* query's own rows, not by `counts`
   // (a separate, independently-loading query) — otherwise a first-time
   // search where `data` resolves before `countsData` would flash "No
