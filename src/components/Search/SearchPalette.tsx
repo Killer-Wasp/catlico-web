@@ -210,20 +210,18 @@ export function SearchPalette({
     if (row.target) {
       navigate(row.target)
     } else {
-      // TODO(task-12): drop the `as never` once /search route exists
       navigate({
-        to: '/search' as never,
-        search: { q: query, type: row.type, page: 1 } as never,
+        to: '/search',
+        search: { q: query, type: row.type, page: 1 },
       })
     }
   }
 
   const goToResultsPage = () => {
     close()
-    // TODO(task-12): drop the `as never` once /search route exists
     navigate({
-      to: '/search' as never,
-      search: { q: query, type: tab === 'all' ? 'case' : tab, page: 1 } as never,
+      to: '/search',
+      search: { q: query, type: tab === 'all' ? 'case' : tab, page: 1 },
     })
   }
 

@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSearchRouteImport } from './routes/_app/search'
 import { Route as AppPluginsRouteImport } from './routes/_app/plugins'
 import { Route as AppPluginRunsRouteImport } from './routes/_app/plugin-runs'
 import { Route as AppPluginRunnersRouteImport } from './routes/_app/plugin-runners'
@@ -58,6 +59,11 @@ const AppTasksRoute = AppTasksRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSearchRoute = AppSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPluginsRoute = AppPluginsRouteImport.update({
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/plugin-runners': typeof AppPluginRunnersRoute
   '/plugin-runs': typeof AppPluginRunsRoute
   '/plugins': typeof AppPluginsRoute
+  '/search': typeof AppSearchRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRoute
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
@@ -203,6 +210,7 @@ export interface FileRoutesByTo {
   '/plugin-runners': typeof AppPluginRunnersRoute
   '/plugin-runs': typeof AppPluginRunsRoute
   '/plugins': typeof AppPluginsRoute
+  '/search': typeof AppSearchRoute
   '/tasks': typeof AppTasksRoute
   '/': typeof AppIndexRoute
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
@@ -230,6 +238,7 @@ export interface FileRoutesById {
   '/_app/plugin-runners': typeof AppPluginRunnersRoute
   '/_app/plugin-runs': typeof AppPluginRunsRoute
   '/_app/plugins': typeof AppPluginsRoute
+  '/_app/search': typeof AppSearchRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRoute
   '/_app/': typeof AppIndexRoute
@@ -260,6 +269,7 @@ export interface FileRouteTypes {
     | '/plugin-runners'
     | '/plugin-runs'
     | '/plugins'
+    | '/search'
     | '/settings'
     | '/tasks'
     | '/alerts/$alertId'
@@ -285,6 +295,7 @@ export interface FileRouteTypes {
     | '/plugin-runners'
     | '/plugin-runs'
     | '/plugins'
+    | '/search'
     | '/tasks'
     | '/'
     | '/alerts/$alertId'
@@ -311,6 +322,7 @@ export interface FileRouteTypes {
     | '/_app/plugin-runners'
     | '/_app/plugin-runs'
     | '/_app/plugins'
+    | '/_app/search'
     | '/_app/settings'
     | '/_app/tasks'
     | '/_app/'
@@ -369,6 +381,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/search': {
+      id: '/_app/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof AppSearchRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/plugins': {
@@ -595,6 +614,7 @@ interface AppRouteChildren {
   AppPluginRunnersRoute: typeof AppPluginRunnersRoute
   AppPluginRunsRoute: typeof AppPluginRunsRoute
   AppPluginsRoute: typeof AppPluginsRoute
+  AppSearchRoute: typeof AppSearchRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTasksRoute: typeof AppTasksRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -614,6 +634,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPluginRunnersRoute: AppPluginRunnersRoute,
   AppPluginRunsRoute: AppPluginRunsRoute,
   AppPluginsRoute: AppPluginsRoute,
+  AppSearchRoute: AppSearchRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTasksRoute: AppTasksRoute,
   AppIndexRoute: AppIndexRoute,
