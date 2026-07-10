@@ -29,14 +29,16 @@ import {
   Text,
   Title,
 } from '@mantine/core'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { notifications } from '@mantine/notifications'
 import { useQuery } from '@tanstack/react-query'
 import { relativeTimeLabel } from '#/components/Time/RelativeTime'
 import { errorMessage } from '#/lib/ui-helpers'
 import { ProposedActionsStrip } from '#/components/pages/plugins/proposed/ProposedActionsStrip'
 import {
+  downloadPluginAttachment,
   groupResults,
   markdownBody,
   pluginResultsQueryOptions,
@@ -44,6 +46,7 @@ import {
 } from './pluginResults'
 import { MarkdownView } from './MarkdownView'
 import type {
+  PluginAttachment,
   PluginResult,
   PluginResultEntityType,
   Verdict,
@@ -183,28 +186,126 @@ function ResultBody({ result }: { result: PluginResult }) {
   return <JsonBody data={result.normalizedData} />
 }
 
-// ── Attachment chips (non-interactive metadata) ──────────────────────────────
+// ── Attachment chips (authenticated download affordances) ────────────────────
 //
-// There is no public plugin-file download route (the serializer deliberately
-// synthesizes no URL — see `app/crud/plugin_result.py`), so chips are rendered
-// as inert metadata: filename + size, no download action.
+// Each chip downloads its attachment via the plugin-file route
+// (`GET <entity>/plugin-results/files/{file_ref}`). Auth is a JWT bearer header,
+// not a cookie, so a bare `<a href>` would 401 — we fetch the blob through the
+// authenticated client (`downloadPluginAttachment`) and save it. The response is
+// always `application/octet-stream; attachment`; content is never rendered
+// inline and the payload's `content_type` is never trusted to drive rendering.
 
-function AttachmentChips({ result }: { result: PluginResult }) {
+function attachmentLabel(att: PluginAttachment): string {
+  const name = att.filename ?? 'attachment'
+  return att.size != null ? `${name} · ${formatBytes(att.size)}` : name
+}
+
+function DownloadableAttachmentChip({
+  label,
+  filename,
+  fileRef,
+  entityType,
+  entityId,
+}: {
+  label: string
+  filename: string
+  fileRef: string
+  entityType: PluginResultEntityType
+  entityId: string
+}) {
+  const [busy, setBusy] = useState(false)
+
+  async function handleDownload() {
+    setBusy(true)
+    try {
+      await downloadPluginAttachment(entityType, entityId, fileRef, filename)
+    } catch {
+      notifications.show({
+        color: 'red',
+        title: 'Download failed',
+        message: `Could not download ${filename}`,
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Badge
+      component="button"
+      type="button"
+      onClick={handleDownload}
+      disabled={busy}
+      variant="outline"
+      color="gray"
+      radius="sm"
+      size="sm"
+      leftSection={<Download size={11} />}
+      aria-label={`Download ${filename}`}
+      style={{ cursor: busy ? 'progress' : 'pointer' }}
+      styles={{ label: { textTransform: 'none' } }}
+    >
+      {label}
+    </Badge>
+  )
+}
+
+function AttachmentChip({
+  attachment,
+  entityType,
+  entityId,
+}: {
+  attachment: PluginAttachment
+  entityType: PluginResultEntityType
+  entityId: string
+}) {
+  const label = attachmentLabel(attachment)
+
+  // Without a file_ref there is no download route to target — render inert.
+  if (attachment.fileRef == null) {
+    return (
+      <Badge
+        variant="outline"
+        color="gray"
+        radius="sm"
+        size="sm"
+        styles={{ label: { textTransform: 'none' } }}
+      >
+        {label}
+      </Badge>
+    )
+  }
+
+  return (
+    <DownloadableAttachmentChip
+      label={label}
+      filename={attachment.filename ?? 'download'}
+      fileRef={attachment.fileRef}
+      entityType={entityType}
+      entityId={entityId}
+    />
+  )
+}
+
+function AttachmentChips({
+  result,
+  entityType,
+  entityId,
+}: {
+  result: PluginResult
+  entityType: PluginResultEntityType
+  entityId: string
+}) {
   if (result.attachments.length === 0) return null
   return (
     <Group gap={6}>
       {result.attachments.map((att, i) => (
-        <Badge
+        <AttachmentChip
           key={att.sha256 ?? att.fileRef ?? `${att.filename}-${i}`}
-          variant="outline"
-          color="gray"
-          radius="sm"
-          size="sm"
-          styles={{ label: { textTransform: 'none' } }}
-        >
-          {att.filename ?? 'attachment'}
-          {att.size != null ? ` · ${formatBytes(att.size)}` : ''}
-        </Badge>
+          attachment={att}
+          entityType={entityType}
+          entityId={entityId}
+        />
       ))}
     </Group>
   )
@@ -212,7 +313,15 @@ function AttachmentChips({ result }: { result: PluginResult }) {
 
 // ── Result card ──────────────────────────────────────────────────────────────
 
-function ResultCard({ result }: { result: PluginResult }) {
+function ResultCard({
+  result,
+  entityType,
+  entityId,
+}: {
+  result: PluginResult
+  entityType: PluginResultEntityType
+  entityId: string
+}) {
   const [rawOpen, setRawOpen] = useState(false)
   const hasRaw = result.rawData != null
 
@@ -260,7 +369,11 @@ function ResultCard({ result }: { result: PluginResult }) {
 
         <ResultBody result={result} />
 
-        <AttachmentChips result={result} />
+        <AttachmentChips
+          result={result}
+          entityType={entityType}
+          entityId={entityId}
+        />
 
         {hasRaw && (
           <Box>
@@ -298,10 +411,14 @@ function SourceSection({
   source,
   latest,
   history,
+  entityType,
+  entityId,
 }: {
   source: string
   latest: PluginResult
   history: PluginResult[]
+  entityType: PluginResultEntityType
+  entityId: string
 }) {
   const [historyOpen, setHistoryOpen] = useState(false)
   return (
@@ -311,7 +428,7 @@ function SourceSection({
           {source}
         </Text>
       )}
-      <ResultCard result={latest} />
+      <ResultCard result={latest} entityType={entityType} entityId={entityId} />
       {history.length > 0 && (
         <Box>
           <Anchor
@@ -334,7 +451,12 @@ function SourceSection({
           <Collapse expanded={historyOpen}>
             <Stack gap={6} mt={6}>
               {history.map((result) => (
-                <ResultCard key={result.id} result={result} />
+                <ResultCard
+                  key={result.id}
+                  result={result}
+                  entityType={entityType}
+                  entityId={entityId}
+                />
               ))}
             </Stack>
           </Collapse>
@@ -408,6 +530,8 @@ export function PluginResultsPanel({
                     source={sourceGroup.source}
                     latest={sourceGroup.latest}
                     history={sourceGroup.history}
+                    entityType={entityType}
+                    entityId={entityId}
                   />
                 ))}
               </Stack>
