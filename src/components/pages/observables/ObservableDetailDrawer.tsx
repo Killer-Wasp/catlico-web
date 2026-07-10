@@ -10,6 +10,7 @@ import {
 } from '@mantine/core'
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
 import styles from './styles.module.css'
 
 function sourceLabel(source: string): string {
@@ -129,6 +130,8 @@ function ObservableDetailContent({
               {sourceLabel(observable.source)}
             </DetailRow>
           </Stack>
+
+          <PluginResultsPanel entityType="observable" entityId={observable.id} />
         </Stack>
       </Box>
 

@@ -1,220 +1,420 @@
 /**
- * PluginResults.tsx — entity-side results panel for case/alert/observable detail.
+ * PluginResultsPanel.tsx — entity-side Plugin Results / Enrichment panel.
  *
- * Shows results grouped by plugin/source, supports multiple render modes,
- * stale flag, and provenance links back to the run.
+ * Renders append-only `PluginResult` evidence for one entity (observable, case,
+ * or alert), as specified in the plan's "Plugin Result And Evidence Model" and
+ * "Entity-side surfaces". Results are grouped by plugin then source, latest
+ * first with older runs behind a history toggle; verdict and confidence are
+ * surfaced prominently; stale (expired) results are flagged but never hidden;
+ * `raw_data` is collapsed behind an expand. A proposed-actions strip is
+ * embedded at the top (self-hiding, permission-gated server-side).
+ *
+ * This replaces the earlier orphaned panel that modelled plugin *runs*
+ * (`{runId, status, ...}`); that shape could not render verdicts, confidence,
+ * render modes, or attachments and was imported nowhere.
  */
-
 import {
+  Alert,
+  Anchor,
   Badge,
   Box,
   Card,
+  Code,
   Collapse,
   Group,
   Loader,
   Paper,
   Stack,
+  Table,
   Text,
   Title,
 } from '@mantine/core'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import dayjs from 'dayjs'
 
-import type { PluginRunStatus } from '#/components/Plugins/plugins.types'
+import { useQuery } from '@tanstack/react-query'
+import { relativeTimeLabel } from '#/components/Time/RelativeTime'
+import { errorMessage } from '#/lib/ui-helpers'
+import { ProposedActionsStrip } from '#/components/pages/plugins/proposed/ProposedActionsStrip'
+import {
+  groupResults,
+  markdownBody,
+  pluginResultsQueryOptions,
+  resolveRenderMode,
+} from './pluginResults'
+import { MarkdownView } from './MarkdownView'
+import type {
+  PluginResult,
+  PluginResultEntityType,
+  Verdict,
+} from './pluginResults.types'
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Verdict / confidence presentation ────────────────────────────────────────
 
-export type PluginResult = {
-  runId: string
-  pluginId: string
-  pluginName: string
-  status: PluginRunStatus
-  summary: Record<string, unknown> | null
-  createdAt: string | null
+const VERDICT_COLOR: Record<Verdict, string> = {
+  unknown: 'gray',
+  info: 'blue',
+  benign: 'green',
+  suspicious: 'yellow',
+  malicious: 'red',
+  error: 'orange',
 }
 
-export type PluginResultsPanelProps = {
-  /** Results to display, keyed by plugin id for grouping. */
-  results: PluginResult[]
-  /** Whether results are still loading. */
-  loading?: boolean
-  /** Max number of results to show before "show all". */
-  maxVisible?: number
+/** Confidence is a numeric score; treat ≤1 as a 0–1 ratio, else a raw score. */
+function formatConfidence(confidence: number): string {
+  if (confidence <= 1) return `${Math.round(confidence * 100)}%`
+  return String(confidence)
 }
 
-// ── Render modes ────────────────────────────────────────────────────────────
-
-const STATUS_COLOR: Record<string, string> = {
-  success: 'green',
-  failure: 'red',
-  timeout: 'orange',
-  skipped: 'gray',
-  queued: 'blue',
-  running: 'blue',
-  cancelled: 'gray',
-  cancelling: 'orange',
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function statusLabel(s: PluginRunStatus): string {
-  if (s === 'success') return 'Passed'
-  if (s === 'failure') return 'Failed'
-  if (s === 'timeout') return 'Timed out'
-  if (s === 'skipped') return 'Skipped'
-  return s
+// ── Render-mode bodies ───────────────────────────────────────────────────────
+
+function JsonBody({ data }: { data: unknown }) {
+  return (
+    <Code
+      block
+      style={{ maxHeight: 260, overflow: 'auto', fontSize: 11 }}
+    >
+      {JSON.stringify(data ?? null, null, 2)}
+    </Code>
+  )
 }
 
-function SummaryRow({ result }: { result: PluginResult }) {
-  const [open, setOpen] = useState(false)
+function KeyValueBody({ data }: { data: Record<string, unknown> | null }) {
+  const entries = data ? Object.entries(data) : []
+  if (entries.length === 0) return <JsonBody data={data} />
+  return (
+    <Table withRowBorders={false} verticalSpacing={4} fz={12}>
+      <Table.Tbody>
+        {entries.map(([key, value]) => (
+          <Table.Tr key={key}>
+            <Table.Td style={{ width: '35%', verticalAlign: 'top' }}>
+              <Text fz={12} c="dimmed" ff="monospace">
+                {key}
+              </Text>
+            </Table.Td>
+            <Table.Td>
+              <Text fz={12} style={{ wordBreak: 'break-word' }}>
+                {typeof value === 'object'
+                  ? JSON.stringify(value)
+                  : String(value)}
+              </Text>
+            </Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  )
+}
+
+/** Find the first array-of-objects in the payload to render as rows. */
+function findRows(
+  data: Record<string, unknown> | null,
+): Record<string, unknown>[] | null {
+  if (!data) return null
+  for (const key of ['rows', 'items', 'data', 'results', 'records']) {
+    const value = data[key]
+    if (Array.isArray(value) && value.every((v) => v && typeof v === 'object')) {
+      return value as Record<string, unknown>[]
+    }
+  }
+  return null
+}
+
+function TableBody({ data }: { data: Record<string, unknown> | null }) {
+  const rows = findRows(data)
+  if (!rows || rows.length === 0) return <JsonBody data={data} />
+  const columns = Array.from(
+    rows.reduce<Set<string>>((set, row) => {
+      Object.keys(row).forEach((k) => set.add(k))
+      return set
+    }, new Set()),
+  )
+  return (
+    <Box style={{ overflowX: 'auto' }}>
+      <Table withTableBorder withColumnBorders fz={12}>
+        <Table.Thead>
+          <Table.Tr>
+            {columns.map((col) => (
+              <Table.Th key={col}>{col}</Table.Th>
+            ))}
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {rows.map((row, i) => (
+            <Table.Tr key={i}>
+              {columns.map((col) => (
+                <Table.Td key={col}>
+                  {row[col] == null
+                    ? ''
+                    : typeof row[col] === 'object'
+                      ? JSON.stringify(row[col])
+                      : String(row[col])}
+                </Table.Td>
+              ))}
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Box>
+  )
+}
+
+function ResultBody({ result }: { result: PluginResult }) {
+  const mode = resolveRenderMode(result.renderMode)
+  if (mode === 'markdown') {
+    const md = markdownBody(result)
+    if (!md) {
+      return (
+        <Text fz={12} c="dimmed" fs="italic">
+          No content.
+        </Text>
+      )
+    }
+    return <MarkdownView markdown={md} />
+  }
+  if (mode === 'key_value') return <KeyValueBody data={result.normalizedData} />
+  if (mode === 'table') return <TableBody data={result.normalizedData} />
+  return <JsonBody data={result.normalizedData} />
+}
+
+// ── Attachment chips (non-interactive metadata) ──────────────────────────────
+//
+// There is no public plugin-file download route (the serializer deliberately
+// synthesizes no URL — see `app/crud/plugin_result.py`), so chips are rendered
+// as inert metadata: filename + size, no download action.
+
+function AttachmentChips({ result }: { result: PluginResult }) {
+  if (result.attachments.length === 0) return null
+  return (
+    <Group gap={6}>
+      {result.attachments.map((att, i) => (
+        <Badge
+          key={att.sha256 ?? att.fileRef ?? `${att.filename}-${i}`}
+          variant="outline"
+          color="gray"
+          radius="sm"
+          size="sm"
+          styles={{ label: { textTransform: 'none' } }}
+        >
+          {att.filename ?? 'attachment'}
+          {att.size != null ? ` · ${formatBytes(att.size)}` : ''}
+        </Badge>
+      ))}
+    </Group>
+  )
+}
+
+// ── Result card ──────────────────────────────────────────────────────────────
+
+function ResultCard({ result }: { result: PluginResult }) {
+  const [rawOpen, setRawOpen] = useState(false)
+  const hasRaw = result.rawData != null
 
   return (
     <Card withBorder radius="md" padding="sm">
-      <Group
-        justify="space-between"
-        wrap="nowrap"
-        onClick={() => setOpen(!open)}
-        style={{ cursor: 'pointer' }}
-      >
-        <Group gap="sm" wrap="nowrap">
-          <Badge
-            variant="light"
-            color={STATUS_COLOR[result.status] ?? 'gray'}
-            radius="sm"
-            size="sm"
-          >
-            {statusLabel(result.status)}
-          </Badge>
-          <Stack gap={0}>
-            <Text fz={13} fw={600}>
-              {result.pluginName}
-            </Text>
-            <Text fz={11} c="dimmed" ff="monospace">
-              {result.runId?.slice(0, 8)}
-            </Text>
+      <Stack gap="xs">
+        <Group justify="space-between" wrap="nowrap" align="flex-start">
+          <Stack gap={2}>
+            {result.title && (
+              <Text fz={13} fw={600}>
+                {result.title}
+              </Text>
+            )}
+            <Group gap={6}>
+              <Badge
+                variant="filled"
+                color={VERDICT_COLOR[result.verdict]}
+                radius="sm"
+                size="sm"
+              >
+                {result.verdict}
+              </Badge>
+              {result.confidence != null && (
+                <Badge variant="light" color="gray" radius="sm" size="sm">
+                  conf {formatConfidence(result.confidence)}
+                </Badge>
+              )}
+              {result.stale && (
+                <Badge variant="light" color="orange" radius="sm" size="sm">
+                  stale
+                </Badge>
+              )}
+            </Group>
           </Stack>
+          <Text fz={11} c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+            {relativeTimeLabel(result.createdAt, '')}
+          </Text>
         </Group>
-        <Group gap={8} wrap="nowrap">
-          {result.createdAt && (
-            <Text fz={11} c="dimmed">
-              {dayjs(result.createdAt).fromNow()}
-            </Text>
-          )}
-          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </Group>
-      </Group>
 
-      <Collapse expanded={open}>
-        <Box mt="sm">
-          {result.summary ? (
-            <Box
-              component="pre"
-              fz={11}
-              ff="monospace"
-              p="sm"
-              style={{
-                background: 'var(--mantine-color-dark-8)',
-                color: 'var(--mantine-color-gray-2)',
-                borderRadius: 'var(--mantine-radius-sm)',
-                maxHeight: 200,
-                overflow: 'auto',
-              }}
+        {result.summary && (
+          <Text fz={12} c="dimmed">
+            {result.summary}
+          </Text>
+        )}
+
+        <ResultBody result={result} />
+
+        <AttachmentChips result={result} />
+
+        {hasRaw && (
+          <Box>
+            <Anchor
+              component="button"
+              type="button"
+              fz={12}
+              c="dimmed"
+              onClick={() => setRawOpen((open) => !open)}
             >
-              {JSON.stringify(result.summary, null, 2)}
-            </Box>
-          ) : (
-            <Text fz={12} c="dimmed">
-              No detailed results available.
-            </Text>
-          )}
-        </Box>
-      </Collapse>
+              <Group gap={4} wrap="nowrap">
+                {rawOpen ? (
+                  <ChevronDown size={13} />
+                ) : (
+                  <ChevronRight size={13} />
+                )}
+                Raw data
+              </Group>
+            </Anchor>
+            <Collapse expanded={rawOpen}>
+              <Box mt={6}>
+                <JsonBody data={result.rawData} />
+              </Box>
+            </Collapse>
+          </Box>
+        )}
+      </Stack>
     </Card>
   )
 }
 
-// ── Component ───────────────────────────────────────────────────────────────
+// ── Source group (latest + history) ──────────────────────────────────────────
+
+function SourceSection({
+  source,
+  latest,
+  history,
+}: {
+  source: string
+  latest: PluginResult
+  history: PluginResult[]
+}) {
+  const [historyOpen, setHistoryOpen] = useState(false)
+  return (
+    <Stack gap={6}>
+      {source && (
+        <Text fz={11} c="dimmed" ff="monospace">
+          {source}
+        </Text>
+      )}
+      <ResultCard result={latest} />
+      {history.length > 0 && (
+        <Box>
+          <Anchor
+            component="button"
+            type="button"
+            fz={12}
+            onClick={() => setHistoryOpen((open) => !open)}
+          >
+            <Group gap={4} wrap="nowrap">
+              {historyOpen ? (
+                <ChevronDown size={13} />
+              ) : (
+                <ChevronRight size={13} />
+              )}
+              {historyOpen
+                ? 'Hide history'
+                : `Show ${history.length} older result${history.length === 1 ? '' : 's'}`}
+            </Group>
+          </Anchor>
+          <Collapse expanded={historyOpen}>
+            <Stack gap={6} mt={6}>
+              {history.map((result) => (
+                <ResultCard key={result.id} result={result} />
+              ))}
+            </Stack>
+          </Collapse>
+        </Box>
+      )}
+    </Stack>
+  )
+}
+
+// ── Panel ────────────────────────────────────────────────────────────────────
+
+export type PluginResultsPanelProps = {
+  entityType: PluginResultEntityType
+  entityId: string
+}
 
 export function PluginResultsPanel({
-  results,
-  loading = false,
-  maxVisible = 5,
+  entityType,
+  entityId,
 }: PluginResultsPanelProps) {
-  const [showAll, setShowAll] = useState(false)
+  const {
+    data: results = [],
+    isPending,
+    isError,
+    error,
+  } = useQuery(pluginResultsQueryOptions(entityType, entityId))
 
-  // Group by plugin id
-  const grouped = useMemo(() => {
-    const map = new Map<string, PluginResult[]>()
-    for (const r of results) {
-      const existing = map.get(r.pluginId) ?? []
-      existing.push(r)
-      map.set(r.pluginId, existing)
-    }
-    return map
-  }, [results])
-
-  const visible = showAll
-    ? results
-    : results.slice(0, maxVisible)
-  const hidden = results.length - visible.length
-  const visibleIds = new Set(visible.map((r) => r.runId))
-
-  if (loading) {
-    return (
-      <Paper p="md" withBorder radius="md">
-        <Group justify="center" py="md">
-          <Loader size="sm" />
-          <Text fz={13} c="dimmed">
-            Loading plugin results…
-          </Text>
-        </Group>
-      </Paper>
-    )
-  }
-
-  if (results.length === 0) {
-    return (
-      <Paper p="md" withBorder radius="md">
-        <Text fz={13} c="dimmed" ta="center" py="md">
-          No plugin results yet.
-        </Text>
-      </Paper>
-    )
-  }
+  const groups = useMemo(() => groupResults(results), [results])
 
   return (
-    <Paper p="md" withBorder radius="md">
-      <Group justify="space-between" mb="sm">
-        <Title order={5} size="h6">
-          Plugin Results ({results.length})
-        </Title>
-      </Group>
+    <Stack gap="md">
+      <ProposedActionsStrip entityType={entityType} entityId={entityId} />
 
-      <Stack gap="sm">
-        {/* Group headers */}
-        {Array.from(grouped.entries()).map(([pluginId, items]) => (
-          <Stack key={pluginId} gap={4}>
-            <Text fz={11} c="dimmed" fw={600} tt="uppercase">
-              {items[0]?.pluginName ?? pluginId}
+      <Paper p="md" withBorder radius="md">
+        <Group justify="space-between" mb="sm">
+          <Title order={5} size="h6">
+            Plugin Results
+          </Title>
+          {!isPending && !isError && results.length > 0 && (
+            <Badge variant="light" color="gray" radius="sm" size="sm">
+              {results.length}
+            </Badge>
+          )}
+        </Group>
+
+        {isPending ? (
+          <Group justify="center" py="md">
+            <Loader size="sm" />
+            <Text fz={13} c="dimmed">
+              Loading plugin results…
             </Text>
-            {items
-              .filter((result) => visibleIds.has(result.runId))
-              .map((result) => (
-              <SummaryRow key={result.runId} result={result} />
+          </Group>
+        ) : isError ? (
+          <Alert color="red" variant="light" title="Could not load plugin results">
+            {errorMessage(error)}
+          </Alert>
+        ) : results.length === 0 ? (
+          <Text fz={13} c="dimmed" ta="center" py="md">
+            No plugin results yet.
+          </Text>
+        ) : (
+          <Stack gap="lg">
+            {groups.map((group) => (
+              <Stack key={group.pluginId} gap="sm">
+                <Text fz={11} fw={700} tt="uppercase" c="dimmed" lts="0.5px">
+                  {group.pluginId}
+                </Text>
+                {group.sources.map((sourceGroup) => (
+                  <SourceSection
+                    key={`${group.pluginId}:${sourceGroup.source}`}
+                    source={sourceGroup.source}
+                    latest={sourceGroup.latest}
+                    history={sourceGroup.history}
+                  />
+                ))}
+              </Stack>
             ))}
           </Stack>
-        ))}
-
-        {hidden > 0 && (
-          <Text
-            fz={12}
-            c="blue"
-            style={{ cursor: 'pointer', textDecoration: 'underline' }}
-            onClick={() => setShowAll(true)}
-          >
-            +{hidden} more results
-          </Text>
         )}
-      </Stack>
-    </Paper>
+      </Paper>
+    </Stack>
   )
 }
