@@ -487,16 +487,23 @@ describe('AlertsPage', () => {
   })
 
   test('hides the drawer action menu when actions are disabled', () => {
+    // The drawer embeds the Plugin Results panel (useQuery-backed), so it needs
+    // a QueryClientProvider even for this actions-only assertion.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
     render(
       <MantineProvider>
-        <AlertDetailDrawer
-          alert={alerts[0] ?? null}
-          comments={[]}
-          onClose={vi.fn()}
-          onAddComment={vi.fn()}
-          onRunAnalysis={vi.fn()}
-          hideActions
-        />
+        <QueryClientProvider client={queryClient}>
+          <AlertDetailDrawer
+            alert={alerts[0] ?? null}
+            comments={[]}
+            onClose={vi.fn()}
+            onAddComment={vi.fn()}
+            onRunAnalysis={vi.fn()}
+            hideActions
+          />
+        </QueryClientProvider>
       </MantineProvider>,
     )
 
