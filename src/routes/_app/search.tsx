@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   Title,
+  UnstyledButton,
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { useQuery } from '@tanstack/react-query'
@@ -27,24 +28,31 @@ const PAGE_SIZE = 25
 
 type SearchPageParams = { q: string; type: SearchEntityType; page: number }
 
+/**
+ * Parses `?q=&type=&page=` off the URL. This is the guard that keeps a
+ * hand-edited URL from reaching the API with a bad `offset`, so it is exported
+ * for direct testing.
+ */
+export function validateSearchParams(search: Record<string, unknown>): SearchPageParams {
+  const type = SEARCH_TYPES.includes(search.type as SearchEntityType)
+    ? (search.type as SearchEntityType)
+    : 'case'
+  // `Number(undefined)` / `Number('abc')` are NaN, and `Number('1e400')` is
+  // Infinity — `Number.isInteger` rejects both (it's false for NaN and
+  // Infinity), so anything but a genuine positive integer falls back to 1.
+  // That keeps the eventual `offset = (page - 1) * PAGE_SIZE` finite and
+  // non-negative before it ever reaches the API.
+  const rawPage = Number(search.page)
+  const page = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : 1
+  return {
+    q: typeof search.q === 'string' ? search.q : '',
+    type,
+    page,
+  }
+}
+
 export const Route = createFileRoute('/_app/search')({
-  validateSearch: (search: Record<string, unknown>): SearchPageParams => {
-    const type = SEARCH_TYPES.includes(search.type as SearchEntityType)
-      ? (search.type as SearchEntityType)
-      : 'case'
-    // `Number(undefined)` / `Number('abc')` are NaN, and `Number('1e400')` is
-    // Infinity — `Number.isInteger` rejects both (it's false for NaN and
-    // Infinity), so anything but a genuine positive integer falls back to 1.
-    // That keeps the eventual `offset = (page - 1) * PAGE_SIZE` finite and
-    // non-negative before it ever reaches the API.
-    const rawPage = Number(search.page)
-    const page = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : 1
-    return {
-      q: typeof search.q === 'string' ? search.q : '',
-      type,
-      page,
-    }
-  },
+  validateSearch: validateSearchParams,
   component: SearchPage,
 })
 
@@ -121,7 +129,7 @@ function SearchPage() {
     }
   }, [q])
 
-  const { data } = useQuery(
+  const { data, isPlaceholderData, isError, refetch } = useQuery(
     searchQueryOptions(q, { types: [type], limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
   )
   // Counts for ALL tabs (cheap only in the sense that limit:1 keeps the row
@@ -138,7 +146,12 @@ function SearchPage() {
   // search where `data` resolves before `countsData` would flash "No
   // results" (total defaults to 0 while counts is still undefined)
   // underneath the real rows that `data` already has.
+  //
+  // `isPlaceholderData` additionally excludes the window right after a tab
+  // switch, where keepPreviousData still holds the *previous* type's response
+  // — whose `results[type]` is empty because the request asked for one type.
   const activeRows = data?.results[type] ?? []
+  const showEmpty = Boolean(data) && !isPlaceholderData && activeRows.length === 0
 
   const setTab = (t: string | null) =>
     navigate({
@@ -291,7 +304,15 @@ function SearchPage() {
               `comment-${h.id}`,
             ),
           )}
-        {data && activeRows.length === 0 && (
+        {isError && (
+          <Text c="dimmed" ta="center" p="xl">
+            Search failed.{' '}
+            <UnstyledButton onClick={() => refetch()} style={{ textDecoration: 'underline' }}>
+              <Text span>Retry</Text>
+            </UnstyledButton>
+          </Text>
+        )}
+        {showEmpty && (
           <Text c="dimmed" ta="center" p="xl">
             No {TAB_LABELS[type].toLowerCase()} match &ldquo;{q}&rdquo;
           </Text>

@@ -232,9 +232,11 @@ export function SearchPalette({
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActive((a) => Math.max(a - 1, 0))
-    } else if (e.key === 'Tab' || e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      // Tab is deliberately NOT bound: swallowing it traps keyboard focus in
+      // the input, leaving the rows and the footer button unreachable.
       e.preventDefault()
-      const delta = e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1
+      const delta = e.key === 'ArrowLeft' ? -1 : 1
       setTab((t) => tabOrder[(tabOrder.indexOf(t) + delta + tabOrder.length) % tabOrder.length])
     } else if (e.key === 'Enter') {
       e.preventDefault()
@@ -244,9 +246,18 @@ export function SearchPalette({
   }
 
   return (
-    <Modal opened={opened} onClose={close} withCloseButton={false} size="lg" padding="sm" yOffset="10vh">
+    <Modal
+      opened={opened}
+      onClose={close}
+      withCloseButton={false}
+      size="lg"
+      padding="sm"
+      yOffset="10vh"
+      aria-label="Search"
+    >
       <TextInput
         data-autofocus
+        aria-label="Search cases, alerts, observables, tasks and comments"
         leftSection={<Search size={16} />}
         rightSection={<Kbd size="xs">esc</Kbd>}
         placeholder="Search cases, alerts, observables, tasks, comments…"
