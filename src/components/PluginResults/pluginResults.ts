@@ -181,3 +181,57 @@ export const pluginResultsQueryOptions = (
     queryKey: pluginResultKeys.list(entityType, entityId),
     queryFn: () => fetchPluginResults(entityType, entityId),
   })
+
+// ── Attachment download ──────────────────────────────────────────────────────
+
+/**
+ * Path (relative to the ky base URL) of a plugin attachment's authenticated
+ * download route: `<entity>/plugin-results/files/{file_ref}`.
+ *
+ * `file_ref` is a Starlette `:path` param, so `/` inside it must survive as a
+ * literal path separator for the route to match. We therefore encode each
+ * `/`-separated segment independently and re-join with `/`: special characters
+ * (e.g. the `:` in the `plugin-run-file:<uuid>` scheme) are percent-encoded,
+ * while any embedded slash is preserved.
+ */
+export function attachmentDownloadPath(
+  entityType: PluginResultEntityType,
+  entityId: string,
+  fileRef: string,
+): string {
+  const encodedRef = fileRef.split('/').map(encodeURIComponent).join('/')
+  return `${endpointFor(entityType, entityId)}/files/${encodedRef}`
+}
+
+/**
+ * Download a plugin attachment through the authenticated API client and hand the
+ * bytes to the browser as a file.
+ *
+ * A bare `<a href>` cannot be used: auth is a JWT `Authorization: Bearer` header
+ * attached by the ky client (see `#/lib/api/client`), not a cookie, so a plain
+ * link would be sent unauthenticated and 401. We fetch the blob through `api`
+ * (which carries the header) and trigger the save from an object URL, revoking
+ * it afterwards. The response is always `application/octet-stream` with
+ * `Content-Disposition: attachment` — content is never rendered inline.
+ *
+ * Rejects (ky `HTTPError`) on a non-2xx response so callers can surface a
+ * failure; the object URL is only created after a successful fetch.
+ */
+export async function downloadPluginAttachment(
+  entityType: PluginResultEntityType,
+  entityId: string,
+  fileRef: string,
+  filename: string,
+): Promise<void> {
+  const blob = await api
+    .get(attachmentDownloadPath(entityType, entityId, fileRef))
+    .blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = filename || 'download'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(objectUrl)
+}

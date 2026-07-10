@@ -4,6 +4,7 @@ import {
   caseKeys,
   updateCaseDescription,
 } from '#/components/Cases/casesQueries'
+import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
 import { Stack, Text } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
@@ -44,6 +45,11 @@ export function DetailsPanel({
           {caseDetail.summary}
         </Text>
       )}
+
+      <PluginResultsPanel
+        entityType="case"
+        entityId={caseId.replace(/^#/, '')}
+      />
     </Stack>
   )
 }

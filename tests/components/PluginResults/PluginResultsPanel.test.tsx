@@ -19,6 +19,7 @@ vi.mock('#/lib/api/client', () => ({
 }))
 
 type JsonResponse = { json: () => Promise<unknown> }
+type BlobResponse = { blob: () => Promise<Blob> }
 
 function dto(overrides: Partial<PluginResultPublic> = {}): PluginResultPublic {
   return {
@@ -59,6 +60,32 @@ function mockApi(results: PluginResultPublic[]) {
   })
 }
 
+/**
+ * Like `mockApi`, but attachment-file requests (`.../files/...`) resolve to
+ * `download` (a Blob) or reject with `downloadError` to exercise the failure
+ * path. The list route still serves `results` via `.json()`.
+ */
+function mockApiWithDownload(
+  results: PluginResultPublic[],
+  { download, downloadError }: { download?: Blob; downloadError?: Error } = {},
+) {
+  vi.mocked(api.get).mockImplementation((input) => {
+    const url = String(input)
+    if (url.includes('/files/')) {
+      return {
+        blob: async () => {
+          if (downloadError) throw downloadError
+          return download ?? new Blob(['data'])
+        },
+      } satisfies BlobResponse as ReturnType<typeof api.get>
+    }
+    const body = url.includes('plugin-results') ? results : []
+    return { json: async () => body } satisfies JsonResponse as ReturnType<
+      typeof api.get
+    >
+  })
+}
+
 function renderPanel() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -79,8 +106,17 @@ describe('PluginResultsPanel', () => {
   beforeEach(() => {
     vi.mocked(api.get).mockReset()
     vi.mocked(api.post).mockReset()
+    // jsdom implements neither object-URL method; the download helper needs both.
+    // Assign directly (don't replace `URL`, ky relies on its constructor).
+    URL.createObjectURL = vi.fn(() => 'blob:mock')
+    URL.revokeObjectURL = vi.fn()
+    // Anchor.click() would trigger a jsdom "navigation not implemented" warning.
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
   })
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
 
   test('surfaces verdict, confidence and summary', async () => {
     mockApi([dto()])
@@ -138,12 +174,12 @@ describe('PluginResultsPanel', () => {
     expect(await screen.findByText('No plugin results yet.')).toBeInTheDocument()
   })
 
-  test('renders attachment chips as inert filename + size metadata', async () => {
-    mockApi([
+  test('renders an attachment chip as an actionable download and requests the entity file route', async () => {
+    mockApiWithDownload([
       dto({
         attachments: [
           {
-            file_ref: 'f1',
+            file_ref: 'plugin-run-file:abc123',
             filename: 'screenshot.png',
             content_type: 'image/png',
             size: 2048,
@@ -154,10 +190,82 @@ describe('PluginResultsPanel', () => {
     ])
     renderPanel()
 
-    const chip = await screen.findByText(/screenshot\.png/)
-    expect(chip).toBeInTheDocument()
+    const chip = await screen.findByRole('button', {
+      name: 'Download screenshot.png',
+    })
+    // Keeps the filename + human-readable size display.
+    expect(chip.textContent).toContain('screenshot.png')
     expect(chip.textContent).toContain('2.0 KB')
-    // No download link/button fabricated for the attachment.
-    expect(screen.queryByRole('link', { name: /screenshot/ })).toBeNull()
+
+    fireEvent.click(chip)
+
+    // Hits the download route for THIS entity, with the file_ref's `:`
+    // percent-encoded (no `/` in this ref, so nothing else is encoded).
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith(
+        'observables/obs-1/plugin-results/files/plugin-run-file%3Aabc123',
+      ),
+    )
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock')
+  })
+
+  test('encodes a file_ref that contains a slash as path segments', async () => {
+    mockApiWithDownload([
+      dto({
+        attachments: [
+          {
+            file_ref: 'plugin-run-file:abc/def',
+            filename: 'nested.bin',
+            content_type: 'application/octet-stream',
+            size: 10,
+            sha256: 'h',
+          },
+        ],
+      }),
+    ])
+    renderPanel()
+
+    const chip = await screen.findByRole('button', {
+      name: 'Download nested.bin',
+    })
+    fireEvent.click(chip)
+
+    // `:` is percent-encoded within each segment; the `/` survives as a literal
+    // path separator (the route param is a Starlette `:path`).
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith(
+        'observables/obs-1/plugin-results/files/plugin-run-file%3Aabc/def',
+      ),
+    )
+  })
+
+  test('surfaces an error when a download fails', async () => {
+    mockApiWithDownload(
+      [
+        dto({
+          attachments: [
+            {
+              file_ref: 'plugin-run-file:denied',
+              filename: 'secret.bin',
+              content_type: 'application/octet-stream',
+              size: 4,
+              sha256: 'h',
+            },
+          ],
+        }),
+      ],
+      { downloadError: new Error('403 Forbidden') },
+    )
+    renderPanel()
+
+    const chip = await screen.findByRole('button', {
+      name: 'Download secret.bin',
+    })
+    fireEvent.click(chip)
+
+    // Failure is surfaced to the user, not swallowed. No object URL created.
+    expect(await screen.findByText('Download failed')).toBeInTheDocument()
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
   })
 })

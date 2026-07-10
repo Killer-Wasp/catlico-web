@@ -27,6 +27,7 @@ import {
 import { useNavigate } from '@tanstack/react-router'
 import { ExternalLink, MoreHorizontal, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
 import styles from './styles.module.css'
 
 export function AlertDetailDrawer({
@@ -316,6 +317,17 @@ export function AlertDetailDrawer({
             </Stack>
           )}
         </DrawerSection>
+
+        <Box
+          px={22}
+          py={16}
+          style={{ borderTop: '1px solid var(--line-soft)' }}
+        >
+          <PluginResultsPanel
+            entityType="alert"
+            entityId={alert.id.replace(/^AL-/, '')}
+          />
+        </Box>
 
         {linkedRows.length > 0 && (
           <DrawerSection title="Linked case" count={linkedRows.length}>
