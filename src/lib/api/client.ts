@@ -8,9 +8,10 @@
  * Non-2xx responses reject with ky's `HTTPError` (`error.response.status`);
  * branch on it with `isHTTPError` from `ky`.
  *
- * Auth: the current access token is attached as `Authorization: Bearer`, and
- * the active org as `X-Organisation-Id` (org-scoped routes require it). On a
- * 401 we transparently refresh the access token once and retry.
+ * Auth: the current access token (in-memory, see `#/lib/auth/session`) is
+ * attached as `Authorization: Bearer`, and the active org as
+ * `X-Organisation-Id` (org-scoped routes require it). On a 401 we mint a new
+ * access token from the httpOnly refresh cookie and retry once.
  */
 import ky from 'ky'
 
@@ -18,7 +19,6 @@ import {
   clearSession,
   getAccessToken,
   getActiveOrgId,
-  getRefreshToken,
   setAccessToken,
 } from '#/lib/auth/session'
 import { redirectToLogin } from '#/lib/auth/redirects'
@@ -42,15 +42,19 @@ const BASE_URL = absolute.endsWith('/') ? absolute : `${absolute}/`
 // De-dupe concurrent refreshes: many parallel 401s share one refresh call.
 let refreshPromise: Promise<boolean> | null = null
 
-async function refreshAccessToken(): Promise<boolean> {
-  const refresh_token = getRefreshToken()
-  if (!refresh_token) return false
-
+/**
+ * Mint a new access token from the httpOnly refresh cookie. Exported for
+ * `ensureSession` (page-load bootstrap); also drives the 401-retry below.
+ * De-dupes concurrent calls: many parallel 401s share one refresh request.
+ * The custom header + `credentials: 'include'` satisfy the API's CSRF guard.
+ */
+export async function refreshAccessToken(): Promise<boolean> {
   refreshPromise ??= (async () => {
     try {
       const data = await ky
         .post(`${BASE_URL}auth/refresh`, {
-          json: { refresh_token },
+          credentials: 'include',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
           retry: 0,
         })
         .json<{ access_token: string }>()
@@ -91,11 +95,7 @@ export const api = ky.create({
           return
         }
 
-        if (
-          retryCount === 0 &&
-          getRefreshToken() &&
-          (await refreshAccessToken())
-        ) {
+        if (retryCount === 0 && (await refreshAccessToken())) {
           const headers = new Headers(request.headers)
           headers.set('Authorization', `Bearer ${getAccessToken()}`)
           return ky.retry({ request: new Request(request, { headers }) })

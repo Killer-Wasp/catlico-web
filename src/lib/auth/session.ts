@@ -1,36 +1,52 @@
 /**
- * Client-side auth session: token storage + login/logout + active-org
- * resolution. Tokens live in localStorage (browser only — every getter is a
- * no-op during SSR, which is what keeps protected routes from rendering on the
- * server; see the `_app` route guard).
+ * Client-side auth session. The access token lives in module memory only —
+ * never localStorage — so XSS cannot lift a durable credential. The refresh
+ * token is an httpOnly cookie owned by the API (invisible to JS); a page load
+ * re-establishes the session with one silent refresh (`ensureSession`).
  *
  * The server re-validates every request, so anything decoded here is a hint,
  * never a trust boundary.
  */
-import { api } from '#/lib/api/client'
+import { api, refreshAccessToken } from '#/lib/api/client'
 
-const ACCESS_KEY = 'catlico.accessToken'
-const REFRESH_KEY = 'catlico.refreshToken'
 const ORG_KEY = 'catlico.orgId'
 
 const isBrowser = typeof window !== 'undefined'
 
+let accessToken: string | null = null
+
 type TokenResponse = {
   access_token: string
   token_type: string
-  refresh_token?: string
 }
 
 export function getAccessToken(): string | null {
-  return isBrowser ? localStorage.getItem(ACCESS_KEY) : null
+  return accessToken
 }
 
-export function getRefreshToken(): string | null {
-  return isBrowser ? localStorage.getItem(REFRESH_KEY) : null
+/** Replace just the access token (used by the refresh flow in the api client). */
+export function setAccessToken(token: string): void {
+  accessToken = token
 }
 
 export function getActiveOrgId(): string | null {
   return isBrowser ? localStorage.getItem(ORG_KEY) : null
+}
+
+export function clearSession(): void {
+  accessToken = null
+  if (isBrowser) localStorage.removeItem(ORG_KEY)
+}
+
+/**
+ * True once a session is usable: an access token already in memory, or an
+ * httpOnly refresh cookie that a silent refresh can turn into one. Route
+ * guards await this before rendering (concurrent callers share one refresh —
+ * the api client de-dupes).
+ */
+export async function ensureSession(): Promise<boolean> {
+  if (accessToken) return true
+  return refreshAccessToken()
 }
 
 /** Decode a JWT payload without verifying it (a client-side hint only). */
@@ -41,37 +57,6 @@ function decodeJwt(token: string): Record<string, unknown> | null {
   } catch {
     return null
   }
-}
-
-/** True only when the token carries an `exp` that has already passed. An
- *  undecodable/exp-less token is treated as not-expired (let the server rule). */
-function isExpired(token: string): boolean {
-  const exp = decodeJwt(token)?.exp
-  return typeof exp === 'number' && exp * 1000 <= Date.now()
-}
-
-/**
- * Authenticated when a usable token remains: a still-valid refresh token (the
- * access token can be re-minted) or a still-valid access token. Both expired or
- * absent ⇒ not authenticated, so the route guard sends the user to /login.
- */
-export function isAuthenticated(): boolean {
-  const refresh = getRefreshToken()
-  if (refresh && !isExpired(refresh)) return true
-  const access = getAccessToken()
-  return access !== null && !isExpired(access)
-}
-
-/** Replace just the access token (used by the refresh flow in the api client). */
-export function setAccessToken(token: string): void {
-  if (isBrowser) localStorage.setItem(ACCESS_KEY, token)
-}
-
-export function clearSession(): void {
-  if (!isBrowser) return
-  localStorage.removeItem(ACCESS_KEY)
-  localStorage.removeItem(REFRESH_KEY)
-  localStorage.removeItem(ORG_KEY)
 }
 
 /** The `organisations` claim from an access token (empty if absent). */
@@ -86,19 +71,18 @@ export function getSessionOrganisationIds(): string[] {
 }
 
 /**
- * Exchange credentials for tokens, then resolve an active organisation:
+ * Exchange credentials for a session, then resolve an active organisation:
  * prefer the membership baked into the access token; fall back to the org list
  * (superadmins carry no membership but may administer orgs). Throws on bad
- * credentials (HTTPError 401) or when no org is available.
+ * credentials (HTTPError 401) or when no org is available. The API sets the
+ * refresh cookie on this response, hence `credentials: 'include'`.
  */
 export async function login(email: string, password: string): Promise<void> {
   const token = await api
-    .post('auth/login', { json: { email, password } })
+    .post('auth/login', { json: { email, password }, credentials: 'include' })
     .json<TokenResponse>()
 
-  localStorage.setItem(ACCESS_KEY, token.access_token)
-  if (token.refresh_token)
-    localStorage.setItem(REFRESH_KEY, token.refresh_token)
+  setAccessToken(token.access_token)
 
   let orgId = orgsFromToken(token.access_token)[0]
   if (!orgId) {
@@ -136,5 +120,15 @@ export async function resetPassword(
 }
 
 export function logout(): void {
+  // Fire-and-forget server-side revocation: JS cannot delete the httpOnly
+  // cookie itself. keepalive lets the request survive the page navigation
+  // that follows in the Header's logout handler.
+  void api
+    .post('auth/logout', {
+      credentials: 'include',
+      keepalive: true,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .catch(() => {})
   clearSession()
 }
