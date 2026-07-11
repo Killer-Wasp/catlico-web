@@ -1,4 +1,5 @@
 import { Alert, Anchor, Button, Stack, Text, TextInput } from '@mantine/core'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { requestPasswordReset } from '#/lib/auth/session'
 import { AuthCard } from './auth/AuthCard'
@@ -35,7 +36,7 @@ export function ForgotPasswordPage() {
             If an account exists for <strong>{email}</strong>, we&apos;ve sent a
             link to reset your password. The link expires in one hour.
           </Text>
-          <Anchor href="/login" c="orange.7" fw={600}>
+          <Anchor component={Link} to="/login" c="orange.7" fw={600}>
             Back to sign in
           </Anchor>
         </Stack>
@@ -82,7 +83,7 @@ export function ForgotPasswordPage() {
         >
           Send reset link
         </Button>
-        <Anchor href="/login" c="gray.7" fw={600} ta="center">
+        <Anchor component={Link} to="/login" c="gray.7" fw={600} ta="center">
           Back to sign in
         </Anchor>
       </Stack>

@@ -1,40 +1,38 @@
 // @vitest-environment jsdom
 import { MantineProvider } from '@mantine/core'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+} from '@tanstack/react-router'
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vitest'
 import { LoginPage } from '#/components/pages/LoginPage'
 
-beforeAll(() => {
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    }),
-  })
-})
-
+// The page renders router <Link>s, so it mounts inside a minimal memory router.
 function Harness() {
-  return (
-    <MantineProvider>
-      <LoginPage />
-    </MantineProvider>
-  )
+  const rootRoute = createRootRoute({
+    component: () => (
+      <MantineProvider>
+        <LoginPage />
+      </MantineProvider>
+    ),
+  })
+  const router = createRouter({
+    routeTree: rootRoute,
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  return <RouterProvider router={router} />
 }
 
 afterEach(cleanup)
 
 describe('LoginPage', () => {
-  test('renders the catlico branded sign in form without system copy', () => {
+  test('renders the catlico branded sign in form without system copy', async () => {
     render(<Harness />)
 
-    expect(screen.getByRole('img', { name: 'Catlico logo' })).toBeDefined()
+    expect(await screen.findByRole('img', { name: 'Catlico logo' })).toBeDefined()
     expect(screen.getByText('Catlico')).toBeDefined()
     expect(screen.getByLabelText('Email')).toBeDefined()
     expect(screen.getByLabelText('Password')).toBeDefined()

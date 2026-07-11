@@ -1,4 +1,5 @@
 import { Alert, Anchor, Button, PasswordInput, Stack, Text } from '@mantine/core'
+import { Link } from '@tanstack/react-router'
 import { isHTTPError } from 'ky'
 import { useState } from 'react'
 import { MIN_PASSWORD_LENGTH, passwordMeetsPolicy } from '#/lib/auth/passwordPolicy'
@@ -24,11 +25,27 @@ export function ResetPasswordPage({ token }: { token?: string }) {
       await resetPassword(token, password)
       setDone(true)
     } catch (err) {
-      setError(
-        isHTTPError(err) && err.response.status === 400
-          ? 'This reset link is invalid or has expired. Request a new one.'
-          : 'Something went wrong. Please try again.',
-      )
+      if (isHTTPError(err) && err.response.status === 400) {
+        // Surface the server's reason (expired link vs. policy rejection)
+        // instead of assuming which 400 this was.
+        const detail = await err.response
+          .clone()
+          .json()
+          .then((body: unknown) =>
+            typeof body === 'object' &&
+            body !== null &&
+            'detail' in body &&
+            typeof body.detail === 'string'
+              ? body.detail
+              : null,
+          )
+          .catch(() => null)
+        setError(
+          detail ?? 'This reset link is invalid or has expired. Request a new one.',
+        )
+      } else {
+        setError('Something went wrong. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -44,7 +61,7 @@ export function ResetPasswordPage({ token }: { token?: string }) {
           <Text c="gray.7">
             This link is missing its reset token. Request a new one to continue.
           </Text>
-          <Anchor href="/forgot-password" c="orange.7" fw={600}>
+          <Anchor component={Link} to="/forgot-password" c="orange.7" fw={600}>
             Request a new link
           </Anchor>
         </Stack>
@@ -63,7 +80,7 @@ export function ResetPasswordPage({ token }: { token?: string }) {
             Your password has been reset. You can now sign in with your new
             password.
           </Text>
-          <Anchor href="/login" c="orange.7" fw={600}>
+          <Anchor component={Link} to="/login" c="orange.7" fw={600}>
             Sign in
           </Anchor>
         </Stack>
@@ -118,7 +135,7 @@ export function ResetPasswordPage({ token }: { token?: string }) {
         >
           Reset password
         </Button>
-        <Anchor href="/login" c="gray.7" fw={600} ta="center">
+        <Anchor component={Link} to="/login" c="gray.7" fw={600} ta="center">
           Back to sign in
         </Anchor>
       </Stack>
