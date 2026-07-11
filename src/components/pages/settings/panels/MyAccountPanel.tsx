@@ -47,8 +47,13 @@ export function MyAccountPanel() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
 
+  // Seed the form fields once per user, not on every `user` reference change.
+  // Each save writes the fresh user back into the cache, which would otherwise
+  // re-run this effect and wipe unsaved edits in the *other* sections.
+  const seededUserId = useRef<string | null>(null)
   useEffect(() => {
-    if (!user) return
+    if (!user || seededUserId.current === user.id) return
+    seededUserId.current = user.id
     setFirstName(user.first_name ?? '')
     setLastName(user.last_name ?? '')
     setEmail(user.email)
@@ -61,9 +66,11 @@ export function MyAccountPanel() {
     [localPreview],
   )
 
+  // The mutation returns the full updated user, so write it straight into the
+  // cache. Deliberately no invalidate/refetch here — that would replace the cache
+  // object and re-seed the form, discarding unsaved edits in other sections.
   const cacheUpdated = (updated: NonNullable<typeof user>) => {
     queryClient.setQueryData(currentUserKeys.me, updated)
-    queryClient.invalidateQueries({ queryKey: currentUserKeys.me })
   }
 
   const nameMutation = useMutation({

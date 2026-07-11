@@ -10,14 +10,14 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { EllipsisVertical, Pencil, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { currentUserQueryOptions } from '#/lib/auth/userQueries'
 import { DataTable } from '#/components/Table/DataTable'
 import {
   createOrganisationMember,
@@ -29,12 +29,18 @@ import {
 } from '#/components/pages/settings/settingsQueries'
 import type { OrganisationMemberPublic } from '#/components/pages/settings/settingsQueries'
 import {
+  confirmDelete,
   LoadingPanel,
+  notifyError,
+  notifySuccess,
   Panel,
   RoleBadge,
 } from '#/components/pages/settings/settingsUi'
 
 dayjs.extend(relativeTime)
+
+// Members can be refreshed regardless of which org id keys the query.
+const membersKeyPrefix = [...settingsKeys.all, 'members']
 
 function memberName(member: OrganisationMemberPublic) {
   return (
@@ -56,7 +62,13 @@ function InviteMemberModal({
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
-  const [roleId, setRoleId] = useState(roleIds[0]?.value ?? '')
+  const [roleId, setRoleId] = useState('')
+
+  // Roles load asynchronously and the modal is always mounted, so seed/repair the
+  // default selection once roles arrive rather than at first render (when it's '').
+  useEffect(() => {
+    if (!roleId && roleIds.length > 0) setRoleId(roleIds[0].value)
+  }, [roleIds, roleId])
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -67,19 +79,14 @@ function InviteMemberModal({
         role_id: roleId,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ color: 'green', message: 'Member added' })
+      queryClient.invalidateQueries({ queryKey: membersKeyPrefix })
+      notifySuccess('Member added')
       setFirstName('')
       setLastName('')
       setEmail('')
       onClose()
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Unable to add member',
-      }),
+    onError: (error) => notifyError(error, 'Unable to add member'),
   })
 
   return (
@@ -107,7 +114,7 @@ function InviteMemberModal({
           label="Role"
           data={roleIds}
           value={roleId}
-          onChange={(value) => setRoleId(value ?? roleIds[0]?.value ?? '')}
+          onChange={(value) => setRoleId(value ?? '')}
           allowDeselect={false}
         />
         <Group justify="flex-end">
@@ -117,7 +124,9 @@ function InviteMemberModal({
           <Button
             color="orange"
             loading={mutation.isPending}
-            disabled={!firstName.trim() || !lastName.trim() || !email.trim()}
+            disabled={
+              !firstName.trim() || !lastName.trim() || !email.trim() || !roleId
+            }
             onClick={() => mutation.mutate()}
           >
             Add User
@@ -140,38 +149,27 @@ function EditMemberModal({
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
-  const [roleId, setRoleId] = useState(member?.role_id ?? '')
+  const [roleId, setRoleId] = useState('')
+
+  // The modal is always mounted; sync the selected role whenever the target
+  // member changes, otherwise the Select stays on its first-render '' value and
+  // Save would send an empty role_id (rejected by the API's uuid validation).
+  useEffect(() => {
+    setRoleId(member?.role_id ?? '')
+  }, [member])
 
   const saveMutation = useMutation({
     mutationFn: () =>
       updateOrganisationMember(member!.user_id, { role_id: roleId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ color: 'green', message: 'Member role updated' })
+      queryClient.invalidateQueries({ queryKey: membersKeyPrefix })
+      notifySuccess('Member role updated')
       onClose()
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Unable to update member',
-      }),
+    onError: (error) => notifyError(error, 'Unable to update member'),
   })
 
-  const removeMutation = useMutation({
-    mutationFn: () => removeOrganisationMember(member!.user_id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ color: 'orange', message: 'Member removed' })
-      onClose()
-    },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Unable to remove member',
-      }),
-  })
+  const unchanged = roleId === (member?.role_id ?? '')
 
   return (
     <Modal
@@ -184,30 +182,21 @@ function EditMemberModal({
           label="Role"
           data={roleIds}
           value={roleId}
-          onChange={(v) => setRoleId(v ?? member?.role_id ?? '')}
+          onChange={(v) => setRoleId(v ?? '')}
           allowDeselect={false}
         />
-        <Group justify="space-between">
-          <Button
-            color="red"
-            variant="light"
-            loading={removeMutation.isPending}
-            onClick={() => removeMutation.mutate()}
-          >
-            Remove
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            Cancel
           </Button>
-          <Group gap="xs">
-            <Button variant="default" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              color="orange"
-              loading={saveMutation.isPending}
-              onClick={() => saveMutation.mutate()}
-            >
-              Save
-            </Button>
-          </Group>
+          <Button
+            color="orange"
+            loading={saveMutation.isPending}
+            disabled={!roleId || unchanged}
+            onClick={() => saveMutation.mutate()}
+          >
+            Save
+          </Button>
         </Group>
       </Stack>
     </Modal>
@@ -215,15 +204,40 @@ function EditMemberModal({
 }
 
 export function UsersPanel() {
+  const queryClient = useQueryClient()
   const { data: members = [], isPending } = useQuery(
     organisationMembersQueryOptions(),
   )
   const { data: roles = [] } = useQuery(rolesQueryOptions())
-  const roleById = new Map(roles.map((role) => [role.id, role.name]))
-  const roleIds = roles.map((r) => ({ value: r.id, label: r.name }))
+  const { data: currentUser } = useQuery(currentUserQueryOptions())
+  const roleById = useMemo(
+    () => new Map(roles.map((role) => [role.id, role.name])),
+    [roles],
+  )
+  const roleIds = useMemo(
+    () => roles.map((r) => ({ value: r.id, label: r.name })),
+    [roles],
+  )
   const [inviteOpen, setInviteOpen] = useState(false)
   const [editingMember, setEditingMember] =
     useState<OrganisationMemberPublic | null>(null)
+
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => removeOrganisationMember(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: membersKeyPrefix })
+      notifySuccess('Member removed')
+    },
+    onError: (error) => notifyError(error, 'Unable to remove member'),
+  })
+
+  const confirmRemove = (member: OrganisationMemberPublic) =>
+    confirmDelete({
+      title: 'Remove member',
+      message: `Remove ${memberName(member)} from this organisation?`,
+      confirmLabel: 'Remove',
+      onConfirm: () => removeMutation.mutate(member.user_id),
+    })
 
   const columns = useMemo<ColumnDef<OrganisationMemberPublic>[]>(
     () => [
@@ -247,8 +261,8 @@ export function UsersPanel() {
         ),
       },
       {
-        id: 'lastActive',
-        header: 'Last active',
+        id: 'joined',
+        header: 'Joined',
         cell: ({ row }) => (
           <Text ff="monospace" c="var(--faint)" fz={12}>
             {dayjs(row.original.created_at).fromNow()}
@@ -259,37 +273,41 @@ export function UsersPanel() {
         id: 'actions',
         header: '',
         meta: { ta: 'right' },
-        cell: ({ row }) => (
-          <Menu position="bottom-end" withinPortal withArrow shadow="md">
-            <Menu.Target>
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                aria-label={`Member actions for ${memberName(row.original)}`}
-              >
-                <EllipsisVertical size={16} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<Pencil size={14} />}
-                onClick={() => setEditingMember(row.original)}
-              >
-                Edit
-              </Menu.Item>
-              <Menu.Item
-                color="red"
-                leftSection={<Trash2 size={14} />}
-                onClick={() => setEditingMember(row.original)}
-              >
-                Remove
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        ),
+        cell: ({ row }) => {
+          const isSelf = row.original.user_id === currentUser?.id
+          return (
+            <Menu position="bottom-end" withinPortal withArrow shadow="md">
+              <Menu.Target>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  aria-label={`Member actions for ${memberName(row.original)}`}
+                >
+                  <EllipsisVertical size={16} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<Pencil size={14} />}
+                  onClick={() => setEditingMember(row.original)}
+                >
+                  Edit
+                </Menu.Item>
+                <Menu.Item
+                  color="red"
+                  leftSection={<Trash2 size={14} />}
+                  disabled={isSelf}
+                  onClick={() => confirmRemove(row.original)}
+                >
+                  {isSelf ? 'Remove (that’s you)' : 'Remove'}
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          )
+        },
       },
     ],
-    [roleById],
+    [roleById, currentUser?.id],
   )
 
   if (isPending) return <LoadingPanel label="Loading members..." />

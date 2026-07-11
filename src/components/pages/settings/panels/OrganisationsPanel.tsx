@@ -13,7 +13,6 @@ import {
   TextInput,
   Title,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -36,6 +35,9 @@ import type {
 } from '#/components/pages/settings/settingsQueries'
 import {
   compactDate,
+  confirmDelete,
+  notifyError,
+  notifySuccess,
   Panel,
   toOrgShortName,
 } from '#/components/pages/settings/settingsUi'
@@ -48,6 +50,8 @@ export function OrganisationsPanel() {
   const [createOpened, setCreateOpened] = useState(false)
   const [newName, setNewName] = useState('')
   const [newId, setNewId] = useState('')
+  // Stop auto-deriving the ID from the name once the user edits the ID by hand.
+  const [idEdited, setIdEdited] = useState(false)
   const [newDescription, setNewDescription] = useState('')
   const [managedOrg, setManagedOrg] = useState<OrganisationPublic | null>(null)
   const [managedName, setManagedName] = useState('')
@@ -65,6 +69,7 @@ export function OrganisationsPanel() {
     setCreateOpened(false)
     setNewName('')
     setNewId('')
+    setIdEdited(false)
     setNewDescription('')
   }
 
@@ -75,20 +80,10 @@ export function OrganisationsPanel() {
       void queryClient.invalidateQueries({
         queryKey: settingsKeys.organisations(),
       })
-      notifications.show({
-        color: 'green',
-        message: 'Organisation created',
-      })
+      notifySuccess('Organisation created')
       closeCreate()
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to create organisation',
-      }),
+    onError: (error) => notifyError(error, 'Unable to create organisation'),
   })
 
   const updateMutation = useMutation({
@@ -108,19 +103,9 @@ export function OrganisationsPanel() {
         queryKey: settingsKeys.organisations(),
       })
       setManagedOrg(updated)
-      notifications.show({
-        color: 'green',
-        message: 'Organisation saved',
-      })
+      notifySuccess('Organisation saved')
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to save organisation',
-      }),
+    onError: (error) => notifyError(error, 'Unable to save organisation'),
   })
 
   const deleteMutation = useMutation({
@@ -129,23 +114,18 @@ export function OrganisationsPanel() {
       return deleteOrganisation(managedOrg.id)
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+      void queryClient.invalidateQueries({
+        queryKey: settingsKeys.organisations(),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: settingsKeys.accessibleOrganisations(),
+      })
       setManagedOrg(null)
       setDeleteConfirmOpen(false)
       setDeleteConfirmName('')
-      notifications.show({
-        color: 'green',
-        message: 'Organisation deleted',
-      })
+      notifySuccess('Organisation deleted')
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to delete organisation',
-      }),
+    onError: (error) => notifyError(error, 'Unable to delete organisation'),
   })
 
   const [linkModalOpen, setLinkModalOpen] = useState(false)
@@ -159,35 +139,35 @@ export function OrganisationsPanel() {
   })
 
   const linkCreateMutation = useMutation({
-    mutationFn: () =>
-      createOrganisationLink({ to_org_id: linkToOrg }, activeOrg!.id),
+    mutationFn: () => {
+      if (!activeOrg) throw new Error('No active organisation is selected.')
+      return createOrganisationLink({ to_org_id: linkToOrg }, activeOrg.id)
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ color: 'green', message: 'Link created' })
+      if (activeOrg)
+        queryClient.invalidateQueries({
+          queryKey: settingsKeys.links(activeOrg.id),
+        })
+      notifySuccess('Link created')
       setLinkModalOpen(false)
       setLinkToOrg('')
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Unable to create link',
-      }),
+    onError: (error) => notifyError(error, 'Unable to create link'),
   })
 
   const linkDeleteMutation = useMutation({
-    mutationFn: (toOrgId: string) =>
-      deleteOrganisationLink(toOrgId, activeOrg!.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ message: 'Link removed' })
+    mutationFn: (toOrgId: string) => {
+      if (!activeOrg) throw new Error('No active organisation is selected.')
+      return deleteOrganisationLink(toOrgId, activeOrg.id)
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Unable to remove link',
-      }),
+    onSuccess: () => {
+      if (activeOrg)
+        queryClient.invalidateQueries({
+          queryKey: settingsKeys.links(activeOrg.id),
+        })
+      notifySuccess('Link removed')
+    },
+    onError: (error) => notifyError(error, 'Unable to remove link'),
   })
 
   const createDisabled = !newName.trim() || !newId.trim()
@@ -211,16 +191,6 @@ export function OrganisationsPanel() {
         id: 'shortName',
         header: 'Short name',
         cell: ({ row }) => <Code>{row.original.id}</Code>,
-      },
-      {
-        id: 'members',
-        header: 'Members',
-        cell: () => <Text ff="monospace">-</Text>,
-      },
-      {
-        id: 'cases',
-        header: 'Cases',
-        cell: () => <Text ff="monospace">-</Text>,
       },
       {
         id: 'created',
@@ -280,15 +250,16 @@ export function OrganisationsPanel() {
                 onChange={(event) => {
                   const value = event.currentTarget.value
                   setNewName(value)
-                  setNewId(toOrgShortName(value))
+                  if (!idEdited) setNewId(toOrgShortName(value))
                 }}
               />
               <TextInput
                 label="New Organisation ID"
                 value={newId}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setIdEdited(true)
                   setNewId(toOrgShortName(event.currentTarget.value))
-                }
+                }}
                 styles={{ input: { fontFamily: 'monospace' } }}
               />
               <Textarea
@@ -404,7 +375,9 @@ export function OrganisationsPanel() {
           <TextInput
             label="Organisation name"
             value={deleteConfirmName}
-            onChange={(event) => setDeleteConfirmName(event.currentTarget.value)}
+            onChange={(event) =>
+              setDeleteConfirmName(event.currentTarget.value)
+            }
           />
           <Group justify="flex-end">
             <Button
@@ -480,7 +453,18 @@ export function OrganisationsPanel() {
                 size="xs"
                 variant="default"
                 color="red"
-                onClick={() => linkDeleteMutation.mutate(link.to_org_id)}
+                loading={
+                  linkDeleteMutation.isPending &&
+                  linkDeleteMutation.variables === link.to_org_id
+                }
+                onClick={() =>
+                  confirmDelete({
+                    title: 'Remove link',
+                    message: `Remove the sharing link to ${link.to_org_id}?`,
+                    confirmLabel: 'Remove',
+                    onConfirm: () => linkDeleteMutation.mutate(link.to_org_id),
+                  })
+                }
               >
                 Remove
               </Button>

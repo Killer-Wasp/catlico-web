@@ -7,7 +7,6 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -23,9 +22,17 @@ import {
 } from '#/components/pages/settings/settingsQueries'
 import {
   compactDate,
+  confirmDelete,
+  copyToClipboard,
+  ErrorPanel,
   LoadingPanel,
+  notify,
+  notifyError,
+  notifySuccess,
   Panel,
 } from '#/components/pages/settings/settingsUi'
+
+const apiKeysKeyPrefix = [...settingsKeys.all, 'api-keys']
 
 export function ApiKeysPanel() {
   const queryClient = useQueryClient()
@@ -43,34 +50,21 @@ export function ApiKeysPanel() {
   const createMutation = useMutation({
     mutationFn: () => createApiKey({ name: newName }),
     onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+      queryClient.invalidateQueries({ queryKey: apiKeysKeyPrefix })
       setNewKey(created.key)
       setNewName('')
-      notifications.show({
-        color: 'green',
-        message: 'API key generated - save it now',
-      })
+      notifySuccess('API key generated - save it now')
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Failed to create API key',
-      }),
+    onError: (error) => notifyError(error, 'Failed to create API key'),
   })
 
   const revokeMutation = useMutation({
     mutationFn: (id: string) => revokeApiKey(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ message: 'API key revoked' })
+      queryClient.invalidateQueries({ queryKey: apiKeysKeyPrefix })
+      notifySuccess('API key revoked')
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Failed to revoke API key',
-      }),
+    onError: (error) => notifyError(error, 'Failed to revoke API key'),
   })
 
   const columns = useMemo<ColumnDef<ApiKeyPublic>[]>(
@@ -111,11 +105,19 @@ export function ApiKeysPanel() {
           <Button
             size="xs"
             variant="default"
+            color="red"
             loading={
               revokeMutation.isPending &&
               revokeMutation.variables === row.original.id
             }
-            onClick={() => revokeMutation.mutate(row.original.id)}
+            onClick={() =>
+              confirmDelete({
+                title: 'Revoke API key',
+                message: `Revoke "${row.original.name}"? Any integration using it will stop working immediately.`,
+                confirmLabel: 'Revoke',
+                onConfirm: () => revokeMutation.mutate(row.original.id),
+              })
+            }
           >
             Revoke
           </Button>
@@ -129,18 +131,11 @@ export function ApiKeysPanel() {
 
   if (isError) {
     return (
-      <Panel title="API keys">
-        <Stack align="center" p="xl">
-          <Text c="red.7">Couldn't load API keys.</Text>
-          <Button
-            variant="default"
-            loading={isFetching}
-            onClick={() => refetch()}
-          >
-            Retry
-          </Button>
-        </Stack>
-      </Panel>
+      <ErrorPanel
+        label="Couldn't load API keys."
+        onRetry={() => refetch()}
+        retrying={isFetching}
+      />
     )
   }
 
@@ -181,15 +176,19 @@ export function ApiKeysPanel() {
             <TextInput
               label="API key"
               value={newKey}
-              disabled
+              readOnly
+              onFocus={(e) => e.currentTarget.select()}
               styles={{ input: { fontFamily: 'monospace' } }}
               rightSection={
                 <ActionIcon
                   variant="subtle"
                   aria-label="Copy API key"
                   onClick={() => {
-                    void navigator.clipboard.writeText(newKey)
-                    notifications.show({ message: 'API key copied' })
+                    void copyToClipboard(newKey).then((ok) =>
+                      ok
+                        ? notifySuccess('API key copied')
+                        : notify('Press Ctrl/Cmd+C to copy the selected key'),
+                    )
                   }}
                 >
                   <Copy size={16} />

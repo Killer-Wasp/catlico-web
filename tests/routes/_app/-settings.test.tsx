@@ -59,7 +59,7 @@ const orgDto = {
 const roleDto = {
   id: 'role-analyst',
   name: 'analyst',
-  permissions: ['read:case', 'write:case', 'read:custom_field'],
+  permissions: ['read:investigation', 'write:investigation', 'read:intel'],
   created_at: '2026-06-12T09:12:00Z',
 }
 
@@ -307,7 +307,7 @@ describe('SettingsPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Profiles & permissions' }))
     expect(await screen.findByRole('button', { name: 'analyst' })).toBeDefined()
-    expect(screen.getByText(/3 effective permissions/i)).toBeDefined()
+    expect(screen.getByText(/3 granted permissions/i)).toBeDefined()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Custom fields' }))
     expect(await screen.findByText('Backend case reference')).toBeDefined()
@@ -382,7 +382,7 @@ describe('SettingsPage', () => {
     )
   })
 
-  test('shows the generated API key once in a disabled input with copy action', async () => {
+  test('shows the generated API key once in a read-only input with copy action', async () => {
     render(<Harness />)
 
     fireEvent.click(await screen.findByRole('tab', { name: 'API keys' }))
@@ -394,7 +394,8 @@ describe('SettingsPage', () => {
 
     const modal = await screen.findByRole('dialog', { name: /api key created/i })
     const keyInput = within(modal).getByDisplayValue('catlico_live_secret_1234')
-    expect((keyInput as HTMLInputElement).disabled).toBe(true)
+    // Read-only (not disabled) so the one-time secret stays selectable/copyable.
+    expect((keyInput as HTMLInputElement).readOnly).toBe(true)
     expect(within(modal).getByRole('button', { name: /copy api key/i })).toBeDefined()
   })
 

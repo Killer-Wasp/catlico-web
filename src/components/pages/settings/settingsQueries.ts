@@ -1,9 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
-import {
-  getActiveOrgId,
-  getSessionOrganisationIds,
-} from '#/lib/auth/session'
+import { getActiveOrgId, getSessionOrganisationIds } from '#/lib/auth/session'
 
 type Page<T> = { items: T[]; total: number; skip: number; limit: number }
 
@@ -145,7 +142,10 @@ export async function fetchOrganisationProfile(
 
 export async function updateOrganisationProfile(
   patch: Partial<
-    Pick<OrganisationPublic, 'name' | 'description' | 'timezone' | 'default_tlp'>
+    Pick<
+      OrganisationPublic,
+      'name' | 'description' | 'timezone' | 'default_tlp'
+    >
   >,
   orgId = activeOrgId(),
 ): Promise<OrganisationPublic> {
@@ -246,9 +246,7 @@ export async function removeOrganisationMember(
   await api.delete(`organisations/${orgId}/members/${userId}`)
 }
 
-export async function createRole(
-  input: RoleCreateInput,
-): Promise<RolePublic> {
+export async function createRole(input: RoleCreateInput): Promise<RolePublic> {
   return api.post('roles/', { json: input }).json<RolePublic>()
 }
 
@@ -257,6 +255,10 @@ export async function updateRole(
   input: RoleUpdateInput,
 ): Promise<RolePublic> {
   return api.patch(`roles/${roleId}`, { json: input }).json<RolePublic>()
+}
+
+export async function deleteRole(roleId: string): Promise<void> {
+  await api.delete(`roles/${roleId}`)
 }
 
 export type AuditPublic = {
@@ -319,9 +321,7 @@ export const accessibleOrganisationsQueryOptions = () =>
 // Defensive default: read the active org without throwing so a component that
 // renders before an org is selected simply gets a disabled (empty) query rather
 // than crashing. Mutations still use `activeOrgId()` and throw when it's absent.
-export const organisationMembersQueryOptions = (
-  orgId = getActiveOrgId(),
-) =>
+export const organisationMembersQueryOptions = (orgId = getActiveOrgId()) =>
   queryOptions({
     queryKey: settingsKeys.members(orgId ?? ''),
     queryFn: () => fetchOrganisationMembers(orgId ?? ''),
@@ -366,7 +366,8 @@ export async function createObservableType(
 }
 
 export async function deleteObservableType(name: string): Promise<void> {
-  await api.delete(`observable-types/${name}`)
+  // The name is the path id and may contain characters that need escaping.
+  await api.delete(`observable-types/${encodeURIComponent(name)}`)
 }
 
 export const observableTypesQueryOptions = () =>
@@ -384,9 +385,7 @@ export type TagPublic = {
   tag: string
 }
 
-export async function fetchTags(
-  namespace?: string,
-): Promise<TagPublic[]> {
+export async function fetchTags(namespace?: string): Promise<TagPublic[]> {
   const searchParams = namespace ? { namespace } : undefined
   return api.get('tags/', { searchParams }).json<TagPublic[]>()
 }
@@ -592,7 +591,10 @@ export type NotificationRulePublic = {
 }
 
 export type NotificationRuleUpdateInput = Partial<
-  Pick<NotificationRulePublic, 'name' | 'description' | 'event' | 'enabled' | 'notifier_ids'>
+  Pick<
+    NotificationRulePublic,
+    'name' | 'description' | 'event' | 'enabled' | 'notifier_ids'
+  >
 >
 
 export async function fetchNotificationRules(): Promise<
