@@ -3,7 +3,6 @@ import {
   Anchor,
   Button,
   Center,
-  Divider,
   Group,
   Image,
   Paper,
@@ -13,7 +12,6 @@ import {
   TextInput,
 } from '@mantine/core'
 import { useNavigate } from '@tanstack/react-router'
-import { Grid2X2 } from 'lucide-react'
 import { useState } from 'react'
 import { isHTTPError } from 'ky'
 import { login } from '#/lib/auth/session'
@@ -82,39 +80,6 @@ export function LoginPage({ returnUrl = '/' }: { returnUrl?: string }) {
               Catlico
             </Text>
           </Group>
-
-          <Button
-            type="button"
-            variant="default"
-            size="lg"
-            radius="md"
-            fullWidth
-            leftSection={<Grid2X2 size={20} strokeWidth={2.2} />}
-            styles={{
-              root: {
-                height: 56,
-                borderColor: '#dce2ea',
-                backgroundColor: '#f0f3f8',
-              },
-              label: { fontSize: 17, fontWeight: 700 },
-            }}
-          >
-            Continue with Entra ID SSO
-          </Button>
-
-          <Divider
-            label="OR LOCAL ACCOUNT"
-            labelPosition="center"
-            styles={{
-              label: {
-                color: '#98a2b3',
-                fontFamily: 'monospace',
-                fontSize: 13,
-                fontWeight: 700,
-                letterSpacing: 1.2,
-              },
-            }}
-          />
 
           <Stack
             component="form"
@@ -201,16 +166,17 @@ export function LoginPage({ returnUrl = '/' }: { returnUrl?: string }) {
             >
               Sign in
             </Button>
-          </Stack>
 
-          <Group justify="space-between" mt={-4}>
-            <Anchor href="#" c="gray.7" fw={600} underline="never">
-              Forgot password
+            <Anchor
+              href="/forgot-password"
+              c="gray.7"
+              fw={600}
+              ta="center"
+              underline="never"
+            >
+              Forgot password?
             </Anchor>
-            <Anchor href="#" c="gray.7" fw={600} underline="never">
-              Request access
-            </Anchor>
-          </Group>
+          </Stack>
         </Stack>
       </Paper>
     </Center>
