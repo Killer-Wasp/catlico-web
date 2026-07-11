@@ -4,22 +4,22 @@ import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { Navbar } from '#/components/Navbar/Navbar'
 import { Header } from '#/components/Header/Header'
 import { SearchPalette } from '#/components/Search/SearchPalette'
-import { isAuthenticated } from '#/lib/auth/session'
+import { ensureSession } from '#/lib/auth/session'
 import { sanitizeReturnUrl } from '#/lib/auth/redirects'
 
 // Pathless layout route. Everything nested under `_app` is rendered
 // inside this shell. Routes that should be exempt (e.g. /login) live
 // outside this folder and therefore skip the layout entirely.
 //
-// `ssr: false` renders the whole authed area on the client only. The auth
-// state lives in localStorage, which doesn't exist during SSR — so running the
-// guard (and the child loaders) on the client is what lets a hard refresh stay
-// logged in instead of bouncing to /login. The guard below therefore always
-// sees the real token.
+// `ssr: false` renders the whole authed area on the client only. The access
+// token lives in JS memory, which doesn't exist during SSR — so running the
+// guard (and the child loaders) on the client is what lets a hard refresh
+// stay logged in: `ensureSession` turns the httpOnly refresh cookie into a
+// fresh access token before anything renders.
 export const Route = createFileRoute('/_app')({
   ssr: false,
-  beforeLoad: ({ location }) => {
-    if (!isAuthenticated()) {
+  beforeLoad: async ({ location }) => {
+    if (!(await ensureSession())) {
       throw redirect({
         to: '/login',
         search: { returnUrl: sanitizeReturnUrl(location.href) },

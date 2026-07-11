@@ -14,6 +14,7 @@ import {
   updateOrganisationProfile,
 } from '#/components/pages/settings/settingsQueries'
 import { api } from '#/lib/api/client'
+import { clearSession, setAccessToken } from '#/lib/auth/session'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 vi.mock('#/lib/api/client', () => ({
@@ -37,8 +38,9 @@ function fakeAccessToken(payload: Record<string, unknown>) {
 }
 
 beforeEach(() => {
+  // Reset the in-memory access token between tests, then seed the active org.
+  clearSession()
   localStorage.setItem('catlico.orgId', 'origin-soc')
-  localStorage.removeItem('catlico.accessToken')
   vi.mocked(api.get).mockReset()
   vi.mocked(api.patch).mockReset()
   vi.mocked(api.post).mockReset()
@@ -86,8 +88,7 @@ describe('settings backend queries', () => {
   })
 
   test('loads accessible organisations from token memberships without listing every organisation', async () => {
-    localStorage.setItem(
-      'catlico.accessToken',
+    setAccessToken(
       fakeAccessToken({ organisations: ['origin-soc', 'partner-acme'] }),
     )
     vi.mocked(api.get).mockImplementation(

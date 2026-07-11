@@ -60,8 +60,8 @@ function decodeJwt(token: string): Record<string, unknown> | null {
 }
 
 /** The `organisations` claim from an access token (empty if absent). */
-function orgsFromToken(accessToken: string): string[] {
-  const orgs = decodeJwt(accessToken)?.organisations
+function orgsFromToken(token: string): string[] {
+  const orgs = decodeJwt(token)?.organisations
   return Array.isArray(orgs) ? (orgs as string[]) : []
 }
 
