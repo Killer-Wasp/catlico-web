@@ -10,20 +10,21 @@ import {
   TextInput,
 } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import {
-  grantablePermissions,
-  permissionGroups,
-  permissionVerbs,
-} from '#/components/pages/settings/settingsData'
+import { useEffect, useMemo, useState } from 'react'
+import { usePermissions } from '#/lib/auth/usePermissions'
 import {
   createRole,
   deleteRole,
+  permissionCatalogQueryOptions,
   rolesQueryOptions,
   settingsKeys,
   updateRole,
 } from '#/components/pages/settings/settingsQueries'
-import type { RolePublic } from '#/components/pages/settings/settingsQueries'
+import type {
+  PermissionInfo,
+  PermissionKind,
+  RolePublic,
+} from '#/components/pages/settings/settingsQueries'
 import {
   confirmDelete,
   ErrorPanel,
@@ -34,6 +35,30 @@ import {
   TableBox,
 } from '#/components/pages/settings/settingsUi'
 
+const KINDS: PermissionKind[] = ['read', 'write', 'run']
+
+type DomainRow = {
+  domain: string
+  // Permissions grouped by column. A column can hold more than one grant — e.g.
+  // the Automation domain has both `run:enrichment` and `run:function` under `run`.
+  cells: Record<PermissionKind, PermissionInfo[]>
+}
+
+// Group the flat backend catalog into matrix rows, preserving its domain order
+// (Investigation, Intel, Automation, Organisation, Access).
+function groupByDomain(catalog: PermissionInfo[]): DomainRow[] {
+  const order: string[] = []
+  const byDomain = new Map<string, DomainRow['cells']>()
+  for (const info of catalog) {
+    if (!byDomain.has(info.domain)) {
+      byDomain.set(info.domain, { read: [], write: [], run: [] })
+      order.push(info.domain)
+    }
+    byDomain.get(info.domain)![info.kind].push(info)
+  }
+  return order.map((domain) => ({ domain, cells: byDomain.get(domain)! }))
+}
+
 // True when the granted set matches the role's stored permissions (order-independent).
 function samePermissions(granted: Set<string>, stored: string[]): boolean {
   if (granted.size !== stored.length) return false
@@ -43,9 +68,11 @@ function samePermissions(granted: Set<string>, stored: string[]): boolean {
 function NewProfileModal({
   opened,
   onClose,
+  catalog,
 }: {
   opened: boolean
   onClose: () => void
+  catalog: PermissionInfo[]
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
@@ -55,7 +82,9 @@ function NewProfileModal({
       // Start new profiles as read-only; admins grant more from the grid.
       createRole({
         name: name.trim(),
-        permissions: grantablePermissions.filter((p) => p.startsWith('read:')),
+        permissions: catalog
+          .filter((info) => info.kind === 'read')
+          .map((info) => info.key),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.roles() })
@@ -102,9 +131,17 @@ export function ProfilesPanel() {
     refetch,
     isFetching,
   } = useQuery(rolesQueryOptions())
+  const { data: catalog = [], isPending: catalogPending } = useQuery(
+    permissionCatalogQueryOptions(),
+  )
+  const { can } = usePermissions()
+  const canEdit = can('write:role')
+
   const [profile, setProfile] = useState('')
   const [checkState, setCheckState] = useState<Set<string>>(new Set())
   const [newProfileOpen, setNewProfileOpen] = useState(false)
+
+  const domains = useMemo(() => groupByDomain(catalog), [catalog])
 
   useEffect(() => {
     if (profile || roles.length === 0) return
@@ -141,7 +178,7 @@ export function ProfilesPanel() {
     onError: (error) => notifyError(error, 'Unable to delete profile'),
   })
 
-  if (isPending && roles.length === 0) {
+  if ((isPending || catalogPending) && roles.length === 0) {
     return <LoadingPanel label="Loading profiles..." />
   }
 
@@ -161,13 +198,16 @@ export function ProfilesPanel() {
         <NewProfileModal
           opened={newProfileOpen}
           onClose={() => setNewProfileOpen(false)}
+          catalog={catalog}
         />
         <Panel
           title="Profiles"
           action={
-            <Button variant="default" onClick={() => setNewProfileOpen(true)}>
-              + New profile
-            </Button>
+            canEdit ? (
+              <Button variant="default" onClick={() => setNewProfileOpen(true)}>
+                + New profile
+              </Button>
+            ) : undefined
           }
         >
           <Box p={18}>
@@ -180,19 +220,31 @@ export function ProfilesPanel() {
 
   const dirty = !samePermissions(checkState, activeProfile.permissions)
 
+  const toggle = (key: string, checked: boolean) => {
+    setCheckState((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
+
   return (
     <>
       <NewProfileModal
         opened={newProfileOpen}
         onClose={() => setNewProfileOpen(false)}
+        catalog={catalog}
       />
       <Panel
         title="Profiles"
         count={roles.length}
         action={
-          <Button variant="default" onClick={() => setNewProfileOpen(true)}>
-            + New profile
-          </Button>
+          canEdit ? (
+            <Button variant="default" onClick={() => setNewProfileOpen(true)}>
+              + New profile
+            </Button>
+          ) : undefined
         }
       >
         <Box p={18}>
@@ -210,57 +262,54 @@ export function ProfilesPanel() {
             ))}
           </Group>
           <Text ff="monospace" fz={11} c="var(--faint)" mb="sm">
-            backend role - {checkState.size} granted permission
-            {checkState.size === 1 ? '' : 's'}
+            {checkState.size} permission{checkState.size === 1 ? '' : 's'}{' '}
+            granted
+            {canEdit ? '' : ' - read only (admin required to edit)'}
           </Text>
           <TableBox>
             <Table verticalSpacing={6}>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Domain</Table.Th>
-                  {permissionVerbs.map((verb) => (
-                    <Table.Th key={verb} ta="center">
-                      {verb}
+                  {KINDS.map((kind) => (
+                    <Table.Th key={kind} ta="center">
+                      {kind}
                     </Table.Th>
                   ))}
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {permissionGroups.map((group) => (
-                  <Table.Tr key={group.domain}>
-                    <Table.Td>
-                      <Text ff="monospace" fw={700}>
-                        {group.domain}
-                      </Text>
-                      <Text fz={11} c="var(--faint)">
-                        {group.description}
-                      </Text>
+                {domains.map(({ domain, cells }) => (
+                  <Table.Tr key={domain}>
+                    <Table.Td ff="monospace" fw={700}>
+                      {domain}
                     </Table.Td>
-                    {permissionVerbs.map((verb) => {
-                      const cell = group.cells.find((c) => c.verb === verb)
-                      if (!cell) {
-                        return (
-                          <Table.Td key={`${group.domain}-${verb}`} ta="center">
-                            <Text c="var(--faint)">.</Text>
-                          </Table.Td>
-                        )
-                      }
-                      const isChecked = checkState.has(cell.permission)
+                    {KINDS.map((kind) => {
+                      const infos = cells[kind]
                       return (
-                        <Table.Td key={`${group.domain}-${verb}`} ta="center">
-                          <Checkbox
-                            checked={isChecked}
-                            onChange={(e) => {
-                              const { checked } = e.currentTarget
-                              setCheckState((prev) => {
-                                const next = new Set(prev)
-                                if (checked) next.add(cell.permission)
-                                else next.delete(cell.permission)
-                                return next
-                              })
-                            }}
-                            aria-label={`${activeProfile.name} ${cell.permission}`}
-                          />
+                        <Table.Td key={`${domain}-${kind}`} ta="center">
+                          {infos.length === 0 ? (
+                            <Text c="var(--faint)">.</Text>
+                          ) : (
+                            <Stack gap={2} align="center">
+                              {infos.map((info) => (
+                                <Checkbox
+                                  key={info.key}
+                                  checked={checkState.has(info.key)}
+                                  disabled={!canEdit}
+                                  // Only label per-checkbox when a column holds
+                                  // more than one grant (e.g. Automation/run).
+                                  label={
+                                    infos.length > 1 ? info.label : undefined
+                                  }
+                                  onChange={(e) =>
+                                    toggle(info.key, e.currentTarget.checked)
+                                  }
+                                  aria-label={info.label}
+                                />
+                              ))}
+                            </Stack>
+                          )}
                         </Table.Td>
                       )
                     })}
@@ -269,31 +318,33 @@ export function ProfilesPanel() {
               </Table.Tbody>
             </Table>
           </TableBox>
-          <Group justify="flex-end" mt="md">
-            <Button
-              variant="subtle"
-              color="red"
-              mr="auto"
-              loading={deleteMutation.isPending}
-              onClick={() =>
-                confirmDelete({
-                  title: 'Delete profile',
-                  message: `Delete the "${activeProfile.name}" profile? Members assigned to it will need a new role.`,
-                  onConfirm: () => deleteMutation.mutate(activeProfile.id),
-                })
-              }
-            >
-              Delete profile
-            </Button>
-            <Button
-              color="orange"
-              loading={saveMutation.isPending}
-              disabled={!dirty}
-              onClick={() => saveMutation.mutate()}
-            >
-              Save profile
-            </Button>
-          </Group>
+          {canEdit && (
+            <Group justify="flex-end" mt="md">
+              <Button
+                variant="subtle"
+                color="red"
+                mr="auto"
+                loading={deleteMutation.isPending}
+                onClick={() =>
+                  confirmDelete({
+                    title: 'Delete profile',
+                    message: `Delete the "${activeProfile.name}" profile? Members assigned to it will need a new role.`,
+                    onConfirm: () => deleteMutation.mutate(activeProfile.id),
+                  })
+                }
+              >
+                Delete profile
+              </Button>
+              <Button
+                color="orange"
+                loading={saveMutation.isPending}
+                disabled={!dirty}
+                onClick={() => saveMutation.mutate()}
+              >
+                Save profile
+              </Button>
+            </Group>
+          )}
         </Box>
       </Panel>
     </>

@@ -181,6 +181,39 @@ beforeEach(() => {
         },
       ],
       'roles/': [roleDto],
+      'users/me': {
+        id: 'user-1',
+        email: 'admin@example.test',
+        first_name: 'Admin',
+        last_name: 'User',
+        is_active: true,
+        is_superadmin: true,
+        has_avatar: false,
+        created_at: '2026-06-12T09:12:00Z',
+        last_login_at: null,
+      },
+      'users/me/permissions': {
+        is_superadmin: true,
+        organisation_id: 'origin-soc',
+        permissions: [],
+        groups: [],
+      },
+      'permissions/': [
+        {
+          key: 'read:investigation',
+          domain: 'Investigation',
+          kind: 'read',
+          label: 'View investigations',
+          description: '',
+        },
+        {
+          key: 'write:investigation',
+          domain: 'Investigation',
+          kind: 'write',
+          label: 'Edit investigations',
+          description: '',
+        },
+      ],
       'custom-fields/': {
         items: [
           {
@@ -307,7 +340,7 @@ describe('SettingsPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Profiles & permissions' }))
     expect(await screen.findByRole('button', { name: 'analyst' })).toBeDefined()
-    expect(screen.getByText(/3 granted permissions/i)).toBeDefined()
+    expect(screen.getByText(/3 permissions granted/i)).toBeDefined()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Custom fields' }))
     expect(await screen.findByText('Backend case reference')).toBeDefined()
@@ -386,17 +419,23 @@ describe('SettingsPage', () => {
     render(<Harness />)
 
     fireEvent.click(await screen.findByRole('tab', { name: 'API keys' }))
-    fireEvent.click(await screen.findByRole('button', { name: '+ Generate key' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: '+ Generate key' }),
+    )
     fireEvent.change(await screen.findByLabelText('Key name'), {
       target: { value: 'splunk-forwarder' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
 
-    const modal = await screen.findByRole('dialog', { name: /api key created/i })
+    const modal = await screen.findByRole('dialog', {
+      name: /api key created/i,
+    })
     const keyInput = within(modal).getByDisplayValue('catlico_live_secret_1234')
     // Read-only (not disabled) so the one-time secret stays selectable/copyable.
     expect((keyInput as HTMLInputElement).readOnly).toBe(true)
-    expect(within(modal).getByRole('button', { name: /copy api key/i })).toBeDefined()
+    expect(
+      within(modal).getByRole('button', { name: /copy api key/i }),
+    ).toBeDefined()
   })
 
   test('shows an add SLA policy action when no policies exist', async () => {

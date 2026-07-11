@@ -214,10 +214,15 @@ describe('case detail data helpers', () => {
       who: 'P. Nguyen',
       kind: 'comment',
     })
+    // Audit rows now carry the structured action/objectType the timeline uses to
+    // render its verb phrase ("Update case"); `text` holds only a detail label
+    // (title/name) when the backend provides one, else it's empty.
     expect(timeline[1]).toMatchObject({
-      text: '**update** case 1842',
+      text: '',
       who: 'J. Tanaka',
       kind: 'audit',
+      action: 'update',
+      objectType: 'case',
     })
   })
 })

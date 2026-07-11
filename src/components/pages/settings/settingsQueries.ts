@@ -28,9 +28,20 @@ export type OrganisationMemberPublic = {
 
 export type RolePublic = {
   id: string
+  organisation_id: string
   name: string
   permissions: string[]
   created_at: string
+}
+
+export type PermissionKind = 'read' | 'write' | 'run'
+
+export type PermissionInfo = {
+  key: string
+  domain: string
+  kind: PermissionKind
+  label: string
+  description: string
 }
 
 export type CustomFieldPublic = {
@@ -187,6 +198,17 @@ export async function fetchOrganisationMembers(
 export async function fetchRoles(): Promise<RolePublic[]> {
   return api.get('roles/').json<RolePublic[]>()
 }
+
+export async function fetchPermissionCatalog(): Promise<PermissionInfo[]> {
+  return api.get('permissions/').json<PermissionInfo[]>()
+}
+
+export const permissionCatalogQueryOptions = () =>
+  queryOptions({
+    queryKey: [...settingsKeys.all, 'permission-catalog'] as const,
+    queryFn: fetchPermissionCatalog,
+    staleTime: Infinity,
+  })
 
 export async function fetchCustomFields(
   filters: SettingsListFilters = DEFAULT_SETTINGS_FILTERS,

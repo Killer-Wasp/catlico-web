@@ -21,6 +21,20 @@ import {
 } from './settings/settingsData'
 import type { SettingsSection } from './settings/settingsData'
 import { useStamp } from './settings/settingsUi'
+import { usePermissions } from '#/lib/auth/usePermissions'
+
+// Read capability required to see a section in the nav. Sections not listed are
+// always shown (every built-in role can view them). Server-side enforcement still
+// applies regardless — this only trims the nav.
+const SECTION_READ_PERMISSION: Partial<Record<SettingsSection, string>> = {
+  'Users & roles': 'read:user',
+  'Profiles & permissions': 'read:role',
+  'Custom fields': 'read:custom_field',
+  Notifications: 'read:organisation',
+  'SLA policies': 'read:organisation',
+  'API keys': 'write:organisation',
+  Integrations: 'read:organisation',
+}
 
 function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'My account') return <MyAccountPanel />
@@ -53,6 +67,16 @@ export function SettingsLayout() {
     (section && slugToSection(section)) || 'Organisation'
   const navigate = useNavigate()
   const stamp = useStamp()
+  const { can, isSuperadmin, isLoaded } = usePermissions()
+
+  // Until effective permissions load, show every section (avoids a flash of an
+  // empty nav for admins). Once known, hide sections the user can't read.
+  const visibleSections = settingsSections.filter((s) => {
+    if (!isLoaded) return true
+    if (s === 'Audit log') return isSuperadmin
+    const needed = SECTION_READ_PERMISSION[s]
+    return needed ? can(needed) : true
+  })
 
   return (
     <ModalsProvider>
@@ -84,7 +108,7 @@ export function SettingsLayout() {
             style={{ position: 'sticky', top: 84, alignSelf: 'flex-start' }}
           >
             <Tabs.List>
-              {settingsSections.map((settingsSection) => (
+              {visibleSections.map((settingsSection) => (
                 <Tabs.Tab key={settingsSection} value={settingsSection}>
                   {settingsSection}
                 </Tabs.Tab>

@@ -263,18 +263,18 @@ function resolvedActor(
   return displayNameByUserId.get(actor) ?? actor
 }
 
-function auditText(event: AuditPublic) {
-  const label = auditLabel(event)
-  return `**${event.action}** ${event.object_type} ${label}`
-}
-
+/**
+ * The human-readable label for an audited object — its title/name when the audit
+ * captured one, otherwise nothing. We deliberately return `''` rather than the raw
+ * `object_id` so the timeline can show a clean "Created observable" instead of
+ * "Created observable 8f3a-…" for objects that carry no title (uuids, bare ids).
+ */
 function auditLabel(event: AuditPublic): string {
-  // ponytail: extract human label from details when available; fall back to raw id
   const title = event.details?.title
   if (title && typeof title === 'string') return title
   const name = event.details?.name
   if (name && typeof name === 'string') return name
-  return event.object_id
+  return ''
 }
 
 function timelineLink(event: AuditPublic, caseId: number): string | undefined {
@@ -357,15 +357,22 @@ export function toCaseDetailTimeline(
 ): CaseDetailTimelineEvent[] {
   const displayNameByUserId = memberDisplayNameById(members)
   return [
-    ...activity.map((event) => ({
-      when: compactTime(event.created_at),
-      text: auditText(event),
-      who: resolvedActor(event.actor, displayNameByUserId),
-      tone: event.action === 'delete' ? ('warn' as const) : undefined,
-      kind: 'audit' as const,
-      createdAt: event.created_at,
-      link: timelineLink(event, caseNumericId),
-    })),
+    ...activity
+      // Comment audit rows are redundant with the comment bodies merged in
+      // below (which show the actual message), so drop them to avoid two
+      // timeline entries per comment.
+      .filter((event) => event.object_type !== 'comment')
+      .map((event) => ({
+        when: compactTime(event.created_at),
+        text: auditLabel(event),
+        who: resolvedActor(event.actor, displayNameByUserId),
+        tone: event.action === 'delete' ? ('warn' as const) : undefined,
+        kind: 'audit' as const,
+        createdAt: event.created_at,
+        link: timelineLink(event, caseNumericId),
+        action: event.action,
+        objectType: event.object_type,
+      })),
     ...comments.map((comment) => ({
       when: compactTime(comment.created_at),
       text: comment.message,

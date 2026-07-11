@@ -18,6 +18,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { EllipsisVertical, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { currentUserQueryOptions } from '#/lib/auth/userQueries'
+import { usePermissions } from '#/lib/auth/usePermissions'
 import { DataTable } from '#/components/Table/DataTable'
 import {
   createOrganisationMember,
@@ -210,6 +211,8 @@ export function UsersPanel() {
   )
   const { data: roles = [] } = useQuery(rolesQueryOptions())
   const { data: currentUser } = useQuery(currentUserQueryOptions())
+  const { can } = usePermissions()
+  const canManage = can('write:user')
   const roleById = useMemo(
     () => new Map(roles.map((role) => [role.id, role.name])),
     [roles],
@@ -274,6 +277,7 @@ export function UsersPanel() {
         header: '',
         meta: { ta: 'right' },
         cell: ({ row }) => {
+          if (!canManage) return null
           const isSelf = row.original.user_id === currentUser?.id
           return (
             <Menu position="bottom-end" withinPortal withArrow shadow="md">
@@ -307,7 +311,7 @@ export function UsersPanel() {
         },
       },
     ],
-    [roleById, currentUser?.id],
+    [roleById, canManage, currentUser?.id],
   )
 
   if (isPending) return <LoadingPanel label="Loading members..." />
@@ -329,9 +333,11 @@ export function UsersPanel() {
         title="Members"
         count={members.length}
         action={
-          <Button variant="default" onClick={() => setInviteOpen(true)}>
-            Add User
-          </Button>
+          canManage ? (
+            <Button variant="default" onClick={() => setInviteOpen(true)}>
+              Add User
+            </Button>
+          ) : undefined
         }
       >
         <MembersTable columns={columns} members={members} />

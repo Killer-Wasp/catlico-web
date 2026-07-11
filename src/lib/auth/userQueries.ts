@@ -33,6 +33,31 @@ export const currentUserQueryOptions = () =>
   })
 
 /**
+ * The caller's effective (fine-grained) permissions in the active org, for
+ * client-side gating only. The backend enforces on every route regardless; this
+ * merely hides actions the user can't perform (GET /users/me/permissions).
+ */
+export type MyPermissions = {
+  is_superadmin: boolean
+  organisation_id: string
+  // Effective fine-grained capabilities, for hiding actions.
+  permissions: string[]
+  // Raw grantable groups the caller holds, for bounding the scope/role pickers.
+  groups: string[]
+}
+
+export async function fetchMyPermissions(): Promise<MyPermissions> {
+  return api.get('users/me/permissions').json<MyPermissions>()
+}
+
+export const myPermissionsQueryOptions = () =>
+  queryOptions({
+    queryKey: [...currentUserKeys.me, 'permissions'] as const,
+    queryFn: fetchMyPermissions,
+    retry: false,
+  })
+
+/**
  * Fields of your own profile you can change. Names are editable freely; the
  * backend only requires `current_password` when `email` or `new_password` is
  * present (see PATCH /users/me).

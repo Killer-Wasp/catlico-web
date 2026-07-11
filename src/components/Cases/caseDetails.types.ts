@@ -97,6 +97,10 @@ export type CaseDetailTimelineEvent = {
   kind: 'audit' | 'comment'
   createdAt: string
   link?: string
+  /** Audit action (e.g. `create` / `update` / `delete`); absent on comments. */
+  action?: string
+  /** Audit object type (e.g. `task` / `observable` / `alert`); absent on comments. */
+  objectType?: string
 }
 
 export type CaseDetail = {
