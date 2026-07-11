@@ -112,6 +112,29 @@ export async function login(email: string, password: string): Promise<void> {
   localStorage.setItem(ORG_KEY, orgId)
 }
 
+/**
+ * Request a password reset email. Unauthenticated; resolves regardless of
+ * whether the email is registered (the API always returns the same response),
+ * so callers must not infer account existence from success.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await api.post('auth/password/forgot', { json: { email } })
+}
+
+/**
+ * Complete a password reset with a token from the emailed link. Unauthenticated;
+ * throws HTTPError 400 on an invalid/expired token or a password that fails the
+ * server's policy.
+ */
+export async function resetPassword(
+  token: string,
+  newPassword: string,
+): Promise<void> {
+  await api.post('auth/password/reset', {
+    json: { token, new_password: newPassword },
+  })
+}
+
 export function logout(): void {
   clearSession()
 }

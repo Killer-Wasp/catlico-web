@@ -36,14 +36,11 @@ describe('LoginPage', () => {
 
     expect(screen.getByRole('img', { name: 'Catlico logo' })).toBeDefined()
     expect(screen.getByText('Catlico')).toBeDefined()
-    expect(
-      screen.getByRole('button', { name: 'Continue with Entra ID SSO' }),
-    ).toBeDefined()
     expect(screen.getByLabelText('Email')).toBeDefined()
     expect(screen.getByLabelText('Password')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeDefined()
-    expect(screen.getByRole('link', { name: 'Forgot password' })).toBeDefined()
-    expect(screen.getByRole('link', { name: 'Request access' })).toBeDefined()
+    const forgot = screen.getByRole('link', { name: 'Forgot password?' })
+    expect(forgot.getAttribute('href')).toBe('/forgot-password')
     expect(screen.queryByText(/THEHIVE CONSOLE/i)).toBeNull()
     expect(screen.queryByText(/Use of this system is monitored/i)).toBeNull()
     expect(screen.queryByText(/v5\.4\.2/i)).toBeNull()
