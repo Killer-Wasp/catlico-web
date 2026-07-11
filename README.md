@@ -1,201 +1,116 @@
-Welcome to your new TanStack Start app!
+# Catlico Web
 
-# Getting Started
+**The web interface for [Catlico](https://github.com/jimmyruann/catlico-backend) — an
+open-source security incident response platform.**
 
-To run this application:
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
+[![TanStack Start](https://img.shields.io/badge/TanStack-Start-EF4444.svg)](https://tanstack.com/start)
+[![Mantine v9](https://img.shields.io/badge/Mantine-v9-339AF0.svg?logo=mantine&logoColor=white)](https://mantine.dev/)
+
+A single-page app for security analysts: triage alerts, work cases, pivot on observables, and
+review the enrichment that plugins attach to them.
+
+## Features
+
+- **Case workspace** — tasks, logs, comments, attachments, custom fields, and MITRE ATT&CK
+  linkage, in a tabbed detail view
+- **Alert triage** — inbound alerts with promotion and merge into cases
+- **Observables** — typed IOCs with TLP handling and plugin enrichment results
+- **Filterable list views** — a shared table shell with tag-aware, clause-based filtering that
+  round-trips through the URL
+- **Knowledge base** — versioned pages with a rich-text editor
+- **Settings** — organisations, roles, API keys, SLAs, notifiers, plugins, and plugin runners
+- **Live updates** — WebSocket-driven notifications
+
+## Quick start
+
+Requires **Node.js 20+**, **[pnpm](https://pnpm.io/)**, and a running
+[catlico-api](https://github.com/jimmyruann/catlico-backend) on `:8000`.
 
 ```bash
+git clone https://github.com/jimmyruann/catlico-web.git
+cd catlico-web
+
 pnpm install
+cp .env.example .env
 pnpm dev
 ```
 
-# Building For Production
+Open **[localhost:3000](http://localhost:3000)**. The backend's seeded login is
+`admin@example.com` / `changeme`.
 
-To build this application for production:
+Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**.
 
-```bash
-pnpm build
+## Stack
+
+| Concern | Choice |
+|---|---|
+| Framework | [TanStack Start](https://tanstack.com/start) (React 19, Vite) |
+| Routing | [TanStack Router](https://tanstack.com/router), file-based |
+| Server state | [TanStack Query](https://tanstack.com/query) |
+| HTTP | [ky](https://github.com/sindresorhus/ky) |
+| UI | [Mantine v9](https://mantine.dev/) |
+| Styling | CSS modules + Mantine theme tokens |
+| Tests | [Vitest](https://vitest.dev/) + Testing Library |
+
+> Tailwind's Vite plugin is still installed but **unused** — leftover from the TanStack Start
+> scaffold. Mantine is the design system.
+
+## How it fits together
+
+```
+src/routes/            routing, auth guard, loaders  ─┐
+src/components/pages/  page components               ─┤ imports downward only
+src/components/<Domain>/  reusable domain modules    ─┤
+src/lib/               network seam, auth, contracts ─┘
 ```
 
-## Testing
+Data flows through four layers: `lib/api/client.ts` is the only place the network is touched;
+`<domain>Queries.ts` defines key factories and `queryOptions`; route loaders prefetch with
+`ensureQueryData`; pages read the same options with `useSuspenseQuery` and hit a warm cache.
 
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+Everything under `src/routes/_app/` sits behind the auth guard. That subtree is deliberately
+client-only (`ssr: false`) because auth state lives in `localStorage`.
 
-```bash
-pnpm test
-```
+See **[docs/architecture.md](docs/architecture.md)**.
 
-## Styling
+## Documentation
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+| Doc | What's in it |
+|---|---|
+| [Getting started](docs/getting-started.md) | Setup, commands, adding a page, troubleshooting |
+| [Architecture](docs/architecture.md) | Routing, auth, component organisation, shared backend contracts |
+| [Data fetching](docs/data-fetching.md) | The four-layer TanStack Query pattern |
 
-### Removing Tailwind CSS
+Contributors and AI agents: [`AGENTS.md`](AGENTS.md), plus per-directory notes in
+`src/routes/`, `src/lib/`, and `src/components/`.
 
-If you prefer not to use Tailwind CSS:
+## Two contracts shared with the backend
 
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `pnpm add @tailwindcss/vite tailwindcss --dev`
+These files mirror backend source and must change in lockstep:
 
-## Linting & Formatting
+- **`src/lib/domain.ts`** — the severity (`1–4`) and TLP/PAP (`0–3`) integer scales.
+- **`src/lib/filters.ts`** — the `filter=key~op~value` wire format. The backend silently drops
+  malformed terms, so a desync looks like "the filter did nothing," not an error.
 
-This project uses [eslint](https://eslint.org/) and [prettier](https://prettier.io/) for linting and formatting. Eslint is configured using [tanstack/eslint-config](https://tanstack.com/config/latest/docs/eslint). The following scripts are available:
+## Related repositories
 
-```bash
-pnpm lint
-pnpm format
-pnpm check
-```
+| Repo | Role |
+|---|---|
+| [catlico-backend](https://github.com/jimmyruann/catlico-backend) | The API. The only service with database credentials. |
+| [catlico-plugin-runner](https://github.com/Killer-Wasp/catlico-plugin-runner) | Sandboxes and executes plugins |
+| [catlico-plugin-sdk](https://github.com/Killer-Wasp/catlico-plugin-sdk) | The plugin authoring contract |
 
-## Routing
+The web app **never** talks to a plugin runner. It talks only to the API.
 
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
+## Contributing
 
-### Adding A Route
+Issues and pull requests welcome. Run `pnpm lint` and `pnpm test` before opening a PR.
 
-To add a new route to your application just add a new file in the `./src/routes` directory.
+Note that the test suite currently has **9 known pre-existing failures** (282 of 291 pass) in
+`tests/routes/_app/-alerts.test.tsx` and `tests/components/Observables/observablesQueries.test.ts`.
 
-TanStack will automatically generate the content of the route file for you.
+## License
 
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from '@tanstack/react-router'
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+[GNU Affero General Public License v3.0](LICENSE).

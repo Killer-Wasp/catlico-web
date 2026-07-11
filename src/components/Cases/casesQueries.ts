@@ -1,6 +1,6 @@
 /**
  * Data-fetching layer for Cases — follows the project's TanStack Query pattern
- * (see src/lib/api/README.md and alertsQueries.ts for the reference):
+ * (see docs/data-fetching.md and alertsQueries.ts for the reference):
  *
  *   1. a query-key factory  (`caseKeys`)
  *   2. fetchers + DTO mapping (`fetchCases`, `toCase`)

@@ -95,12 +95,12 @@ src/
 
 ### Issue tracker
 
-Issues and PRDs are tracked in GitHub Issues via the `gh` CLI; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+Issues and PRDs are tracked in GitHub Issues via the `gh` CLI; external PRs are not a triage surface. (`docs/agents/issue-tracker.md` is planned but not yet written.)
 
 ### Triage labels
 
-Five canonical triage roles map 1:1 to their label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+Five canonical triage roles map 1:1 to their label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). (`docs/agents/triage-labels.md` is planned but not yet written.)
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. (Neither exists yet; `docs/agents/domain.md` is planned but not yet written.)

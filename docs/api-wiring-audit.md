@@ -8,7 +8,7 @@ to the API and remove dead mock code.
 
 `catlico-web` (TanStack Start + TanStack Query + `ky`) is partway through being
 wired to the `catlico-api` backend. The documented pattern (see
-[src/lib/api/README.md](../src/lib/api/README.md)) is a 4-layer flow with
+[docs/data-fetching.md](data-fetching.md)) is a 4-layer flow with
 **Alerts as the reference implementation**:
 
 ```

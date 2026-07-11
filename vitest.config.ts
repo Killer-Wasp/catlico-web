@@ -1,13 +1,14 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
+// Resolve `#/*` relative to this file. A hardcoded absolute path here breaks
+// every checkout but the author's.
+const srcPath = fileURLToPath(new URL('./src', import.meta.url))
+
 export default defineConfig({
   resolve: {
     alias: {
-      // Resolve `#/…` to this worktree's own src (matches tsconfig `#/*` →
-      // `./src/*`). A hardcoded absolute path would make tests import a
-      // sibling checkout instead of this branch's source.
-      '#': fileURLToPath(new URL('./src', import.meta.url)),
+      '#': srcPath,
     },
   },
   test: {
