@@ -4,28 +4,41 @@ import {
   Checkbox,
   Group,
   Modal,
-  Select,
   Stack,
   Table,
   Text,
   TextInput,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { resources, verbs } from '#/components/pages/settings/settingsData'
+import {
+  grantablePermissions,
+  permissionGroups,
+  permissionVerbs,
+} from '#/components/pages/settings/settingsData'
 import {
   createRole,
+  deleteRole,
   rolesQueryOptions,
   settingsKeys,
   updateRole,
 } from '#/components/pages/settings/settingsQueries'
 import type { RolePublic } from '#/components/pages/settings/settingsQueries'
 import {
+  confirmDelete,
+  ErrorPanel,
   LoadingPanel,
+  notifyError,
+  notifySuccess,
   Panel,
   TableBox,
 } from '#/components/pages/settings/settingsUi'
+
+// True when the granted set matches the role's stored permissions (order-independent).
+function samePermissions(granted: Set<string>, stored: string[]): boolean {
+  if (granted.size !== stored.length) return false
+  return stored.every((permission) => granted.has(permission))
+}
 
 function NewProfileModal({
   opened,
@@ -38,24 +51,19 @@ function NewProfileModal({
   const [name, setName] = useState('')
 
   const mutation = useMutation({
-    mutationFn: () => {
-      const basePerms = resources
-        .filter(([, perms]) => (perms as readonly string[]).includes('read'))
-        .map(([resource]) => `read:${resource.toLowerCase().replace(/\s+/g, '-')}`)
-      return createRole({ name: name.trim(), permissions: basePerms })
-    },
+    mutationFn: () =>
+      // Start new profiles as read-only; admins grant more from the grid.
+      createRole({
+        name: name.trim(),
+        permissions: grantablePermissions.filter((p) => p.startsWith('read:')),
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ color: 'green', message: 'Profile created' })
+      queryClient.invalidateQueries({ queryKey: settingsKeys.roles() })
+      notifySuccess('Profile created')
       setName('')
       onClose()
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Unable to create profile',
-      }),
+    onError: (error) => notifyError(error, 'Unable to create profile'),
   })
 
   return (
@@ -87,19 +95,24 @@ function NewProfileModal({
 
 export function ProfilesPanel() {
   const queryClient = useQueryClient()
-  const { data: roles = [], isPending } = useQuery(rolesQueryOptions())
+  const {
+    data: roles = [],
+    isPending,
+    isError,
+    refetch,
+    isFetching,
+  } = useQuery(rolesQueryOptions())
   const [profile, setProfile] = useState('')
   const [checkState, setCheckState] = useState<Set<string>>(new Set())
   const [newProfileOpen, setNewProfileOpen] = useState(false)
 
-  const roleProfiles: RolePublic[] = roles
-
   useEffect(() => {
-    if (profile || roleProfiles.length === 0) return
-    setProfile(roleProfiles[0].id)
-  }, [profile, roleProfiles])
+    if (profile || roles.length === 0) return
+    setProfile(roles[0].id)
+  }, [profile, roles])
 
-  const activeProfile = roleProfiles.find((r) => r.id === profile) ?? roleProfiles.at(0)
+  const activeProfile: RolePublic | undefined =
+    roles.find((r) => r.id === profile) ?? roles.at(0)
 
   useEffect(() => {
     if (!activeProfile) return
@@ -112,33 +125,60 @@ export function ProfilesPanel() {
       return updateRole(activeProfile.id, { permissions: [...checkState] })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({
-        color: 'green',
-        message: `Profile "${activeProfile?.name ?? 'Profile'}" saved`,
-      })
+      queryClient.invalidateQueries({ queryKey: settingsKeys.roles() })
+      notifySuccess(`Profile "${activeProfile?.name ?? 'Profile'}" saved`)
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error ? error.message : 'Unable to save profile',
-      }),
+    onError: (error) => notifyError(error, 'Unable to save profile'),
   })
 
-  if (isPending && roleProfiles.length === 0) {
+  const deleteMutation = useMutation({
+    mutationFn: (roleId: string) => deleteRole(roleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.roles() })
+      notifySuccess('Profile deleted')
+      setProfile('')
+    },
+    onError: (error) => notifyError(error, 'Unable to delete profile'),
+  })
+
+  if (isPending && roles.length === 0) {
     return <LoadingPanel label="Loading profiles..." />
+  }
+
+  if (isError) {
+    return (
+      <ErrorPanel
+        label="Couldn't load profiles. You may not have permission to manage roles."
+        onRetry={() => refetch()}
+        retrying={isFetching}
+      />
+    )
   }
 
   if (!activeProfile) {
     return (
-      <Panel title="Profiles">
-        <Box p={18}>
-          <Text c="dimmed">No profiles configured.</Text>
-        </Box>
-      </Panel>
+      <>
+        <NewProfileModal
+          opened={newProfileOpen}
+          onClose={() => setNewProfileOpen(false)}
+        />
+        <Panel
+          title="Profiles"
+          action={
+            <Button variant="default" onClick={() => setNewProfileOpen(true)}>
+              + New profile
+            </Button>
+          }
+        >
+          <Box p={18}>
+            <Text c="dimmed">No profiles configured.</Text>
+          </Box>
+        </Panel>
+      </>
     )
   }
+
+  const dirty = !samePermissions(checkState, activeProfile.permissions)
 
   return (
     <>
@@ -148,19 +188,16 @@ export function ProfilesPanel() {
       />
       <Panel
         title="Profiles"
-        count={roleProfiles.length}
+        count={roles.length}
         action={
-          <Button
-            variant="default"
-            onClick={() => setNewProfileOpen(true)}
-          >
+          <Button variant="default" onClick={() => setNewProfileOpen(true)}>
             + New profile
           </Button>
         }
       >
         <Box p={18}>
           <Group gap={8} mb="md">
-            {roleProfiles.map((item) => (
+            {roles.map((item) => (
               <Button
                 key={item.id}
                 variant={item.id === profile ? 'light' : 'default'}
@@ -173,83 +210,85 @@ export function ProfilesPanel() {
             ))}
           </Group>
           <Text ff="monospace" fz={11} c="var(--faint)" mb="sm">
-            backend role - {activeProfile.permissions.length} effective
-            permissions
+            backend role - {checkState.size} granted permission
+            {checkState.size === 1 ? '' : 's'}
           </Text>
           <TableBox>
             <Table verticalSpacing={6}>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Resource</Table.Th>
-                  {verbs.map((verb) => (
+                  <Table.Th>Domain</Table.Th>
+                  {permissionVerbs.map((verb) => (
                     <Table.Th key={verb} ta="center">
                       {verb}
                     </Table.Th>
                   ))}
-                  <Table.Th>scope</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {resources.map(([resource, allowed]) => (
-                  <Table.Tr key={resource}>
-                    <Table.Td ff="monospace" fw={700}>
-                      {resource}
+                {permissionGroups.map((group) => (
+                  <Table.Tr key={group.domain}>
+                    <Table.Td>
+                      <Text ff="monospace" fw={700}>
+                        {group.domain}
+                      </Text>
+                      <Text fz={11} c="var(--faint)">
+                        {group.description}
+                      </Text>
                     </Table.Td>
-                    {verbs.map((verb) => {
-                      const permKey = `${verb}:${resource.toLowerCase().replace(/\s+/g, '-')}`
-                      const isRelevant = (allowed as readonly string[]).includes(verb)
-                      const isChecked = checkState.has(permKey)
-
-                      return (
-                        <Table.Td key={`${resource}-${verb}`} ta="center">
-                          {isRelevant ? (
-                            <Checkbox
-                              checked={isChecked}
-                              onChange={(e) => {
-                                setCheckState((prev) => {
-                                  const next = new Set(prev)
-                                  if (e.currentTarget.checked) {
-                                    next.add(permKey)
-                                  } else {
-                                    next.delete(permKey)
-                                  }
-                                  return next
-                                })
-                              }}
-                              aria-label={`${activeProfile.name} ${verb} ${resource}`}
-                            />
-                          ) : (
+                    {permissionVerbs.map((verb) => {
+                      const cell = group.cells.find((c) => c.verb === verb)
+                      if (!cell) {
+                        return (
+                          <Table.Td key={`${group.domain}-${verb}`} ta="center">
                             <Text c="var(--faint)">.</Text>
-                          )}
+                          </Table.Td>
+                        )
+                      }
+                      const isChecked = checkState.has(cell.permission)
+                      return (
+                        <Table.Td key={`${group.domain}-${verb}`} ta="center">
+                          <Checkbox
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const { checked } = e.currentTarget
+                              setCheckState((prev) => {
+                                const next = new Set(prev)
+                                if (checked) next.add(cell.permission)
+                                else next.delete(cell.permission)
+                                return next
+                              })
+                            }}
+                            aria-label={`${activeProfile.name} ${cell.permission}`}
+                          />
                         </Table.Td>
                       )
                     })}
-                    <Table.Td>
-                      {resource === 'Cases' || resource === 'Tasks' ? (
-                        <Select
-                          data={['any', 'own']}
-                          defaultValue="any"
-                          allowDeselect={false}
-                          size="xs"
-                          w={90}
-                          aria-label={`${resource} scope`}
-                        />
-                      ) : (
-                        <Text c="var(--faint)">.</Text>
-                      )}
-                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
           </TableBox>
           <Group justify="flex-end" mt="md">
-            <Text ff="monospace" fz={11} c="var(--faint)" mr="auto">
-              admin-plane rows shown in orange - platform rows need the admin org
-            </Text>
+            <Button
+              variant="subtle"
+              color="red"
+              mr="auto"
+              loading={deleteMutation.isPending}
+              onClick={() =>
+                confirmDelete({
+                  title: 'Delete profile',
+                  message: `Delete the "${activeProfile.name}" profile? Members assigned to it will need a new role.`,
+                  onConfirm: () => deleteMutation.mutate(activeProfile.id),
+                })
+              }
+            >
+              Delete profile
+            </Button>
             <Button
               color="orange"
               loading={saveMutation.isPending}
+              disabled={!dirty}
               onClick={() => saveMutation.mutate()}
             >
               Save profile

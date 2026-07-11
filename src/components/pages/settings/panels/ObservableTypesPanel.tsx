@@ -8,7 +8,6 @@ import {
   Stack,
   TextInput,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -21,7 +20,14 @@ import {
   settingsKeys,
 } from '#/components/pages/settings/settingsQueries'
 import type { ObservableTypePublic } from '#/components/pages/settings/settingsQueries'
-import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
+import {
+  confirmDelete,
+  ErrorPanel,
+  LoadingPanel,
+  notifyError,
+  notifySuccess,
+  Panel,
+} from '#/components/pages/settings/settingsUi'
 
 function AddTypeModal({
   opened,
@@ -38,20 +44,15 @@ function AddTypeModal({
     mutationFn: () =>
       createObservableType({ name: name.trim(), is_attachment: isAttachment }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ color: 'green', message: 'Observable type created' })
+      queryClient.invalidateQueries({
+        queryKey: settingsKeys.observableTypes(),
+      })
+      notifySuccess('Observable type created')
       setName('')
       setIsAttachment(false)
       onClose()
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to create observable type',
-      }),
+    onError: (error) => notifyError(error, 'Unable to create observable type'),
   })
 
   return (
@@ -88,25 +89,24 @@ function AddTypeModal({
 
 export function ObservableTypesPanel() {
   const queryClient = useQueryClient()
-  const { data: types = [], isPending } = useQuery(
-    observableTypesQueryOptions(),
-  )
+  const {
+    data: types = [],
+    isPending,
+    isError,
+    refetch,
+    isFetching,
+  } = useQuery(observableTypesQueryOptions())
   const [addOpen, setAddOpen] = useState(false)
 
   const deleteMutation = useMutation({
     mutationFn: deleteObservableType,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ message: 'Observable type deleted' })
+      queryClient.invalidateQueries({
+        queryKey: settingsKeys.observableTypes(),
+      })
+      notifySuccess('Observable type deleted')
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to delete observable type',
-      }),
+    onError: (error) => notifyError(error, 'Unable to delete observable type'),
   })
 
   const columns = useMemo<ColumnDef<ObservableTypePublic>[]>(
@@ -131,8 +131,18 @@ export function ObservableTypesPanel() {
           <Button
             size="xs"
             variant="default"
-            loading={deleteMutation.isPending}
-            onClick={() => deleteMutation.mutate(row.original.name)}
+            color="red"
+            loading={
+              deleteMutation.isPending &&
+              deleteMutation.variables === row.original.name
+            }
+            onClick={() =>
+              confirmDelete({
+                title: 'Delete observable type',
+                message: `Delete the "${row.original.name}" observable type? Observables already using it may be affected.`,
+                onConfirm: () => deleteMutation.mutate(row.original.name),
+              })
+            }
           >
             Delete
           </Button>
@@ -143,6 +153,16 @@ export function ObservableTypesPanel() {
   )
 
   if (isPending) return <LoadingPanel label="Loading observable types..." />
+
+  if (isError) {
+    return (
+      <ErrorPanel
+        label="Couldn't load observable types."
+        onRetry={() => refetch()}
+        retrying={isFetching}
+      />
+    )
+  }
 
   return (
     <>

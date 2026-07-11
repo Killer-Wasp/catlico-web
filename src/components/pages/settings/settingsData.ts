@@ -33,11 +33,7 @@ export const settingsSections: SettingsSection[] = [
 // URL-friendly slugs so the active tab can live in the `?tab=` search param.
 // e.g. 'Users & roles' -> 'users-roles', 'API keys' -> 'api-keys'.
 export function sectionToSlug(section: SettingsSection): string {
-  return section
-    .toLowerCase()
-    .replace(/&/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
+  return section.toLowerCase().replace(/&/g, '').trim().replace(/\s+/g, '-')
 }
 
 const slugToSectionMap = new Map<string, SettingsSection>(
@@ -48,51 +44,76 @@ export function slugToSection(slug: string): SettingsSection | undefined {
   return slugToSectionMap.get(slug)
 }
 
-export const resources = [
-  [
-    'Cases',
-    [
-      'read',
-      'create',
-      'update',
-      'delete',
-      'assign',
-      'close',
-      'merge',
-      'share',
-      'export',
-      'import',
-      'bulk',
-    ],
-  ],
-  ['Tasks', ['read', 'create', 'update', 'delete', 'assign', 'close', 'bulk']],
-  [
-    'Observables',
-    ['read', 'create', 'update', 'delete', 'export', 'import', 'bulk'],
-  ],
-  ['Alerts', ['read', 'create', 'update', 'delete', 'import']],
-  ['Comments', ['read', 'create', 'update', 'delete']],
-  ['Dashboards', ['read', 'create', 'update', 'delete']],
-  ['Users', ['read', 'create', 'update', 'delete']],
-  ['Profiles', ['read', 'create', 'update', 'delete']],
-  ['Custom fields', ['read', 'create', 'update', 'delete']],
-  ['Observable types', ['read', 'create', 'update', 'delete']],
-  ['Taxonomies', ['read', 'create', 'update', 'delete']],
-  ['Functions', ['read', 'create', 'update', 'delete', 'run']],
-  ['Organisations', ['read', 'create', 'update', 'delete']],
-] as const
+// The grantable permission vocabulary the API accepts. This mirrors the coarse
+// `Permission` enum in catlico-api (`app/models/role.py`): roles are granted these
+// domain-grouped strings, and the backend expands each to the fine-grained
+// capabilities its route guards check. Anything not in this set is rejected by
+// FastAPI validation, so the UI must build permission strings only from here.
 
-export const verbs = [
-  'read',
-  'create',
-  'update',
-  'delete',
-  'assign',
-  'close',
-  'merge',
-  'share',
-  'export',
-  'import',
-  'run',
-  'bulk',
-] as const
+export type PermissionVerb = 'read' | 'write' | 'run'
+
+export type PermissionCell = {
+  verb: PermissionVerb
+  // The exact grant string sent to / stored by the API, e.g. 'read:investigation'.
+  permission: string
+}
+
+export type PermissionGroup = {
+  domain: string
+  description: string
+  cells: PermissionCell[]
+}
+
+// Column order for the profiles permission grid.
+export const permissionVerbs: PermissionVerb[] = ['read', 'write', 'run']
+
+export const permissionGroups: PermissionGroup[] = [
+  {
+    domain: 'Investigation',
+    description: 'Cases, tasks, observables and alerts',
+    cells: [
+      { verb: 'read', permission: 'read:investigation' },
+      { verb: 'write', permission: 'write:investigation' },
+    ],
+  },
+  {
+    domain: 'Intel',
+    description: 'Custom fields, knowledge base and functions',
+    cells: [
+      { verb: 'read', permission: 'read:intel' },
+      { verb: 'write', permission: 'write:intel' },
+    ],
+  },
+  {
+    domain: 'Enrichment',
+    description: 'Run enrichment on observables',
+    cells: [{ verb: 'run', permission: 'run:enrichment' }],
+  },
+  {
+    domain: 'Functions',
+    description: 'Execute automation functions',
+    cells: [{ verb: 'run', permission: 'run:function' }],
+  },
+  {
+    domain: 'Organisation',
+    description: 'Organisation profile and connectors',
+    cells: [
+      { verb: 'read', permission: 'read:org' },
+      { verb: 'write', permission: 'write:org' },
+    ],
+  },
+  {
+    domain: 'Access',
+    description: 'Users and roles',
+    cells: [
+      { verb: 'read', permission: 'read:access' },
+      { verb: 'write', permission: 'write:access' },
+    ],
+  },
+]
+
+// Every grantable permission string, in stable order — used e.g. to seed a
+// read-only starter role.
+export const grantablePermissions: string[] = permissionGroups.flatMap(
+  (group) => group.cells.map((cell) => cell.permission),
+)

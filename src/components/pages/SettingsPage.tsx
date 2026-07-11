@@ -1,5 +1,6 @@
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Box, Group, Tabs, Text, Title } from '@mantine/core'
+import { ModalsProvider } from '@mantine/modals'
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
 import { AuditLogPanel } from './settings/panels/AuditLogPanel'
@@ -40,7 +41,9 @@ function SectionPanel({ section }: { section: SettingsSection }) {
 export function SettingsSectionPanel() {
   const { section } = useParams({ strict: false })
   return (
-    <SectionPanel section={(section && slugToSection(section)) || 'Organisation'} />
+    <SectionPanel
+      section={(section && slugToSection(section)) || 'Organisation'}
+    />
   )
 }
 
@@ -52,48 +55,50 @@ export function SettingsLayout() {
   const stamp = useStamp()
 
   return (
-    <Box className={classes.page}>
-      <Group align="baseline" gap={16} mb={26} wrap="wrap">
-        <Title order={1}>Settings</Title>
-        <Text ff="monospace" fz={12} c="var(--faint)">
-          {stamp}
-        </Text>
-      </Group>
+    <ModalsProvider>
+      <Box className={classes.page}>
+        <Group align="baseline" gap={16} mb={26} wrap="wrap">
+          <Title order={1}>Settings</Title>
+          <Text ff="monospace" fz={12} c="var(--faint)">
+            {stamp}
+          </Text>
+        </Group>
 
-      <Tabs
-        variant="pills"
-        orientation="vertical"
-        value={activeSection}
-        onChange={(value) => {
-          if (value)
-            navigate({
-              to: '/settings/$section',
-              params: { section: sectionToSlug(value as SettingsSection) },
-            })
-        }}
-        styles={{ tabLabel: { textAlign: 'left' } }}
-      >
-        <Box
-          component="nav"
-          aria-label="Settings sections"
-          w={220}
-          style={{ position: 'sticky', top: 84, alignSelf: 'flex-start' }}
+        <Tabs
+          variant="pills"
+          orientation="vertical"
+          value={activeSection}
+          onChange={(value) => {
+            if (value)
+              navigate({
+                to: '/settings/$section',
+                params: { section: sectionToSlug(value as SettingsSection) },
+              })
+          }}
+          styles={{ tabLabel: { textAlign: 'left' } }}
         >
-          <Tabs.List>
-            {settingsSections.map((settingsSection) => (
-              <Tabs.Tab key={settingsSection} value={settingsSection}>
-                {settingsSection}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Box>
+          <Box
+            component="nav"
+            aria-label="Settings sections"
+            w={220}
+            style={{ position: 'sticky', top: 84, alignSelf: 'flex-start' }}
+          >
+            <Tabs.List>
+              {settingsSections.map((settingsSection) => (
+                <Tabs.Tab key={settingsSection} value={settingsSection}>
+                  {settingsSection}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Box>
 
-        <Box miw={0} style={{ flex: 1 }}>
-          <Tabs.Panel value={activeSection} pl="md">
-            <Outlet />
-          </Tabs.Panel>
-        </Box>
-      </Tabs>
-    </Box>
+          <Box miw={0} style={{ flex: 1 }}>
+            <Tabs.Panel value={activeSection} pl="md">
+              <Outlet />
+            </Tabs.Panel>
+          </Box>
+        </Tabs>
+      </Box>
+    </ModalsProvider>
   )
 }

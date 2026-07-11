@@ -2,16 +2,22 @@ import type { ReactNode } from 'react'
 import {
   Badge,
   Box,
+  Button,
   Group,
   Loader,
   Paper,
+  Stack,
   Text,
   Title,
   UnstyledButton,
 } from '@mantine/core'
+import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { useEffect, useState } from 'react'
-import type { IntegrationState, Role } from '#/components/pages/settings/settingsData'
+import type {
+  IntegrationState,
+  Role,
+} from '#/components/pages/settings/settingsData'
 
 export function useStamp() {
   const [stamp, setStamp] = useState('')
@@ -43,6 +49,54 @@ export function notify(message: string) {
   notifications.show({ color: 'orange', message })
 }
 
+export function notifySuccess(message: string) {
+  notifications.show({ color: 'green', message })
+}
+
+export function notifyError(error: unknown, fallback: string) {
+  notifications.show({
+    color: 'red',
+    message: error instanceof Error ? error.message : fallback,
+  })
+}
+
+// Guarded clipboard write that resolves to whether the copy succeeded, so callers
+// only report success when it actually happened. `navigator.clipboard` is undefined
+// on insecure (non-localhost HTTP) origins and can reject, so never assume success.
+export async function copyToClipboard(value: string): Promise<boolean> {
+  // `navigator.clipboard` is typed as always-present but is actually undefined on
+  // insecure origins and can reject, so let the try/catch handle both.
+  try {
+    await navigator.clipboard.writeText(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Shared confirmation dialog for destructive actions. Relies on ModalsProvider,
+// which SettingsLayout mounts around the settings subtree.
+export function confirmDelete({
+  title,
+  message,
+  confirmLabel = 'Delete',
+  onConfirm,
+}: {
+  title: string
+  message: ReactNode
+  confirmLabel?: string
+  onConfirm: () => void
+}) {
+  modals.openConfirmModal({
+    title,
+    centered: true,
+    children: <Text size="sm">{message}</Text>,
+    labels: { confirm: confirmLabel, cancel: 'Cancel' },
+    confirmProps: { color: 'red' },
+    onConfirm,
+  })
+}
+
 export function compactDate(iso: string | null | undefined) {
   if (!iso) return 'never'
   return new Date(iso).toLocaleString('en-AU', {
@@ -68,6 +122,29 @@ export function LoadingPanel({ label }: { label: string }) {
         <Loader size="sm" />
         <Text c="dimmed">{label}</Text>
       </Group>
+    </Paper>
+  )
+}
+
+export function ErrorPanel({
+  label = "Couldn't load this section.",
+  onRetry,
+  retrying,
+}: {
+  label?: string
+  onRetry?: () => void
+  retrying?: boolean
+}) {
+  return (
+    <Paper radius="md" shadow="sm" p="xl">
+      <Stack align="center" gap="sm">
+        <Text c="red.7">{label}</Text>
+        {onRetry && (
+          <Button variant="default" loading={retrying} onClick={onRetry}>
+            Retry
+          </Button>
+        )}
+      </Stack>
     </Paper>
   )
 }

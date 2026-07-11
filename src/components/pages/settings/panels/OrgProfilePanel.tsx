@@ -4,12 +4,9 @@ import {
   Group,
   Select,
   SimpleGrid,
-  Stack,
-  Text,
   Textarea,
   TextInput,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -17,7 +14,13 @@ import {
   settingsKeys,
   updateOrganisationProfile,
 } from '#/components/pages/settings/settingsQueries'
-import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
+import {
+  ErrorPanel,
+  LoadingPanel,
+  notifyError,
+  notifySuccess,
+  Panel,
+} from '#/components/pages/settings/settingsUi'
 
 const FALLBACK_TIMEZONES = [
   'UTC',
@@ -51,8 +54,16 @@ export function OrgProfilePanel() {
       typeof Intl.supportedValuesOf === 'function'
         ? Intl.supportedValuesOf('timeZone')
         : FALLBACK_TIMEZONES
-    return Array.from(new Set([browserTz, ...supported, ...FALLBACK_TIMEZONES]))
-  }, [browserTz])
+    // Include the org's stored timezone so the Select never renders blank when the
+    // browser doesn't enumerate that value.
+    return Array.from(
+      new Set(
+        [org?.timezone, browserTz, ...supported, ...FALLBACK_TIMEZONES].filter(
+          Boolean,
+        ) as string[],
+      ),
+    )
+  }, [browserTz, org?.timezone])
   const [timezone, setTimezone] = useState(browserTz)
   const [defaultTlp, setDefaultTlp] = useState(2)
 
@@ -74,37 +85,33 @@ export function OrgProfilePanel() {
       }),
     onSuccess: (updated) => {
       queryClient.setQueryData(settingsKeys.organisation(updated.id), updated)
-      notifications.show({
-        color: 'green',
-        message: 'Organisation profile saved',
+      // Propagate the rename to the org list / switcher, which key off separate
+      // queries and would otherwise keep showing the stale name.
+      queryClient.invalidateQueries({ queryKey: settingsKeys.organisations() })
+      queryClient.invalidateQueries({
+        queryKey: settingsKeys.accessibleOrganisations(),
       })
+      notifySuccess('Organisation profile saved')
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to save organisation',
-      }),
+    onError: (error) => notifyError(error, 'Unable to save organisation'),
   })
+
+  const dirty =
+    !!org &&
+    (name !== org.name ||
+      description !== org.description ||
+      timezone !== org.timezone ||
+      defaultTlp !== org.default_tlp)
 
   if (isPending) return <LoadingPanel label="Loading organisation profile..." />
 
   if (isError) {
     return (
-      <Panel title="Organisation profile">
-        <Stack align="center" p="xl">
-          <Text c="red.7">Couldn’t load organisation settings.</Text>
-          <Button
-            variant="default"
-            loading={isFetching}
-            onClick={() => refetch()}
-          >
-            Retry
-          </Button>
-        </Stack>
-      </Panel>
+      <ErrorPanel
+        label="Couldn’t load organisation settings."
+        onRetry={() => refetch()}
+        retrying={isFetching}
+      />
     )
   }
 
@@ -154,6 +161,7 @@ export function OrgProfilePanel() {
           <Button
             color="orange"
             loading={saveMutation.isPending}
+            disabled={!dirty}
             onClick={() => saveMutation.mutate()}
           >
             Save changes

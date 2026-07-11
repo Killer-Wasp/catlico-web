@@ -10,7 +10,6 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -26,7 +25,14 @@ import type {
   CustomFieldCreateInput,
   CustomFieldPublic,
 } from '#/components/pages/settings/settingsQueries'
-import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
+import {
+  confirmDelete,
+  ErrorPanel,
+  LoadingPanel,
+  notifyError,
+  notifySuccess,
+  Panel,
+} from '#/components/pages/settings/settingsUi'
 
 const FIELD_TYPES = [
   { value: 'string', label: 'string' },
@@ -62,8 +68,10 @@ function AddFieldModal({
         mandatory,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ color: 'green', message: 'Custom field created' })
+      queryClient.invalidateQueries({
+        queryKey: [...settingsKeys.all, 'custom-fields'],
+      })
+      notifySuccess('Custom field created')
       setName('')
       setDisplayName('')
       setDescription('')
@@ -71,14 +79,7 @@ function AddFieldModal({
       setMandatory(false)
       onClose()
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to create custom field',
-      }),
+    onError: (error) => notifyError(error, 'Unable to create custom field'),
   })
 
   return (
@@ -134,24 +135,25 @@ function AddFieldModal({
 
 export function CustomFieldsPanel() {
   const queryClient = useQueryClient()
-  const { data, isPending } = useQuery(customFieldsQueryOptions())
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
+    customFieldsQueryOptions(),
+  )
   const deleteMutation = useMutation({
     mutationFn: deleteCustomField,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      notifications.show({ message: 'Custom field deleted' })
+      queryClient.invalidateQueries({
+        queryKey: [...settingsKeys.all, 'custom-fields'],
+      })
+      notifySuccess('Custom field deleted')
     },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to delete custom field',
-      }),
+    onError: (error) => notifyError(error, 'Unable to delete custom field'),
   })
   const [addOpen, setAddOpen] = useState(false)
   const fields = data?.fields ?? []
+  const total = data?.total ?? fields.length
+  // The list query is capped (DEFAULT_SETTINGS_FILTERS limit), so tell the user
+  // when there are more definitions than we're showing rather than silently hiding.
+  const truncated = total > fields.length
 
   const columns = useMemo<ColumnDef<CustomFieldPublic>[]>(
     () => [
@@ -184,8 +186,8 @@ export function CustomFieldsPanel() {
         ),
       },
       {
-        id: 'multi',
-        header: 'Multi-value',
+        id: 'dropdown',
+        header: 'Dropdown',
         cell: ({ row }) => (row.original.options.length ? 'yes' : 'no'),
       },
       {
@@ -205,8 +207,18 @@ export function CustomFieldsPanel() {
           <Button
             size="xs"
             variant="default"
-            loading={deleteMutation.isPending}
-            onClick={() => deleteMutation.mutate(row.original.id)}
+            color="red"
+            loading={
+              deleteMutation.isPending &&
+              deleteMutation.variables === row.original.id
+            }
+            onClick={() =>
+              confirmDelete({
+                title: 'Delete custom field',
+                message: `Delete "${row.original.display_name || row.original.name}"? Values stored on existing cases and alerts will be removed.`,
+                onConfirm: () => deleteMutation.mutate(row.original.id),
+              })
+            }
           >
             Delete
           </Button>
@@ -218,18 +230,33 @@ export function CustomFieldsPanel() {
 
   if (isPending) return <LoadingPanel label="Loading custom fields..." />
 
+  if (isError) {
+    return (
+      <ErrorPanel
+        label="Couldn't load custom fields."
+        onRetry={() => refetch()}
+        retrying={isFetching}
+      />
+    )
+  }
+
   return (
     <>
       <AddFieldModal opened={addOpen} onClose={() => setAddOpen(false)} />
       <Panel
         title="Custom field definitions"
-        count={fields.length}
+        count={total}
         action={
           <Button variant="default" onClick={() => setAddOpen(true)}>
             + Add field
           </Button>
         }
       >
+        {truncated && (
+          <Text c="dimmed" fz={12} px={18} pt={12}>
+            Showing the first {fields.length} of {total} custom fields.
+          </Text>
+        )}
         <CustomFieldsTable columns={columns} fields={fields} />
       </Panel>
     </>

@@ -1,5 +1,6 @@
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Box, Group, Text, Title } from '@mantine/core'
+import { ModalsProvider } from '@mantine/modals'
 import { OrganisationsPanel } from './settings/panels/OrganisationsPanel'
 import { useStamp } from './settings/settingsUi'
 
@@ -10,15 +11,17 @@ export function OrganisationsPage() {
   const stamp = useStamp()
 
   return (
-    <Box className={classes.page}>
-      <Group align="baseline" gap={16} mb={26} wrap="wrap">
-        <Title order={1}>Organisations</Title>
-        <Text ff="monospace" fz={12} c="var(--faint)">
-          {stamp}
-        </Text>
-      </Group>
+    <ModalsProvider>
+      <Box className={classes.page}>
+        <Group align="baseline" gap={16} mb={26} wrap="wrap">
+          <Title order={1}>Organisations</Title>
+          <Text ff="monospace" fz={12} c="var(--faint)">
+            {stamp}
+          </Text>
+        </Group>
 
-      <OrganisationsPanel />
-    </Box>
+        <OrganisationsPanel />
+      </Box>
+    </ModalsProvider>
   )
 }
