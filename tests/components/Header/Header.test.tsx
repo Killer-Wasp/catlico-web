@@ -21,7 +21,7 @@ import {
 } from 'vitest'
 
 vi.mock('#/lib/api/client', () => ({
-  api: { get: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(() => Promise.resolve()) },
 }))
 
 type JsonResponse = { json: () => Promise<unknown> }
@@ -96,8 +96,8 @@ describe('Header notifications', () => {
 
 describe('Header account menu', () => {
   test('shows the current user, and logs out clearing the session', async () => {
-    localStorage.setItem('catlico.accessToken', 'a')
-    localStorage.setItem('catlico.refreshToken', 'r')
+    // Only the active org lives in localStorage now — the access token is held
+    // in JS memory and the refresh token is an httpOnly cookie (invisible here).
     localStorage.setItem('catlico.orgId', 'o')
     const assign = vi.fn()
     Object.defineProperty(window, 'location', {
@@ -114,8 +114,15 @@ describe('Header account menu', () => {
     expect(await screen.findByText('j.tanaka@origin.example')).toBeDefined()
     fireEvent.click(await screen.findByText('Log out'))
 
-    expect(localStorage.getItem('catlico.accessToken')).toBeNull()
-    expect(localStorage.getItem('catlico.refreshToken')).toBeNull()
+    // Server-side revocation is fired at the cookie-authed logout endpoint...
+    expect(vi.mocked(api.post)).toHaveBeenCalledWith(
+      'auth/logout',
+      expect.objectContaining({
+        credentials: 'include',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      }),
+    )
+    // ...and the local session (active org) is cleared.
     expect(localStorage.getItem('catlico.orgId')).toBeNull()
     expect(assign).toHaveBeenCalledWith('/login')
   })
