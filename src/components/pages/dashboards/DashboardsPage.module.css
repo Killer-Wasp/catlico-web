@@ -1,0 +1,158 @@
+/* Customisable Dashboards page. Colour/severity vars come from the shared
+   `.page` scope (imported from CasesPage.module.css); this file owns the
+   responsive widget grid, the card look and the edit-mode overlay. */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Widget spans: sm = 1 col (KPI), md = 2 cols (half), lg = full width. */
+.sm {
+  grid-column: span 1;
+}
+.md {
+  grid-column: span 2;
+}
+.lg {
+  grid-column: span 4;
+}
+
+@media (max-width: 1180px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lg,
+  .md {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sm,
+  .md,
+  .lg {
+    grid-column: span 1;
+  }
+}
+
+.cell {
+  position: relative;
+  min-width: 0;
+}
+
+.cell > * {
+  height: 100%;
+}
+
+.card {
+  height: 100%;
+  background-color: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-7)
+  );
+  border: 1px solid var(--line-soft);
+  border-radius: var(--mantine-radius-md);
+  padding: var(--mantine-spacing-lg);
+}
+
+.kpiLabel {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.kpiValue {
+  font-size: 40px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+
+.kpiUnit {
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.kpiAccent {
+  border-top: 2px solid var(--sev-critical);
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* Edit mode: a dashed frame + a floating control strip per widget. */
+.editing .cell {
+  outline: 1px dashed var(--line-soft);
+  outline-offset: 3px;
+  border-radius: var(--mantine-radius-md);
+}
+
+.controls {
+  position: absolute;
+  top: -12px;
+  right: 6px;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--mantine-radius-sm);
+  background-color: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-5)
+  );
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+.emptyState {
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--mantine-radius-md);
+  padding: 48px 24px;
+  text-align: center;
+}
+
+/* --- Export PDF (window.print) ------------------------------------------- */
+/* The "Export PDF" button prints the current view; these rules strip the app
+   chrome (nav rail, global header, toolbar) so the PDF is just the board. */
+@media print {
+  :global(.mantine-AppShell-navbar) {
+    display: none !important;
+  }
+  :global(.mantine-AppShell-main) {
+    padding-inline-start: 0 !important;
+  }
+  /* The global search header is the first child of AppShell.Main. */
+  :global(.mantine-AppShell-main > *:first-child) {
+    display: none !important;
+  }
+  .noPrint {
+    display: none !important;
+  }
+  .card {
+    break-inside: avoid;
+    border-color: #ddd;
+  }
+  .grid {
+    gap: 10px;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

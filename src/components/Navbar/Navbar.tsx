@@ -80,7 +80,7 @@ function sectionsForCounts(counts: NavbarCounts): NavSection[] {
       title: 'Operate',
       items: [
         { icon: LayoutDashboard, label: 'Overview', to: '/' },
-        { icon: Gauge, label: 'Dashboards' },
+        { icon: Gauge, label: 'Dashboards', to: '/dashboards' },
         {
           icon: AlertTriangle,
           label: 'Alerts',

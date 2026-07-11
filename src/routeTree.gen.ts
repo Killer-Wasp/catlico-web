@@ -24,6 +24,7 @@ import { Route as AppOrganisationsRouteImport } from './routes/_app/organisation
 import { Route as AppObservablesRouteImport } from './routes/_app/observables'
 import { Route as AppKnowledgeBaseRouteImport } from './routes/_app/knowledge-base'
 import { Route as AppFunctionsRouteImport } from './routes/_app/functions'
+import { Route as AppDashboardsRouteImport } from './routes/_app/dashboards'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
 import { Route as AppCasesIndexRouteImport } from './routes/_app/cases/index'
@@ -113,6 +114,11 @@ const AppFunctionsRoute = AppFunctionsRouteImport.update({
   path: '/functions',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDashboardsRoute = AppDashboardsRouteImport.update({
+  id: '/dashboards',
+  path: '/dashboards',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAlertsRoute = AppAlertsRouteImport.update({
   id: '/alerts',
   path: '/alerts',
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/alerts': typeof AppAlertsRouteWithChildren
+  '/dashboards': typeof AppDashboardsRoute
   '/functions': typeof AppFunctionsRouteWithChildren
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/dashboards': typeof AppDashboardsRoute
   '/functions': typeof AppFunctionsRouteWithChildren
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_app/alerts': typeof AppAlertsRouteWithChildren
+  '/_app/dashboards': typeof AppDashboardsRoute
   '/_app/functions': typeof AppFunctionsRouteWithChildren
   '/_app/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/_app/observables': typeof AppObservablesRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/alerts'
+    | '/dashboards'
     | '/functions'
     | '/knowledge-base'
     | '/observables'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset-password'
+    | '/dashboards'
     | '/functions'
     | '/knowledge-base'
     | '/observables'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/_app/alerts'
+    | '/_app/dashboards'
     | '/_app/functions'
     | '/_app/knowledge-base'
     | '/_app/observables'
@@ -477,6 +489,13 @@ declare module '@tanstack/react-router' {
       path: '/functions'
       fullPath: '/functions'
       preLoaderRoute: typeof AppFunctionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dashboards': {
+      id: '/_app/dashboards'
+      path: '/dashboards'
+      fullPath: '/dashboards'
+      preLoaderRoute: typeof AppDashboardsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/alerts': {
@@ -647,6 +666,7 @@ const AppCasesCaseIdRouteWithChildren = AppCasesCaseIdRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppAlertsRoute: typeof AppAlertsRouteWithChildren
+  AppDashboardsRoute: typeof AppDashboardsRoute
   AppFunctionsRoute: typeof AppFunctionsRouteWithChildren
   AppKnowledgeBaseRoute: typeof AppKnowledgeBaseRouteWithChildren
   AppObservablesRoute: typeof AppObservablesRoute
@@ -667,6 +687,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAlertsRoute: AppAlertsRouteWithChildren,
+  AppDashboardsRoute: AppDashboardsRoute,
   AppFunctionsRoute: AppFunctionsRouteWithChildren,
   AppKnowledgeBaseRoute: AppKnowledgeBaseRouteWithChildren,
   AppObservablesRoute: AppObservablesRoute,
