@@ -101,7 +101,7 @@ function sectionsForCounts(counts: NavbarCounts): NavSection[] {
           to: '/observables',
           badge: counts.observables,
         },
-        { icon: Grid3x3, label: 'ATT&CK matrix' },
+        { icon: Grid3x3, label: 'ATT&CK matrix', to: '/attack-matrix' },
         {
           icon: Puzzle,
           label: 'Plugins',
