@@ -49,7 +49,7 @@ describe('buildMatrix', () => {
       'command-and-control',
     ])
     expect(TACTIC_ORDER[0]).toBe('reconnaissance')
-    expect(TACTIC_ORDER).toHaveLength(14)
+    expect(TACTIC_ORDER).toHaveLength(15)
   })
 
   test('a multi-tactic technique appears in every one of its columns', () => {
@@ -116,5 +116,33 @@ describe('buildMatrix', () => {
 
   test('empty catalog builds an empty matrix', () => {
     expect(buildMatrix([], {})).toEqual([])
+  })
+
+  test('techniques tagged with an unknown tactic surface in a trailing column, never dropped', () => {
+    const cols = buildMatrix(
+      [
+        ...CATALOG,
+        pattern({
+          external_id: 'T9999',
+          name: 'Entangle Qubits',
+          tactics: ['quantum-hacking'],
+        }),
+      ],
+      {},
+    )
+
+    const unknown = cols.find((c) => c.tactic === 'quantum-hacking')
+    expect(unknown).toBeDefined()
+    expect(unknown!.label).toBe('Quantum Hacking')
+    expect(unknown!.techniques.map((t) => t.externalId)).toEqual(['T9999'])
+
+    // The unknown column must come after every known TACTIC_ORDER column.
+    const unknownIdx = cols.findIndex((c) => c.tactic === 'quantum-hacking')
+    const lastKnownIdx = cols.reduce(
+      (acc, c, i) =>
+        (TACTIC_ORDER as readonly string[]).includes(c.tactic) ? i : acc,
+      -1,
+    )
+    expect(unknownIdx).toBeGreaterThan(lastKnownIdx)
   })
 })

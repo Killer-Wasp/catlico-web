@@ -5,7 +5,14 @@
  */
 import type { PatternDto } from './attackQueries'
 
-/** Canonical enterprise kill-chain order (matrix column order). */
+/**
+ * Canonical enterprise kill-chain order (matrix column order), tracking the
+ * current MITRE ATT&CK Enterprise taxonomy (x-mitre-matrix tactic_refs):
+ * 15 tactics. Note TA0005 was renamed "Defense Evasion" -> "Stealth" and
+ * TA0112 "Defense Impairment" was added; there is no longer a
+ * `defense-evasion` slug. Any technique tagged with a tactic NOT in this list
+ * is surfaced in a trailing column by buildMatrix rather than dropped.
+ */
 export const TACTIC_ORDER = [
   'reconnaissance',
   'resource-development',
@@ -13,7 +20,8 @@ export const TACTIC_ORDER = [
   'execution',
   'persistence',
   'privilege-escalation',
-  'defense-evasion',
+  'stealth',
+  'defense-impairment',
   'credential-access',
   'discovery',
   'lateral-movement',
@@ -75,8 +83,7 @@ export function buildMatrix(
     subsByParent.set(p.parent_external_id!, list)
   }
 
-  const columns: MatrixColumn[] = []
-  for (const tactic of TACTIC_ORDER) {
+  const buildColumn = (tactic: string): MatrixColumn | null => {
     const techniques = catalog
       .filter((p) => !isSubtechnique(p) && p.tactics.includes(tactic))
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -92,9 +99,32 @@ export function buildMatrix(
           .map((s) => toCell(s, stats))
         return cell
       })
-    if (techniques.length > 0) {
-      columns.push({ tactic, label: labelFor(tactic), techniques })
+    if (techniques.length === 0) return null
+    return { tactic, label: labelFor(tactic), techniques }
+  }
+
+  const columns: MatrixColumn[] = []
+  for (const tactic of TACTIC_ORDER) {
+    const column = buildColumn(tactic)
+    if (column) columns.push(column)
+  }
+
+  // Resilience: never silently drop techniques tagged with a tactic slug we
+  // don't yet know about (e.g. a future MITRE taxonomy change). Collect any
+  // such unknown slugs and append them as trailing columns (sorted for
+  // determinism) so those techniques always surface somewhere in the matrix.
+  const known = new Set<string>(TACTIC_ORDER)
+  const unknown = new Set<string>()
+  for (const p of catalog) {
+    if (isSubtechnique(p)) continue
+    for (const tactic of p.tactics) {
+      if (!known.has(tactic)) unknown.add(tactic)
     }
   }
+  for (const tactic of [...unknown].sort((a, b) => a.localeCompare(b))) {
+    const column = buildColumn(tactic)
+    if (column) columns.push(column)
+  }
+
   return columns
 }
