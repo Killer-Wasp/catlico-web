@@ -1,10 +1,18 @@
 import { openSearchPalette } from '#/components/Search/SearchPalette'
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+  notificationKeys,
+  notificationsQueryOptions,
+} from '#/components/Header/notificationsQueries'
 import { UserAvatar } from '#/components/Users/UserAvatar'
 import { userDisplayName } from '#/components/Users/usersQueries'
 import { logout } from '#/lib/auth/session'
 import { currentUserQueryOptions } from '#/lib/auth/userQueries'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
 import {
   ActionIcon,
   Avatar,
@@ -24,18 +32,9 @@ import {
 } from '@mantine/core'
 import { useHotkeys } from '@mantine/hooks'
 import { Bell, Building2, LogOut, Moon, Search, Sun, UserCog } from 'lucide-react'
-import { useState } from 'react'
 import classes from './Header.module.css'
 
-type NotificationItem = {
-  title: string
-  detail: string
-  time: string
-  unread: boolean
-  critical?: boolean
-}
-
-const initialNotifications: NotificationItem[] = []
+dayjs.extend(relativeTime)
 
 function ThemeToggle() {
   const { setColorScheme } = useMantineColorScheme()
@@ -58,8 +57,9 @@ function ThemeToggle() {
 }
 
 export function Header() {
-  const [notifications, setNotifications] = useState(initialNotifications)
-  const unreadCount = notifications.filter((item) => item.unread).length
+  const queryClient = useQueryClient()
+  const { data: notifications = [] } = useQuery(notificationsQueryOptions())
+  const unreadCount = notifications.filter((item) => item.read_at === null).length
   const { data: currentUser } = useQuery(currentUserQueryOptions())
   const navigate = useNavigate()
 
@@ -67,12 +67,17 @@ export function Header() {
   // keystrokes typed into inputs, so this only fires from the page at large.
   useHotkeys([['/', openSearchPalette]])
 
-  const markRead = (index: number) =>
-    setNotifications((prev) =>
-      prev.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, unread: false } : item,
-      ),
-    )
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: notificationKeys.all })
+
+  const markRead = useMutation({
+    mutationFn: markNotificationRead,
+    onSuccess: invalidate,
+  })
+  const markAll = useMutation({
+    mutationFn: markAllNotificationsRead,
+    onSuccess: invalidate,
+  })
 
   // Clear the local session, then hard-navigate so all in-memory state (React
   // Query cache, component state) is dropped and the `_app` guard re-runs.
@@ -132,11 +137,9 @@ export function Header() {
                   variant="subtle"
                   color="gray"
                   size="xs"
-                  onClick={() =>
-                    setNotifications((prev) =>
-                      prev.map((item) => ({ ...item, unread: false })),
-                    )
-                  }
+                  disabled={unreadCount === 0}
+                  loading={markAll.isPending}
+                  onClick={() => markAll.mutate()}
                 >
                   Mark all read
                 </Button>
@@ -148,51 +151,52 @@ export function Header() {
                     No notifications
                   </Text>
                 )}
-                {notifications.map((item, index) => (
-                  <UnstyledButton
-                    key={`${item.title}-${item.time}`}
-                    className={classes.notificationItem}
-                    onClick={() => markRead(index)}
-                    px="md"
-                    py="sm"
-                    style={(theme) => ({
-                      display: 'flex',
-                      gap: 11,
-                      alignItems: 'flex-start',
-                      width: '100%',
-                      borderBottom: `1px solid ${theme.colors.gray[2]}`,
-                    })}
-                  >
-                    <Box
-                      mt={7}
-                      w={8}
-                      h={8}
-                      bg={
-                        item.unread
-                          ? item.critical
-                            ? 'red.7'
-                            : 'blue.7'
-                          : 'transparent'
-                      }
-                      style={{ borderRadius: 99, flexShrink: 0 }}
-                    />
-                    <Box flex={1} miw={0}>
-                      <Text
-                        component="span"
-                        fw={item.unread ? 700 : 600}
-                        c={item.unread ? undefined : 'dimmed'}
-                      >
-                        {item.title}
+                {notifications.map((item) => {
+                  const unread = item.read_at === null
+                  return (
+                    <UnstyledButton
+                      key={item.id}
+                      className={classes.notificationItem}
+                      onClick={() => {
+                        if (unread) markRead.mutate(item.id)
+                      }}
+                      px="md"
+                      py="sm"
+                      style={(theme) => ({
+                        display: 'flex',
+                        gap: 11,
+                        alignItems: 'flex-start',
+                        width: '100%',
+                        borderBottom: `1px solid ${theme.colors.gray[2]}`,
+                      })}
+                    >
+                      <Box
+                        mt={7}
+                        w={8}
+                        h={8}
+                        bg={unread ? 'blue.7' : 'transparent'}
+                        style={{ borderRadius: 99, flexShrink: 0 }}
+                      />
+                      <Box flex={1} miw={0}>
+                        <Text
+                          component="span"
+                          fw={unread ? 700 : 600}
+                          c={unread ? undefined : 'dimmed'}
+                        >
+                          {item.title}
+                        </Text>
+                        {item.body && (
+                          <Text component="span" c="dimmed" ml={3}>
+                            {item.body}
+                          </Text>
+                        )}
+                      </Box>
+                      <Text ff="monospace" fz={11} c="dimmed">
+                        {dayjs(item.created_at).fromNow()}
                       </Text>
-                      <Text component="span" c="dimmed" ml={3}>
-                        {item.detail}
-                      </Text>
-                    </Box>
-                    <Text ff="monospace" fz={11} c="dimmed">
-                      {item.time}
-                    </Text>
-                  </UnstyledButton>
-                ))}
+                    </UnstyledButton>
+                  )
+                })}
               </Stack>
               <Text px="md" py="sm" ff="monospace" fz={11} c="dimmed">
                 Notification rules can be changed in Settings → Notifications

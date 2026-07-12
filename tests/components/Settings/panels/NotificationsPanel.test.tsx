@@ -2,6 +2,7 @@
 import { NotificationsPanel } from '#/components/pages/settings/panels/NotificationsPanel'
 import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
+import { ModalsProvider } from '@mantine/modals'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type * as TanStackReactRouter from '@tanstack/react-router'
@@ -28,7 +29,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 })
 
 vi.mock('#/lib/api/client', () => ({
-  api: { get: vi.fn(), patch: vi.fn(), post: vi.fn() },
+  api: { get: vi.fn(), patch: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 
 type JsonResponse = { json: () => Promise<unknown> }
@@ -61,7 +62,9 @@ const ruleDto = {
   id: 'rule-1',
   name: 'Critical alerts',
   description: 'Notify on critical alerts',
+  event: null,
   enabled: true,
+  notifier_ids: [],
   organisation_id: 'origin-soc',
   created_at: '2026-06-20T00:00:00Z',
   updated_at: null,
@@ -102,8 +105,10 @@ function Harness() {
   return (
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
-        <Notifications />
-        <NotificationsPanel />
+        <ModalsProvider>
+          <Notifications />
+          <NotificationsPanel />
+        </ModalsProvider>
       </MantineProvider>
     </QueryClientProvider>
   )
@@ -144,11 +149,94 @@ beforeEach(() => {
       updated_at: null,
     }),
   } satisfies JsonResponse as ReturnType<typeof api.post>)
+
+  vi.mocked(api.delete).mockReturnValue(
+    {} as ReturnType<typeof api.delete>,
+  )
 })
 
 afterEach(cleanup)
 
 describe('NotificationsPanel', () => {
+  test('warns when a rule is enabled but wired to no notifiers', async () => {
+    render(<Harness />)
+    await screen.findByText('Critical alerts')
+    expect(
+      screen.getByText(/wired to no notifiers/i),
+    ).toBeDefined()
+  })
+
+  test('selecting a notifier for a rule PATCHes its notifier_ids', async () => {
+    render(<Harness />)
+    await screen.findByText('Critical alerts')
+
+    // Open the rule's notifier picker and choose the first notifier option.
+    fireEvent.click(screen.getByPlaceholderText('Select notifiers'))
+    const option = await screen.findByRole('option', {
+      name: /webhook — https:\/\/hooks\.slack\.example\/abc/i,
+    })
+    fireEvent.click(option)
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith(
+        'notifications/notification-rules/rule-1',
+        { json: { notifier_ids: ['notif-1'] } },
+      ),
+    )
+  })
+
+  test('shows a per-notifier secrets indicator', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+    // Both fixtures have has_secrets=false → "no secret" badge + "Set secrets" cta.
+    expect(screen.getAllByText('no secret').length).toBeGreaterThan(0)
+    expect(
+      screen.getAllByRole('button', { name: /set secrets/i }).length,
+    ).toBeGreaterThan(0)
+  })
+
+  test('rotating secrets PATCHes the notifier with the new JSON', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /set secrets/i })[0],
+    )
+    await screen.findByRole('dialog')
+
+    fireEvent.change(screen.getByRole('textbox', { name: /secrets/i }), {
+      target: { value: '{"token":"abc"}' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save secrets/i }))
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('notifications/notifiers/notif-1', {
+        json: { secrets: { token: 'abc' } },
+      }),
+    )
+  })
+
+  test('invalid secrets JSON blocks the rotation PATCH', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /set secrets/i })[0],
+    )
+    await screen.findByRole('dialog')
+
+    fireEvent.change(screen.getByRole('textbox', { name: /secrets/i }), {
+      target: { value: '{bad' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save secrets/i }))
+
+    await waitFor(() => expect(screen.getByText('Invalid JSON')).toBeDefined())
+    expect(api.patch).not.toHaveBeenCalledWith(
+      'notifications/notifiers/notif-1',
+      expect.objectContaining({ json: expect.anything() }),
+    )
+  })
+
   test('renders notifiers, rules, and message template from the backend', async () => {
     render(<Harness />)
 
@@ -239,6 +327,30 @@ describe('NotificationsPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Backend unavailable')).toBeDefined()
     })
+  })
+
+  test('deleting a notifier confirms then calls DELETE and invalidates settings', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+    const getCount = vi.mocked(api.get).mock.calls.length
+
+    // Each notifier row has its own Delete button; act on the first.
+    fireEvent.click(screen.getAllByRole('button', { name: /^delete$/i })[0])
+
+    // Confirmation modal from confirmDelete; confirm to proceed.
+    const confirmModal = await screen.findByRole('dialog')
+    const confirmButton = Array.from(
+      confirmModal.querySelectorAll('button'),
+    ).find((b) => b.textContent === 'Delete')
+    expect(confirmButton).toBeDefined()
+    fireEvent.click(confirmButton as HTMLButtonElement)
+
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('notifications/notifiers/notif-1'),
+    )
+    await waitFor(() =>
+      expect(vi.mocked(api.get).mock.calls.length).toBeGreaterThan(getCount),
+    )
   })
 
   test('cancel button closes the modal without calling the API', async () => {

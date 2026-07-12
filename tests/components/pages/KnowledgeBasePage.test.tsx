@@ -423,4 +423,87 @@ describe('KnowledgeBasePage', () => {
       expect(api.post).toHaveBeenCalledWith('knowledge-base/1/versions/10/revert')
     })
   })
+
+  test('renders a contributors line from the page contributors', async () => {
+    render(<Harness />)
+    await waitForPageList()
+
+    expect(screen.getByText(/Contributors:\s*analyst@example.com/)).toBeDefined()
+  })
+
+  test('exporting a page fetches the document and downloads it as JSON', async () => {
+    const exportDocument = {
+      page: pageDto,
+      versions: [
+        {
+          id: 10,
+          page_id: 1,
+          version_number: 1,
+          action: 'create',
+          snapshot: pageDto,
+          changed_fields: ['content'],
+          edited_by: 'user-1',
+          edited_by_email: 'analyst@example.com',
+          edited_at: '2026-06-20T00:00:00Z',
+          reverted_from_version_id: null,
+        },
+      ],
+    }
+    vi.mocked(api.get).mockImplementation((input) => {
+      if (String(input) === 'knowledge-base/1/export') {
+        return { json: async () => exportDocument } as ReturnType<typeof api.get>
+      }
+      return {
+        json: async () => ({ items: [pageDto, pageDto2], total: 2, skip: 0, limit: 100 }),
+      } as ReturnType<typeof api.get>
+    })
+    const createObjectURL = vi.fn(() => 'blob:kb')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { writable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { writable: true, value: revokeObjectURL })
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {})
+
+    render(<Harness />)
+    await waitForPageList()
+    fireEvent.click(screen.getByRole('button', { name: /page actions/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /export/i }))
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('knowledge-base/1/export')
+    })
+    await waitFor(() => {
+      expect(clickSpy).toHaveBeenCalled()
+    })
+    expect(createObjectURL).toHaveBeenCalled()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:kb')
+    clickSpy.mockRestore()
+  })
+
+  test('importing a JSON file posts the document and navigates to the new page', async () => {
+    vi.mocked(api.post).mockReturnValue({
+      json: async () => ({ ...pageDto, id: 42, title: 'Imported page' }),
+    } as ReturnType<typeof api.post>)
+
+    const { container } = render(<Harness />)
+    await waitForPageList()
+
+    const document = { page: { title: 'Imported page', content: 'body' }, versions: [] }
+    const file = new File([JSON.stringify(document)], 'page.json', {
+      type: 'application/json',
+    })
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('knowledge-base/import', { json: document })
+    })
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/knowledge-base/$pageId',
+      params: { pageId: '42' },
+    })
+  })
 })

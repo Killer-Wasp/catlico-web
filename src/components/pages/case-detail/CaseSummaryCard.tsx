@@ -31,7 +31,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import {
   ChevronDown,
-  Clock3,
   Download,
   MoreHorizontal,
   Play,
@@ -39,6 +38,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
+import { SlaChip } from '#/components/Cases/SlaChip'
 import { actionNotice } from './constants'
 import styles from './styles.module.css'
 
@@ -183,14 +183,7 @@ export function CaseSummaryCard({
           >
             <TrafficBadge label="TLP" value={caseDetail.tlp} />
             <TrafficBadge label="PAP" value={caseDetail.pap} />
-            <Badge
-              variant="light"
-              color="orange"
-              radius="sm"
-              leftSection={<Clock3 size={12} />}
-            >
-              {caseDetail.sla}
-            </Badge>
+            <SlaChip state={caseDetail.slaState} dueAt={caseDetail.slaDueAt} />
           </Group>
         </Box>
 

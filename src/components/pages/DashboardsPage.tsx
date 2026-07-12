@@ -3,6 +3,8 @@ import {
   dashboardKeys,
   dashboardsQueryOptions,
   deleteDashboard,
+  revokeDashboardShare,
+  shareDashboard,
   updateDashboard,
 } from '#/components/Dashboards/dashboardsQueries'
 import type {
@@ -26,6 +28,7 @@ import {
   Box,
   Button,
   Center,
+  CopyButton,
   Group,
   Loader,
   Menu,
@@ -43,9 +46,29 @@ import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBlocker } from '@tanstack/react-router'
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   ChevronDown,
   ChevronUp,
+  GripVertical,
+  Link2,
   Maximize2,
+  Minimize2,
   Pencil,
   Plus,
   Printer,
@@ -53,7 +76,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const DEFAULT_ID = '__default__'
 const SIZE_CYCLE: WidgetSize[] = ['sm', 'md', 'lg']
@@ -67,11 +91,47 @@ const DEFAULT_VIEW: Dashboard = {
   isOwner: false,
   ownerName: null,
   ownerId: '',
+  shareLinkActive: false,
 }
 
 type NameModal =
   | { mode: 'new' | 'rename' | 'saveAs'; value: string }
   | null
+
+/** Drag-handle props (attributes + listeners) as `useSortable` returns them. */
+type DragHandleProps = Pick<
+  ReturnType<typeof useSortable>,
+  'attributes' | 'listeners'
+>
+
+/** A drag-sortable grid cell. Exposes the drag-handle props to `children` via a
+ *  render prop so the handle can live inside the cell's own controls row. */
+function SortableCell({
+  id,
+  className,
+  children,
+}: {
+  id: string
+  className: string
+  children: (handle: DragHandleProps) => ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id })
+  return (
+    <Box
+      ref={setNodeRef}
+      className={className}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : undefined,
+        zIndex: isDragging ? 2 : undefined,
+      }}
+    >
+      {children({ attributes, listeners })}
+    </Box>
+  )
+}
 
 export function DashboardsPage() {
   const queryClient = useQueryClient()
@@ -96,6 +156,34 @@ export function DashboardsPage() {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<DashboardWidget[]>([])
   const [nameModal, setNameModal] = useState<NameModal>(null)
+
+  // Wallboard (fullscreen) mode: a CSS full-viewport overlay for wall displays,
+  // upgraded to native fullscreen where the browser allows it. The CSS class is
+  // the source of truth so it still works when the Fullscreen API is blocked.
+  const [wallboard, setWallboard] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const enterWallboard = () => {
+    setWallboard(true)
+    containerRef.current?.requestFullscreen?.().catch(() => {
+      // Fullscreen may be denied (no user gesture, iframe policy); the CSS
+      // overlay still applies, so ignore the rejection.
+    })
+  }
+
+  const exitWallboard = () => {
+    setWallboard(false)
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
+  }
+
+  // Keep state in sync when the user leaves native fullscreen via Esc.
+  useEffect(() => {
+    const onChange = () => {
+      if (!document.fullscreenElement) setWallboard(false)
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
 
   // Unsaved-changes guard: customize mode holds an unsaved draft, so block
   // in-app navigation (with a confirm) and warn on tab close / hard reload.
@@ -154,6 +242,33 @@ export function DashboardsPage() {
     },
   })
 
+  // --- public share link ---
+  // The plaintext URL is only known right after minting (the API never returns
+  // it again), so it lives in local state until the modal closes.
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [mintedUrl, setMintedUrl] = useState<string | null>(null)
+  const shareMutation = useMutation({
+    mutationFn: (id: string) => shareDashboard(id),
+    onSuccess: (url) => {
+      setMintedUrl(url)
+      invalidate()
+    },
+    onError: () => notifications.show({ color: 'red', message: 'Unable to create link' }),
+  })
+  const revokeShareMutation = useMutation({
+    mutationFn: (id: string) => revokeDashboardShare(id),
+    onSuccess: () => {
+      setMintedUrl(null)
+      invalidate()
+      notifications.show({ message: 'Public link revoked' })
+    },
+    onError: () => notifications.show({ color: 'red', message: 'Unable to revoke link' }),
+  })
+  const openShareModal = () => {
+    setMintedUrl(null)
+    setShareModalOpen(true)
+  }
+
   // --- edit actions ---
   const startEditing = () => {
     setDraft(current.layout.widgets.map((w) => ({ ...w })))
@@ -175,6 +290,94 @@ export function DashboardsPage() {
       ;[next[index], next[target]] = [next[target], next[index]]
       return next
     })
+
+  // Drag-to-reorder (customize mode). Sortable ids are the draft indices; on drop
+  // we arrayMove the draft. The chevron buttons stay for keyboard/a11y users.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setDraft((d) => arrayMove(d, Number(active.id), Number(over.id)))
+  }
+
+  // Shared cell body (controls + widget), so the editing/non-editing branches
+  // don't duplicate the widget render. `handle` supplies drag-handle props when
+  // the cell is sortable.
+  const renderCellInner = (
+    w: DashboardWidget,
+    index: number,
+    handle?: DragHandleProps,
+  ): ReactNode => (
+    <>
+      {editing && (
+        <div className={classes.controls}>
+          {handle && (
+            <Tooltip label="Drag to reorder" withArrow>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="sm"
+                aria-label="Drag to reorder"
+                style={{ cursor: 'grab' }}
+                {...handle.attributes}
+                {...handle.listeners}
+              >
+                <GripVertical size={15} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+          <Tooltip label="Move earlier" withArrow>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="sm"
+              onClick={() => moveWidget(index, -1)}
+              disabled={index === 0}
+            >
+              <ChevronUp size={15} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Move later" withArrow>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="sm"
+              onClick={() => moveWidget(index, 1)}
+              disabled={index === widgets.length - 1}
+            >
+              <ChevronDown size={15} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Resize" withArrow>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="sm"
+              onClick={() => resizeWidget(index)}
+            >
+              <Maximize2 size={14} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Remove" withArrow>
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              size="sm"
+              onClick={() => removeWidget(index)}
+            >
+              <X size={15} />
+            </ActionIcon>
+          </Tooltip>
+        </div>
+      )}
+      {metrics && renderWidget(w.type, metrics)}
+    </>
+  )
   const resizeWidget = (index: number) =>
     setDraft((d) =>
       d.map((w, i) =>
@@ -244,7 +447,11 @@ export function DashboardsPage() {
   }, [dashboards])
 
   return (
-    <Box className={pageClasses.page}>
+    <Box
+      ref={containerRef}
+      className={`${pageClasses.page} ${wallboard ? classes.wallboard : ''}`}
+      data-wallboard={wallboard || undefined}
+    >
       <Modal
         opened={nameModal !== null}
         onClose={() => setNameModal(null)}
@@ -272,6 +479,78 @@ export function DashboardsPage() {
             </Button>
             <Button onClick={submitName} loading={createMutation.isPending}>
               Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        title="Public share link"
+      >
+        <Stack gap="md">
+          <Text fz="sm" c="dimmed">
+            Anyone with the link can view this dashboard read-only, without
+            signing in. It shows the same widgets, refreshed live.
+          </Text>
+
+          {mintedUrl ? (
+            <>
+              <Group gap="xs" wrap="nowrap" align="flex-end">
+                <TextInput
+                  flex={1}
+                  readOnly
+                  label="Share link"
+                  value={mintedUrl}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <CopyButton value={mintedUrl}>
+                  {({ copied, copy }) => (
+                    <Button
+                      variant={copied ? 'filled' : 'default'}
+                      color={copied ? 'green' : undefined}
+                      onClick={copy}
+                    >
+                      {copied ? 'Copied' : 'Copy'}
+                    </Button>
+                  )}
+                </CopyButton>
+              </Group>
+              <Text fz="xs" c="dimmed">
+                Copy it now — for security the link isn’t stored and won’t be
+                shown again. You can always regenerate it here.
+              </Text>
+            </>
+          ) : current.shareLinkActive ? (
+            <Text fz="sm">
+              A public link is active. Its URL was shown only when created and
+              isn’t stored — regenerate to get a fresh link (which invalidates
+              the old one), or revoke to disable sharing.
+            </Text>
+          ) : (
+            <Text fz="sm">No public link yet.</Text>
+          )}
+
+          <Group justify="space-between">
+            {current.shareLinkActive ? (
+              <Button
+                variant="subtle"
+                color="red"
+                loading={revokeShareMutation.isPending}
+                onClick={() => revokeShareMutation.mutate(current.id)}
+              >
+                Revoke link
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button
+              leftSection={<Link2 size={16} />}
+              loading={shareMutation.isPending}
+              onClick={() => shareMutation.mutate(current.id)}
+            >
+              {current.shareLinkActive ? 'Regenerate link' : 'Create link'}
             </Button>
           </Group>
         </Stack>
@@ -369,6 +648,27 @@ export function DashboardsPage() {
                   Export PDF
                 </Button>
               </Tooltip>
+              <Tooltip
+                label={wallboard ? 'Exit fullscreen' : 'Fullscreen wallboard'}
+                withArrow
+              >
+                <Button
+                  variant="default"
+                  aria-label={
+                    wallboard ? 'Exit fullscreen' : 'Fullscreen wallboard'
+                  }
+                  leftSection={
+                    wallboard ? (
+                      <Minimize2 size={16} />
+                    ) : (
+                      <Maximize2 size={16} />
+                    )
+                  }
+                  onClick={wallboard ? exitWallboard : enterWallboard}
+                >
+                  {wallboard ? 'Exit' : 'Fullscreen'}
+                </Button>
+              </Tooltip>
               {canEdit && (
                 <Button
                   variant="default"
@@ -406,6 +706,14 @@ export function DashboardsPage() {
                         onClick={toggleShare}
                       >
                         {current.isShared ? 'Make private' : 'Share with org'}
+                      </Menu.Item>
+                      <Menu.Item
+                        leftSection={<Link2 size={15} />}
+                        onClick={openShareModal}
+                      >
+                        {current.shareLinkActive
+                          ? 'Public link…'
+                          : 'Create public link…'}
                       </Menu.Item>
                       <Menu.Divider />
                       <Menu.Item
@@ -448,60 +756,37 @@ export function DashboardsPage() {
             {editing ? 'Use “Add widget” to build it.' : 'Customize it to add some.'}
           </Text>
         </Box>
+      ) : editing ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={widgets.map((_, i) => String(i))}
+            strategy={rectSortingStrategy}
+          >
+            <Box className={`${classes.grid} ${classes.editing}`}>
+              {widgets.map((w, index) => (
+                <SortableCell
+                  key={`${w.type}-${index}`}
+                  id={String(index)}
+                  className={`${classes.cell} ${classes[w.size]}`}
+                >
+                  {(handle) => renderCellInner(w, index, handle)}
+                </SortableCell>
+              ))}
+            </Box>
+          </SortableContext>
+        </DndContext>
       ) : (
-        <Box className={`${classes.grid} ${editing ? classes.editing : ''}`}>
+        <Box className={classes.grid}>
           {widgets.map((w, index) => (
             <Box
               key={`${w.type}-${index}`}
               className={`${classes.cell} ${classes[w.size]}`}
             >
-              {editing && (
-                <div className={classes.controls}>
-                  <Tooltip label="Move earlier" withArrow>
-                    <ActionIcon
-                      variant="subtle"
-                      color="gray"
-                      size="sm"
-                      onClick={() => moveWidget(index, -1)}
-                      disabled={index === 0}
-                    >
-                      <ChevronUp size={15} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Move later" withArrow>
-                    <ActionIcon
-                      variant="subtle"
-                      color="gray"
-                      size="sm"
-                      onClick={() => moveWidget(index, 1)}
-                      disabled={index === widgets.length - 1}
-                    >
-                      <ChevronDown size={15} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Resize" withArrow>
-                    <ActionIcon
-                      variant="subtle"
-                      color="gray"
-                      size="sm"
-                      onClick={() => resizeWidget(index)}
-                    >
-                      <Maximize2 size={14} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Remove" withArrow>
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      size="sm"
-                      onClick={() => removeWidget(index)}
-                    >
-                      <X size={15} />
-                    </ActionIcon>
-                  </Tooltip>
-                </div>
-              )}
-              {renderWidget(w.type, metrics)}
+              {renderCellInner(w, index)}
             </Box>
           ))}
         </Box>

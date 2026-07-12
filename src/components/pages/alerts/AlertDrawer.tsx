@@ -7,8 +7,10 @@ import {
   alertSimilarCasesQueryOptions,
   alertTagsQueryOptions,
   createAlertComment,
+  detachAlertFromCase,
   setAlertTags,
 } from '#/components/Alerts/alertsQueries'
+import { caseKeys } from '#/components/Cases/casesQueries'
 import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -100,6 +102,21 @@ export function AlertDrawer({
       }),
   })
 
+  const detach = useMutation({
+    mutationFn: detachAlertFromCase,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: alertKeys.all })
+      void queryClient.invalidateQueries({ queryKey: caseKeys.all })
+      notifications.show({ color: 'green', message: 'Alert detached from case' })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message:
+          error instanceof Error ? error.message : 'Unable to detach alert',
+      }),
+  })
+
   const runAnalysis =
     onRunAnalysis ??
     ((id: string) =>
@@ -132,6 +149,8 @@ export function AlertDrawer({
       onMergeIntoCase={onMergeIntoCase}
       onPromote={onPromote}
       promotionPending={promotionPending}
+      onDetach={(id) => detach.mutate(id)}
+      detachPending={detach.isPending}
       hideActions={hideActions}
     />
   )

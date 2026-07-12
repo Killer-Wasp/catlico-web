@@ -2,6 +2,7 @@ import type { Case } from '#/components/Cases/cases.types'
 import { avatarFor } from '#/components/Cases/cases'
 import type { CaseStatus } from '#/lib/domain'
 import { Severity } from '#/components/Severity/Severity'
+import { SlaChip } from '#/components/Cases/SlaChip'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
 import { Tag } from '#/components/Tag/Tag'
 import { RelativeTime } from '#/components/Time/RelativeTime'
@@ -120,6 +121,11 @@ export function buildCaseColumns({
               {info.getValue<string>()}
             </Text>
             <Group gap={6} mt={4} wrap="wrap">
+              <SlaChip
+                state={info.row.original.slaState}
+                dueAt={info.row.original.slaDueAt}
+                size="xs"
+              />
               {tags.map((t) => (
                 <Tag key={t} label={t} />
               ))}

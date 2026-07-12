@@ -240,6 +240,8 @@ function toCase(c: CasePublic): Case {
     updated: relativeStamp(c.updated_at ?? c.created_at),
     createdAt: c.created_at,
     updatedAt: c.updated_at ?? c.created_at,
+    slaDueAt: c.sla_due_at,
+    slaState: c.sla_state,
     ...(c.duplicate_of_case_id != null
       ? { duplicateOf: `#${c.duplicate_of_case_id}` }
       : {}),

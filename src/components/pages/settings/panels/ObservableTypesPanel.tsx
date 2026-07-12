@@ -28,6 +28,7 @@ import {
   notifySuccess,
   Panel,
 } from '#/components/pages/settings/settingsUi'
+import { usePermissions } from '#/lib/auth/usePermissions'
 
 function AddTypeModal({
   opened,
@@ -89,6 +90,8 @@ function AddTypeModal({
 
 export function ObservableTypesPanel() {
   const queryClient = useQueryClient()
+  // Observable-type create/delete are platform-admin only (SuperAdminUser on the API).
+  const { isSuperadmin } = usePermissions()
   const {
     data: types = [],
     isPending,
@@ -127,29 +130,30 @@ export function ObservableTypesPanel() {
         id: 'actions',
         header: '',
         meta: { ta: 'right' },
-        cell: ({ row }) => (
-          <Button
-            size="xs"
-            variant="default"
-            color="red"
-            loading={
-              deleteMutation.isPending &&
-              deleteMutation.variables === row.original.name
-            }
-            onClick={() =>
-              confirmDelete({
-                title: 'Delete observable type',
-                message: `Delete the "${row.original.name}" observable type? Observables already using it may be affected.`,
-                onConfirm: () => deleteMutation.mutate(row.original.name),
-              })
-            }
-          >
-            Delete
-          </Button>
-        ),
+        cell: ({ row }) =>
+          isSuperadmin ? (
+            <Button
+              size="xs"
+              variant="default"
+              color="red"
+              loading={
+                deleteMutation.isPending &&
+                deleteMutation.variables === row.original.name
+              }
+              onClick={() =>
+                confirmDelete({
+                  title: 'Delete observable type',
+                  message: `Delete the "${row.original.name}" observable type? Observables already using it may be affected.`,
+                  onConfirm: () => deleteMutation.mutate(row.original.name),
+                })
+              }
+            >
+              Delete
+            </Button>
+          ) : null,
       },
     ],
-    [deleteMutation],
+    [deleteMutation, isSuperadmin],
   )
 
   if (isPending) return <LoadingPanel label="Loading observable types..." />
@@ -171,9 +175,11 @@ export function ObservableTypesPanel() {
         title="Observable types"
         count={types.length}
         action={
-          <Button variant="default" onClick={() => setAddOpen(true)}>
-            + Add type
-          </Button>
+          isSuperadmin ? (
+            <Button variant="default" onClick={() => setAddOpen(true)}>
+              + Add type
+            </Button>
+          ) : undefined
         }
       >
         <ObservableTypesTable columns={columns} types={types} />

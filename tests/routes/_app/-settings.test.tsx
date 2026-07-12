@@ -213,6 +213,13 @@ beforeEach(() => {
           label: 'Edit investigations',
           description: '',
         },
+        {
+          key: 'delete:investigation',
+          domain: 'Investigation',
+          kind: 'delete',
+          label: 'Delete investigations',
+          description: '',
+        },
       ],
       'custom-fields/': {
         items: [
@@ -341,6 +348,9 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Profiles & permissions' }))
     expect(await screen.findByRole('button', { name: 'analyst' })).toBeDefined()
     expect(screen.getByText(/3 permissions granted/i)).toBeDefined()
+    // The grant matrix carries a standalone delete column (delete grants are now
+    // split from write).
+    expect(screen.getByRole('columnheader', { name: 'delete' })).toBeDefined()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Custom fields' }))
     expect(await screen.findByText('Backend case reference')).toBeDefined()
@@ -436,6 +446,32 @@ describe('SettingsPage', () => {
     expect(
       within(modal).getByRole('button', { name: /copy api key/i }),
     ).toBeDefined()
+  })
+
+  test('sends the chosen expiry when generating an API key', async () => {
+    render(<Harness />)
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'API keys' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: '+ Generate key' }),
+    )
+    fireEvent.change(await screen.findByLabelText('Key name'), {
+      target: { value: 'expiring-key' },
+    })
+    fireEvent.change(screen.getByLabelText('Expires'), {
+      target: { value: '2026-08-01' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('api-keys/', {
+        json: {
+          name: 'expiring-key',
+          scopes: [],
+          expires_at: '2026-08-01T23:59:59Z',
+        },
+      }),
+    )
   })
 
   test('shows an add SLA policy action when no policies exist', async () => {

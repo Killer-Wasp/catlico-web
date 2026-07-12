@@ -6,7 +6,13 @@
  * here fetches metrics.
  */
 import { queryOptions } from '@tanstack/react-query'
-import { api } from '#/lib/api/client'
+import ky from 'ky'
+import { api, API_BASE } from '#/lib/api/client'
+import {
+  toOverview,
+  type Overview,
+  type OverviewDTO,
+} from '#/components/Overview/overviewQueries'
 import type { WidgetSize } from './widgets'
 
 export type DashboardWidget = { type: string; size: WidgetSize }
@@ -23,6 +29,8 @@ export type Dashboard = {
   isOwner: boolean
   ownerName: string | null
   ownerId: string
+  /** A public read-only share link is currently active. */
+  shareLinkActive: boolean
 }
 
 type DashboardDTO = {
@@ -36,6 +44,7 @@ type DashboardDTO = {
   is_owner: boolean
   owner_name: string | null
   created_by: string
+  share_enabled: boolean
 }
 
 function toDashboard(d: DashboardDTO): Dashboard {
@@ -48,6 +57,7 @@ function toDashboard(d: DashboardDTO): Dashboard {
     isOwner: d.is_owner,
     ownerName: d.owner_name,
     ownerId: d.created_by,
+    shareLinkActive: d.share_enabled,
   }
 }
 
@@ -102,3 +112,61 @@ export async function updateDashboard(input: {
 export async function deleteDashboard(id: string): Promise<void> {
   await api.delete(`dashboards/${id}`)
 }
+
+/** The public, no-login URL for a share token — points at the SPA route, which
+ * fetches the unauthenticated payload. */
+export function shareLinkUrl(token: string): string {
+  return `${window.location.origin}/d/${token}`
+}
+
+/** Mint (or rotate) the read-only share link; returns the full public URL. The
+ * token is shown once — the caller must surface it immediately. */
+export async function shareDashboard(id: string): Promise<string> {
+  const { token } = await api
+    .post(`dashboards/${id}/share`)
+    .json<{ token: string }>()
+  return shareLinkUrl(token)
+}
+
+export async function revokeDashboardShare(id: string): Promise<void> {
+  await api.delete(`dashboards/${id}/share`)
+}
+
+export type PublicDashboard = {
+  name: string
+  description: string
+  layout: DashboardLayout
+  overview: Overview
+}
+
+type PublicDashboardDTO = {
+  name: string
+  description: string
+  layout: { widgets?: DashboardWidget[] }
+  overview: OverviewDTO
+}
+
+/** Fetch a shared dashboard by token with NO authentication — deliberately uses
+ * a bare ky call (not the app client, which would attach auth and refresh on
+ * 401). The overview payload is snake_case from the API, so it goes through the
+ * same `toOverview` transform the widgets expect. A revoked/unknown token 404s. */
+export async function fetchPublicDashboard(
+  token: string,
+): Promise<PublicDashboard> {
+  const d = await ky
+    .get(`${API_BASE}/public/dashboards/${encodeURIComponent(token)}`)
+    .json<PublicDashboardDTO>()
+  return {
+    name: d.name,
+    description: d.description,
+    layout: { widgets: d.layout.widgets ?? [] },
+    overview: toOverview(d.overview),
+  }
+}
+
+export const publicDashboardQueryOptions = (token: string) =>
+  queryOptions({
+    queryKey: ['public-dashboard', token],
+    queryFn: () => fetchPublicDashboard(token),
+    retry: false,
+  })

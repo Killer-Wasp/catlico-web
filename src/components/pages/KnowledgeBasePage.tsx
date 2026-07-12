@@ -1,12 +1,15 @@
 import {
   createKnowledgeBasePage,
   deleteKnowledgeBasePage,
+  exportKnowledgeBasePage,
   fetchKnowledgeBasePageVersions,
+  importKnowledgeBasePage,
   kbKeys,
   knowledgeBaseQueryOptions,
   revertKnowledgeBasePage,
   updateKnowledgeBasePage,
 } from '#/components/KnowledgeBase/knowledgeBaseQueries'
+import type { KnowledgeBasePageExport } from '#/components/KnowledgeBase/knowledgeBaseQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { Tag } from '#/components/Tag/Tag'
 import {
@@ -15,6 +18,7 @@ import {
   Button,
   Divider,
   Drawer,
+  FileButton,
   Group,
   Menu,
   Paper,
@@ -42,7 +46,15 @@ import { TaskList } from '@tiptap/extension-task-list'
 import { Markdown } from '@tiptap/markdown'
 import { useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { History, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import {
+  Download,
+  History,
+  MoreHorizontal,
+  Pencil,
+  RotateCcw,
+  Trash2,
+  Upload,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { RichTextField } from './case-template-editor/RichTextField'
 import { fromApi } from './knowledge-base/model'
@@ -291,6 +303,58 @@ export function KnowledgeBasePage() {
       }),
   })
 
+  const exportMutation = useMutation({
+    mutationFn: async (page: KBPage) => {
+      const document = await exportKnowledgeBasePage(page.id)
+      return { document, page }
+    },
+    onSuccess: ({ document, page }) => {
+      const blob = new Blob([JSON.stringify(document, null, 2)], {
+        type: 'application/json',
+      })
+      const url = URL.createObjectURL(blob)
+      const anchor = window.document.createElement('a')
+      anchor.href = url
+      anchor.download = `kb-page-${page.id}.json`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      notifications.show({ color: 'teal', message: 'Page exported' })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: error instanceof Error ? error.message : 'Failed to export page',
+      }),
+  })
+
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      let document: KnowledgeBasePageExport
+      try {
+        document = JSON.parse(await file.text()) as KnowledgeBasePageExport
+      } catch {
+        throw new Error('That file is not a valid knowledge base export.')
+      }
+      if (!document?.page?.title) {
+        throw new Error('That file is not a valid knowledge base export.')
+      }
+      return importKnowledgeBasePage(document)
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: kbKeys.all })
+      void navigate({
+        to: '/knowledge-base/$pageId',
+        params: { pageId: String(created.id) },
+      })
+      notifications.show({ color: 'teal', message: `"${created.title}" imported` })
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: error instanceof Error ? error.message : 'Failed to import page',
+      }),
+  })
+
   if (isError) {
     return (
       <Box className={classes.page}>
@@ -320,14 +384,32 @@ export function KnowledgeBasePage() {
         <Text ff="monospace" fz={12} c="var(--faint)">
           runbooks, IR procedures &amp; intel notes · org-shared
         </Text>
-        <Button
-          ml="auto"
-          variant="default"
-          loading={addMutation.isPending}
-          onClick={() => addMutation.mutate()}
-        >
-          + New page
-        </Button>
+        <Group ml="auto" gap="xs">
+          <FileButton
+            accept="application/json"
+            onChange={(file) => {
+              if (file) importMutation.mutate(file)
+            }}
+          >
+            {(props) => (
+              <Button
+                {...props}
+                variant="default"
+                leftSection={<Upload size={16} />}
+                loading={importMutation.isPending}
+              >
+                Import
+              </Button>
+            )}
+          </FileButton>
+          <Button
+            variant="default"
+            loading={addMutation.isPending}
+            onClick={() => addMutation.mutate()}
+          >
+            + New page
+          </Button>
+        </Group>
       </Group>
 
       <Tabs
@@ -486,6 +568,13 @@ export function KnowledgeBasePage() {
                           Edit
                         </Menu.Item>
                         <Menu.Item
+                          leftSection={<Download size={14} />}
+                          disabled={exportMutation.isPending}
+                          onClick={() => exportMutation.mutate(selectedPage)}
+                        >
+                          Export
+                        </Menu.Item>
+                        <Menu.Item
                           color="red"
                           leftSection={<Trash2 size={14} />}
                           onClick={() => deleteMutation.mutate(selectedPage)}
@@ -503,6 +592,14 @@ export function KnowledgeBasePage() {
                   {selectedPage.lastEditedBy && (
                     <Text c="dimmed" size="xs">
                       Edited by {selectedPage.lastEditedBy.email}
+                    </Text>
+                  )}
+                  {selectedPage.contributors.length > 0 && (
+                    <Text c="dimmed" size="xs">
+                      Contributors:{' '}
+                      {selectedPage.contributors
+                        .map((contributor) => contributor.email)
+                        .join(', ')}
                     </Text>
                   )}
                   {selectedPage.summary && (

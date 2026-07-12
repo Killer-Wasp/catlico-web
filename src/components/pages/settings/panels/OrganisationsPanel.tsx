@@ -41,9 +41,13 @@ import {
   Panel,
   toOrgShortName,
 } from '#/components/pages/settings/settingsUi'
+import { usePermissions } from '#/lib/auth/usePermissions'
 
 export function OrganisationsPanel() {
   const queryClient = useQueryClient()
+  // Create/delete are platform-admin only (SuperAdminUser on the API); org-scoped
+  // edits and links only need write:organisation, so they stay available.
+  const { isSuperadmin } = usePermissions()
   const { data: activeOrg } = useQuery(organisationProfileQueryOptions())
   const { data: backendOrgs, isError } = useQuery(organisationsQueryOptions())
   const organisations = backendOrgs ?? (activeOrg ? [activeOrg] : [])
@@ -327,18 +331,22 @@ export function OrganisationsPanel() {
                 }
               />
               <Group justify="space-between" mt="xs">
-                <Button
-                  type="button"
-                  color="red"
-                  variant="light"
-                  loading={deleteMutation.isPending}
-                  onClick={() => {
-                    setDeleteConfirmName('')
-                    setDeleteConfirmOpen(true)
-                  }}
-                >
-                  Delete organisation
-                </Button>
+                {isSuperadmin ? (
+                  <Button
+                    type="button"
+                    color="red"
+                    variant="light"
+                    loading={deleteMutation.isPending}
+                    onClick={() => {
+                      setDeleteConfirmName('')
+                      setDeleteConfirmOpen(true)
+                    }}
+                  >
+                    Delete organisation
+                  </Button>
+                ) : (
+                  <span />
+                )}
                 <Group>
                   <Button
                     type="button"
@@ -402,9 +410,11 @@ export function OrganisationsPanel() {
         title="Organisations"
         count={organisations.length}
         action={
-          <Button variant="default" onClick={() => setCreateOpened(true)}>
-            + New organisation
-          </Button>
+          isSuperadmin ? (
+            <Button variant="default" onClick={() => setCreateOpened(true)}>
+              + New organisation
+            </Button>
+          ) : undefined
         }
       >
         {isError && (

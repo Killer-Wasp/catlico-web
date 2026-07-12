@@ -42,6 +42,11 @@ export type KnowledgeBasePagePublic = {
   last_edited_by?: KnowledgeBaseContributor | null
 }
 
+export type KnowledgeBasePageExport = {
+  page: KnowledgeBasePagePublic
+  versions: KnowledgeBasePageVersionPublic[]
+}
+
 export type KnowledgeBasePageCreateInput = {
   title: string
   summary?: string
@@ -108,6 +113,20 @@ export async function revertKnowledgeBasePage(
 ): Promise<KnowledgeBasePagePublic> {
   return api
     .post(`knowledge-base/${pageId}/versions/${versionId}/revert`)
+    .json<KnowledgeBasePagePublic>()
+}
+
+export async function exportKnowledgeBasePage(
+  id: number,
+): Promise<KnowledgeBasePageExport> {
+  return api.get(`knowledge-base/${id}/export`).json<KnowledgeBasePageExport>()
+}
+
+export async function importKnowledgeBasePage(
+  document: KnowledgeBasePageExport,
+): Promise<KnowledgeBasePagePublic> {
+  return api
+    .post('knowledge-base/import', { json: document })
     .json<KnowledgeBasePagePublic>()
 }
 

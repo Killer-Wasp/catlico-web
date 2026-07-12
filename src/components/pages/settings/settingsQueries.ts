@@ -34,7 +34,7 @@ export type RolePublic = {
   created_at: string
 }
 
-export type PermissionKind = 'read' | 'write' | 'run'
+export type PermissionKind = 'read' | 'write' | 'delete' | 'run'
 
 export type PermissionInfo = {
   key: string
@@ -416,6 +416,14 @@ export async function deleteTag(tagId: number): Promise<void> {
   await api.delete(`tags/${tagId}`)
 }
 
+/** Create a namespace-less "freetag" — just a predicate word. The backend 409s
+ * on a duplicate. Superadmin-only (matches the tags create/delete guard). */
+export async function createFreetag(predicate: string): Promise<TagPublic> {
+  return api
+    .post('tags/', { json: { predicate, namespace: '', value: '' } })
+    .json<TagPublic>()
+}
+
 export const tagsQueryOptions = (namespace?: string) =>
   queryOptions({
     queryKey: settingsKeys.tags(namespace),
@@ -535,6 +543,10 @@ export async function upsertSlaPolicies(
   policies: SlaPolicyUpsertInput[],
 ): Promise<SlaPolicyPublic[]> {
   return api.put('sla-policies/', { json: policies }).json<SlaPolicyPublic[]>()
+}
+
+export async function deleteSlaPolicy(id: number): Promise<void> {
+  await api.delete(`sla-policies/${id}`)
 }
 
 export const slaPoliciesQueryOptions = (orgId = activeOrgId()) =>

@@ -330,6 +330,12 @@ export async function dismissAlert(alertId: string): Promise<void> {
   await api.patch(`alerts/${numeric}`, { json: { status: 'Ignored' } })
 }
 
+// Reverse of promote/merge: unlink the alert from its case, returning it to New.
+export async function detachAlertFromCase(alertId: string): Promise<void> {
+  const numeric = alertId.replace(/^AL-/, '')
+  await api.post(`alerts/${numeric}/detach`)
+}
+
 export async function mergeAlertsToCase({
   alertIds,
   caseTemplateId,

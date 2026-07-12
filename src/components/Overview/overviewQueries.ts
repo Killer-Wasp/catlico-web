@@ -51,7 +51,7 @@ type CaseTrendPointDTO = { date: string; opened: number; resolved: number }
 
 type SlaComplianceDTO = { met: number; breached: number; pct: number | null }
 
-type OverviewDTO = {
+export type OverviewDTO = {
   generated_at: string
   stats: KpiStatsDTO
   alerts_by_severity: TrendPointDTO[]
@@ -139,7 +139,7 @@ export type Overview = {
 const clamp = (n: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, Math.round(n)))
 
-function toOverview(dto: OverviewDTO): Overview {
+export function toOverview(dto: OverviewDTO): Overview {
   return {
     generatedAt: dto.generated_at,
     stats: {

@@ -35,7 +35,7 @@ import {
   TableBox,
 } from '#/components/pages/settings/settingsUi'
 
-const KINDS: PermissionKind[] = ['read', 'write', 'run']
+const KINDS: PermissionKind[] = ['read', 'write', 'delete', 'run']
 
 type DomainRow = {
   domain: string
@@ -51,7 +51,7 @@ function groupByDomain(catalog: PermissionInfo[]): DomainRow[] {
   const byDomain = new Map<string, DomainRow['cells']>()
   for (const info of catalog) {
     if (!byDomain.has(info.domain)) {
-      byDomain.set(info.domain, { read: [], write: [], run: [] })
+      byDomain.set(info.domain, { read: [], write: [], delete: [], run: [] })
       order.push(info.domain)
     }
     byDomain.get(info.domain)![info.kind].push(info)
@@ -136,6 +136,8 @@ export function ProfilesPanel() {
   )
   const { can } = usePermissions()
   const canEdit = can('write:role')
+  // Deleting a profile is a distinct grant from editing one (API enforces the split).
+  const canDelete = can('delete:role')
 
   const [profile, setProfile] = useState('')
   const [checkState, setCheckState] = useState<Set<string>>(new Set())
@@ -318,31 +320,35 @@ export function ProfilesPanel() {
               </Table.Tbody>
             </Table>
           </TableBox>
-          {canEdit && (
+          {(canEdit || canDelete) && (
             <Group justify="flex-end" mt="md">
-              <Button
-                variant="subtle"
-                color="red"
-                mr="auto"
-                loading={deleteMutation.isPending}
-                onClick={() =>
-                  confirmDelete({
-                    title: 'Delete profile',
-                    message: `Delete the "${activeProfile.name}" profile? Members assigned to it will need a new role.`,
-                    onConfirm: () => deleteMutation.mutate(activeProfile.id),
-                  })
-                }
-              >
-                Delete profile
-              </Button>
-              <Button
-                color="orange"
-                loading={saveMutation.isPending}
-                disabled={!dirty}
-                onClick={() => saveMutation.mutate()}
-              >
-                Save profile
-              </Button>
+              {canDelete && (
+                <Button
+                  variant="subtle"
+                  color="red"
+                  mr="auto"
+                  loading={deleteMutation.isPending}
+                  onClick={() =>
+                    confirmDelete({
+                      title: 'Delete profile',
+                      message: `Delete the "${activeProfile.name}" profile? Members assigned to it will need a new role.`,
+                      onConfirm: () => deleteMutation.mutate(activeProfile.id),
+                    })
+                  }
+                >
+                  Delete profile
+                </Button>
+              )}
+              {canEdit && (
+                <Button
+                  color="orange"
+                  loading={saveMutation.isPending}
+                  disabled={!dirty}
+                  onClick={() => saveMutation.mutate()}
+                >
+                  Save profile
+                </Button>
+              )}
             </Group>
           )}
         </Box>

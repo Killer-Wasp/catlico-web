@@ -6,7 +6,7 @@ import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type * as TanStackReactRouter from '@tanstack/react-router'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import {
   afterEach,
   beforeAll,
@@ -115,5 +115,67 @@ describe('AlertDetailDrawer', () => {
     // The `AL-` prefix must be stripped — the endpoint expects the numeric id.
     expect(calls).toContain('alerts/42/plugin-results')
     expect(calls).not.toContain('alerts/AL-42/plugin-results')
+  })
+
+  test('shows a Detach action for a linked alert and calls onDetach', async () => {
+    const onDetach = vi.fn()
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    })
+    render(
+      <MantineProvider>
+        <Notifications />
+        <QueryClientProvider client={queryClient}>
+          <AlertDetailDrawer
+            alert={alert}
+            comments={[]}
+            observables={[]}
+            similarCases={[]}
+            linkedCases={[
+              { id: '#7', title: 'Linked case', sev: 3, status: 'Open' },
+            ]}
+            hideActions
+            onClose={vi.fn()}
+            onAddComment={vi.fn()}
+            onRunAnalysis={vi.fn()}
+            onDetach={onDetach}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    )
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /detach from case/i }),
+    )
+    expect(onDetach).toHaveBeenCalledWith('AL-42')
+  })
+
+  test('renders no Detach action when the alert has no linked case', async () => {
+    const onDetach = vi.fn()
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    })
+    render(
+      <MantineProvider>
+        <Notifications />
+        <QueryClientProvider client={queryClient}>
+          <AlertDetailDrawer
+            alert={alert}
+            comments={[]}
+            observables={[]}
+            similarCases={[]}
+            linkedCases={[]}
+            onClose={vi.fn()}
+            onAddComment={vi.fn()}
+            onRunAnalysis={vi.fn()}
+            onDetach={onDetach}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    )
+    await screen.findByText('Plugin Results')
+    expect(
+      screen.queryByRole('button', { name: /detach from case/i }),
+    ).toBeNull()
   })
 })

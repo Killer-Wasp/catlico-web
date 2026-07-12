@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as DTokenRouteImport } from './routes/d.$token'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSearchRouteImport } from './routes/_app/search'
@@ -25,6 +26,7 @@ import { Route as AppObservablesRouteImport } from './routes/_app/observables'
 import { Route as AppKnowledgeBaseRouteImport } from './routes/_app/knowledge-base'
 import { Route as AppFunctionsRouteImport } from './routes/_app/functions'
 import { Route as AppDashboardsRouteImport } from './routes/_app/dashboards'
+import { Route as AppAttackMatrixRouteImport } from './routes/_app/attack-matrix'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
 import { Route as AppCasesIndexRouteImport } from './routes/_app/cases/index'
@@ -63,6 +65,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
+} as any)
+const DTokenRoute = DTokenRouteImport.update({
+  id: '/d/$token',
+  path: '/d/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppTasksRoute = AppTasksRouteImport.update({
   id: '/tasks',
@@ -117,6 +124,11 @@ const AppFunctionsRoute = AppFunctionsRouteImport.update({
 const AppDashboardsRoute = AppDashboardsRouteImport.update({
   id: '/dashboards',
   path: '/dashboards',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAttackMatrixRoute = AppAttackMatrixRouteImport.update({
+  id: '/attack-matrix',
+  path: '/attack-matrix',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAlertsRoute = AppAlertsRouteImport.update({
@@ -197,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/alerts': typeof AppAlertsRouteWithChildren
+  '/attack-matrix': typeof AppAttackMatrixRoute
   '/dashboards': typeof AppDashboardsRoute
   '/functions': typeof AppFunctionsRouteWithChildren
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
@@ -208,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof AppSearchRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRoute
+  '/d/$token': typeof DTokenRoute
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
@@ -226,6 +240,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/attack-matrix': typeof AppAttackMatrixRoute
   '/dashboards': typeof AppDashboardsRoute
   '/functions': typeof AppFunctionsRouteWithChildren
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
@@ -236,6 +251,7 @@ export interface FileRoutesByTo {
   '/plugins': typeof AppPluginsRoute
   '/search': typeof AppSearchRoute
   '/tasks': typeof AppTasksRoute
+  '/d/$token': typeof DTokenRoute
   '/': typeof AppIndexRoute
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
@@ -257,6 +273,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_app/alerts': typeof AppAlertsRouteWithChildren
+  '/_app/attack-matrix': typeof AppAttackMatrixRoute
   '/_app/dashboards': typeof AppDashboardsRoute
   '/_app/functions': typeof AppFunctionsRouteWithChildren
   '/_app/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
@@ -268,6 +285,7 @@ export interface FileRoutesById {
   '/_app/search': typeof AppSearchRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRoute
+  '/d/$token': typeof DTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/_app/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
@@ -291,6 +309,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/alerts'
+    | '/attack-matrix'
     | '/dashboards'
     | '/functions'
     | '/knowledge-base'
@@ -302,6 +321,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/tasks'
+    | '/d/$token'
     | '/alerts/$alertId'
     | '/case-templates/$templateId'
     | '/cases/$caseId'
@@ -320,6 +340,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset-password'
+    | '/attack-matrix'
     | '/dashboards'
     | '/functions'
     | '/knowledge-base'
@@ -330,6 +351,7 @@ export interface FileRouteTypes {
     | '/plugins'
     | '/search'
     | '/tasks'
+    | '/d/$token'
     | '/'
     | '/alerts/$alertId'
     | '/case-templates/$templateId'
@@ -350,6 +372,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/_app/alerts'
+    | '/_app/attack-matrix'
     | '/_app/dashboards'
     | '/_app/functions'
     | '/_app/knowledge-base'
@@ -361,6 +384,7 @@ export interface FileRouteTypes {
     | '/_app/search'
     | '/_app/settings'
     | '/_app/tasks'
+    | '/d/$token'
     | '/_app/'
     | '/_app/alerts/$alertId'
     | '/_app/case-templates/$templateId'
@@ -382,6 +406,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  DTokenRoute: typeof DTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -420,6 +445,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/d/$token': {
+      id: '/d/$token'
+      path: '/d/$token'
+      fullPath: '/d/$token'
+      preLoaderRoute: typeof DTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/tasks': {
       id: '/_app/tasks'
@@ -496,6 +528,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboards'
       fullPath: '/dashboards'
       preLoaderRoute: typeof AppDashboardsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/attack-matrix': {
+      id: '/_app/attack-matrix'
+      path: '/attack-matrix'
+      fullPath: '/attack-matrix'
+      preLoaderRoute: typeof AppAttackMatrixRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/alerts': {
@@ -666,6 +705,7 @@ const AppCasesCaseIdRouteWithChildren = AppCasesCaseIdRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppAlertsRoute: typeof AppAlertsRouteWithChildren
+  AppAttackMatrixRoute: typeof AppAttackMatrixRoute
   AppDashboardsRoute: typeof AppDashboardsRoute
   AppFunctionsRoute: typeof AppFunctionsRouteWithChildren
   AppKnowledgeBaseRoute: typeof AppKnowledgeBaseRouteWithChildren
@@ -687,6 +727,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAlertsRoute: AppAlertsRouteWithChildren,
+  AppAttackMatrixRoute: AppAttackMatrixRoute,
   AppDashboardsRoute: AppDashboardsRoute,
   AppFunctionsRoute: AppFunctionsRouteWithChildren,
   AppKnowledgeBaseRoute: AppKnowledgeBaseRouteWithChildren,
@@ -713,6 +754,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  DTokenRoute: DTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

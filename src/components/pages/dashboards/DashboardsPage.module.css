@@ -156,3 +156,16 @@
     print-color-adjust: exact;
   }
 }
+
+/* Fullscreen wallboard: fill the viewport with a solid background for wall
+   displays. Applied alongside native fullscreen where the browser allows it;
+   works on its own when the Fullscreen API is blocked. */
+.wallboard {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  margin: 0;
+  overflow: auto;
+  background: var(--mantine-color-body);
+  padding: 24px 32px;
+}

@@ -213,6 +213,8 @@ export function UsersPanel() {
   const { data: currentUser } = useQuery(currentUserQueryOptions())
   const { can } = usePermissions()
   const canManage = can('write:user')
+  // Removing a member is a distinct grant from editing one (API enforces the split).
+  const canRemove = can('delete:user')
   const roleById = useMemo(
     () => new Map(roles.map((role) => [role.id, role.name])),
     [roles],
@@ -277,7 +279,7 @@ export function UsersPanel() {
         header: '',
         meta: { ta: 'right' },
         cell: ({ row }) => {
-          if (!canManage) return null
+          if (!canManage && !canRemove) return null
           const isSelf = row.original.user_id === currentUser?.id
           return (
             <Menu position="bottom-end" withinPortal withArrow shadow="md">
@@ -291,27 +293,31 @@ export function UsersPanel() {
                 </ActionIcon>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item
-                  leftSection={<Pencil size={14} />}
-                  onClick={() => setEditingMember(row.original)}
-                >
-                  Edit
-                </Menu.Item>
-                <Menu.Item
-                  color="red"
-                  leftSection={<Trash2 size={14} />}
-                  disabled={isSelf}
-                  onClick={() => confirmRemove(row.original)}
-                >
-                  {isSelf ? 'Remove (that’s you)' : 'Remove'}
-                </Menu.Item>
+                {canManage && (
+                  <Menu.Item
+                    leftSection={<Pencil size={14} />}
+                    onClick={() => setEditingMember(row.original)}
+                  >
+                    Edit
+                  </Menu.Item>
+                )}
+                {canRemove && (
+                  <Menu.Item
+                    color="red"
+                    leftSection={<Trash2 size={14} />}
+                    disabled={isSelf}
+                    onClick={() => confirmRemove(row.original)}
+                  >
+                    {isSelf ? 'Remove (that’s you)' : 'Remove'}
+                  </Menu.Item>
+                )}
               </Menu.Dropdown>
             </Menu>
           )
         },
       },
     ],
-    [roleById, canManage, currentUser?.id],
+    [roleById, canManage, canRemove, currentUser?.id],
   )
 
   if (isPending) return <LoadingPanel label="Loading members..." />

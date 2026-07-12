@@ -6,6 +6,7 @@ import {
   Group,
   LoadingOverlay,
   Modal,
+  MultiSelect,
   Select,
   Stack,
   Switch,
@@ -18,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
   createNotifier,
+  deleteNotifier,
   notificationRulesQueryOptions,
   notifiersQueryOptions,
   settingsKeys,
@@ -25,7 +27,7 @@ import {
   updateNotifier,
 } from '#/components/pages/settings/settingsQueries'
 import type { NotifierPublic } from '#/components/pages/settings/settingsQueries'
-import { Panel } from '#/components/pages/settings/settingsUi'
+import { confirmDelete, Panel } from '#/components/pages/settings/settingsUi'
 
 export function NotificationsPanel() {
   const queryClient = useQueryClient()
@@ -61,6 +63,24 @@ export function NotificationsPanel() {
       notifications.show({ color: 'red', message: 'Failed to update rule' }),
   })
 
+  const setRuleNotifiers = useMutation({
+    mutationFn: ({ id, notifier_ids }: { id: string; notifier_ids: string[] }) =>
+      updateNotificationRule(id, { notifier_ids }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all }),
+    onError: () =>
+      notifications.show({
+        color: 'red',
+        message: 'Failed to update rule notifiers',
+      }),
+  })
+
+  // Options for the per-rule notifier picker; label a notifier by type + target.
+  const notifierOptions = notifiers.map((n) => ({
+    value: n.id,
+    label: `${n.type} — ${n.target || '(no target)'}`,
+  }))
+
   const [showCreate, setShowCreate] = useState(false)
   const [ntype, setNtype] = useState<NotifierPublic['type']>('webhook')
   const [ntarget, setNtarget] = useState('')
@@ -91,33 +111,17 @@ export function NotificationsPanel() {
   }
 
   const createMutation = useMutation({
-    mutationFn: async () => {
-      const errors: string[] = []
-      let config: Record<string, unknown> = {}
-      let secrets: Record<string, unknown> = {}
-      try {
-        config = JSON.parse(nconfig)
-        setNconfigError('')
-      } catch {
-        setNconfigError('Invalid JSON')
-        errors.push('config')
-      }
-      try {
-        secrets = JSON.parse(nsecrets)
-        setNsecretsError('')
-      } catch {
-        setNsecretsError('Invalid JSON')
-        errors.push('secrets')
-      }
-      if (errors.length > 0) throw new Error(`Invalid JSON in: ${errors.join(', ')}`)
-      return createNotifier({
+    mutationFn: (input: {
+      config: Record<string, unknown>
+      secrets: Record<string, unknown>
+    }) =>
+      createNotifier({
         type: ntype,
         target: ntarget || undefined,
         enabled: nenabled,
-        config,
-        secrets,
-      })
-    },
+        config: input.config,
+        secrets: input.secrets,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       closeCreate()
@@ -125,11 +129,89 @@ export function NotificationsPanel() {
     },
     onError: (error) => {
       const msg = error instanceof Error ? error.message : 'Failed to create notifier'
-      if (!msg.startsWith('Invalid JSON')) {
-        notifications.show({ color: 'red', message: msg })
-      }
+      notifications.show({ color: 'red', message: msg })
     },
   })
+
+  // Parse/validate the JSON fields in the click handler so validation errors
+  // surface inline without ever entering the create request lifecycle.
+  const handleCreate = () => {
+    let config: Record<string, unknown> = {}
+    let secrets: Record<string, unknown> = {}
+    let valid = true
+    try {
+      config = JSON.parse(nconfig)
+      setNconfigError('')
+    } catch {
+      setNconfigError('Invalid JSON')
+      valid = false
+    }
+    try {
+      secrets = JSON.parse(nsecrets)
+      setNsecretsError('')
+    } catch {
+      setNsecretsError('Invalid JSON')
+      valid = false
+    }
+    if (!valid) return
+    createMutation.mutate({ config, secrets })
+  }
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteNotifier(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+      notifications.show({ color: 'teal', message: 'Notifier deleted' })
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: 'Failed to delete notifier' }),
+  })
+
+  // Secret rotation. Secrets are write-only (never returned), so the only edit
+  // path is to submit a fresh JSON object that replaces them.
+  const [rotateFor, setRotateFor] = useState<NotifierPublic | null>(null)
+  const [rotateJson, setRotateJson] = useState('{}')
+  const [rotateError, setRotateError] = useState('')
+
+  const openRotate = (notifier: NotifierPublic) => {
+    setRotateFor(notifier)
+    setRotateJson('{}')
+    setRotateError('')
+  }
+
+  const closeRotate = () => {
+    setRotateFor(null)
+    setRotateJson('{}')
+    setRotateError('')
+  }
+
+  const rotateMutation = useMutation({
+    mutationFn: (input: { id: string; secrets: Record<string, unknown> }) =>
+      updateNotifier(input.id, { secrets: input.secrets }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+      closeRotate()
+      notifications.show({ color: 'teal', message: 'Notifier secrets updated' })
+    },
+    onError: (error) => {
+      const msg =
+        error instanceof Error ? error.message : 'Failed to update secrets'
+      notifications.show({ color: 'red', message: msg })
+    },
+  })
+
+  const handleRotate = () => {
+    if (!rotateFor) return
+    let secrets: Record<string, unknown>
+    try {
+      secrets = JSON.parse(rotateJson)
+      setRotateError('')
+    } catch {
+      setRotateError('Invalid JSON')
+      return
+    }
+    rotateMutation.mutate({ id: rotateFor.id, secrets })
+  }
 
   return (
     <Stack gap="md">
@@ -150,7 +232,34 @@ export function NotificationsPanel() {
                   <Text fz={12} c="var(--muted)">
                     {rule.description}
                   </Text>
+                  {rule.enabled && rule.notifier_ids.length === 0 && (
+                    <Text fz={11} c="orange.7">
+                      Enabled but wired to no notifiers — it will deliver nowhere.
+                    </Text>
+                  )}
                 </Box>
+                <MultiSelect
+                  w={260}
+                  size="xs"
+                  data={notifierOptions}
+                  value={rule.notifier_ids}
+                  placeholder={
+                    notifierOptions.length === 0
+                      ? 'No notifiers yet'
+                      : 'Select notifiers'
+                  }
+                  aria-label={`${rule.name} notifiers`}
+                  disabled={
+                    notifierOptions.length === 0 ||
+                    (setRuleNotifiers.isPending &&
+                      setRuleNotifiers.variables?.id === rule.id)
+                  }
+                  onChange={(value) =>
+                    setRuleNotifiers.mutate({ id: rule.id, notifier_ids: value })
+                  }
+                  clearable
+                  hidePickedOptions
+                />
                 <Switch
                   checked={rule.enabled}
                   aria-label={`${rule.name} enabled`}
@@ -204,6 +313,21 @@ export function NotificationsPanel() {
                     {n.target || '(no target)'}
                   </Text>
                 </Box>
+                <Badge
+                  variant="light"
+                  color={n.has_secrets ? 'green' : 'gray'}
+                  radius="xl"
+                  size="sm"
+                >
+                  {n.has_secrets ? 'secret set' : 'no secret'}
+                </Badge>
+                <Button
+                  size="xs"
+                  variant="default"
+                  onClick={() => openRotate(n)}
+                >
+                  {n.has_secrets ? 'Rotate secrets' : 'Set secrets'}
+                </Button>
                 <Switch
                   checked={n.enabled}
                   aria-label={`${n.type} notifier enabled`}
@@ -214,6 +338,23 @@ export function NotificationsPanel() {
                     })
                   }
                 />
+                <Button
+                  size="xs"
+                  variant="default"
+                  color="red"
+                  loading={
+                    deleteMutation.isPending && deleteMutation.variables === n.id
+                  }
+                  onClick={() =>
+                    confirmDelete({
+                      title: 'Delete notifier',
+                      message: `Delete the ${n.type} notifier${n.target ? ` (${n.target})` : ''}? Notification rules using it will stop delivering here.`,
+                      onConfirm: () => deleteMutation.mutate(n.id),
+                    })
+                  }
+                >
+                  Delete
+                </Button>
               </Group>
             ))}
             {!notifiersLoading && notifiers.length === 0 && (
@@ -286,9 +427,52 @@ export function NotificationsPanel() {
             <Button
               color="orange"
               loading={createMutation.isPending}
-              onClick={() => createMutation.mutate()}
+              onClick={handleCreate}
             >
               Create notifier
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={rotateFor !== null}
+        onClose={closeRotate}
+        title={
+          rotateFor
+            ? `${rotateFor.has_secrets ? 'Rotate' : 'Set'} secrets — ${rotateFor.type}`
+            : 'Secrets'
+        }
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Secrets are write-only and never shown. Submitting replaces the
+            notifier's stored secrets with the JSON below.
+          </Text>
+          <Textarea
+            label="Secrets"
+            description="JSON object"
+            value={rotateJson}
+            onChange={(e) => setRotateJson(e.currentTarget.value)}
+            error={rotateError}
+            minRows={4}
+            styles={{
+              input: {
+                fontFamily: 'var(--mantine-font-family-monospace)',
+                fontSize: 12,
+              },
+            }}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeRotate}>
+              Cancel
+            </Button>
+            <Button
+              color="orange"
+              loading={rotateMutation.isPending}
+              onClick={handleRotate}
+            >
+              Save secrets
             </Button>
           </Group>
         </Stack>

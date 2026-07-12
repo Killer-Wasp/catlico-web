@@ -41,6 +41,8 @@ export function AlertDetailDrawer({
   onRunAnalysis,
   onPromote,
   promotionPending = false,
+  onDetach,
+  detachPending = false,
   onSaveTags,
   savingTags = false,
   hideActions = false,
@@ -60,6 +62,10 @@ export function AlertDetailDrawer({
   onRunAnalysis: (id: string) => void
   onPromote?: (id: string, templateId: string) => void
   promotionPending?: boolean
+  /** Detach the alert from its linked case, returning it to New. Rendered in the
+   *  "Linked case" section (which is visible even when `hideActions` is set). */
+  onDetach?: (id: string) => void
+  detachPending?: boolean
   onSaveTags?: (id: string, tags: string[]) => Promise<unknown> | void
   savingTags?: boolean
   /** Hide the promote/dismiss/merge actions — e.g. when viewing an alert
@@ -139,6 +145,9 @@ export function AlertDetailDrawer({
   const mergeIntoCase = () => {
     onMergeIntoCase?.(alert.id)
     close()
+  }
+  const detach = () => {
+    onDetach?.(alert.id)
   }
   const createCaseWithTemplate = () => {
     onPromote?.(alert.id, templateId)
@@ -332,6 +341,18 @@ export function AlertDetailDrawer({
         {linkedRows.length > 0 && (
           <DrawerSection title="Linked case" count={linkedRows.length}>
             <SimilarCaseTable rows={linkedRows} onOpen={openCase} />
+            {onDetach && (
+              <Button
+                mt="sm"
+                size="xs"
+                variant="default"
+                color="red"
+                loading={detachPending}
+                onClick={detach}
+              >
+                Detach from case
+              </Button>
+            )}
           </DrawerSection>
         )}
 

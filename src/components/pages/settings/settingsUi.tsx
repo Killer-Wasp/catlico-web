@@ -14,10 +14,7 @@ import {
 import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { useEffect, useState } from 'react'
-import type {
-  IntegrationState,
-  Role,
-} from '#/components/pages/settings/settingsData'
+import type { Role } from '#/components/pages/settings/settingsData'
 
 export function useStamp() {
   const [stamp, setStamp] = useState('')
@@ -227,19 +224,6 @@ export function RoleBadge({ role }: { role: Role | string }) {
   return (
     <Badge color={color} variant="light" radius="xl" ff="monospace">
       {role.toUpperCase()}
-    </Badge>
-  )
-}
-
-export function StatusBadge({ state }: { state: IntegrationState | string }) {
-  return (
-    <Badge
-      color={state === 'AUTH ERROR' || state === 'PAUSED' ? 'red' : 'green'}
-      variant="light"
-      radius="xl"
-      ff="monospace"
-    >
-      {state}
     </Badge>
   )
 }

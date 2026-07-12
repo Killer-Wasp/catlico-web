@@ -52,14 +52,23 @@ export function ApiKeysPanel() {
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newKey, setNewKey] = useState('')
+  const [newExpiresAt, setNewExpiresAt] = useState('')
   const [scopes, setScopes] = useState<Set<string>>(new Set())
 
   const createMutation = useMutation({
-    mutationFn: () => createApiKey({ name: newName, scopes: [...scopes] }),
+    mutationFn: () =>
+      createApiKey({
+        name: newName,
+        scopes: [...scopes],
+        // Native date input yields YYYY-MM-DD; treat it as end-of-day UTC so the
+        // key stays valid through the chosen day. Omitted → non-expiring key.
+        expires_at: newExpiresAt ? `${newExpiresAt}T23:59:59Z` : null,
+      }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: apiKeysKeyPrefix })
       setNewKey(created.key)
       setNewName('')
+      setNewExpiresAt('')
       setScopes(new Set())
       notifySuccess('API key generated - save it now')
     },
@@ -102,6 +111,15 @@ export function ApiKeysPanel() {
         cell: ({ row }) => (
           <Text ff="monospace" c="var(--faint)">
             {compactDate(row.original.last_used_at)}
+          </Text>
+        ),
+      },
+      {
+        id: 'expires',
+        header: 'Expires',
+        cell: ({ row }) => (
+          <Text ff="monospace" c="var(--faint)">
+            {row.original.expires_at ? compactDate(row.original.expires_at) : 'never'}
           </Text>
         ),
       },
@@ -157,6 +175,7 @@ export function ApiKeysPanel() {
             onClick={() => {
               setNewName('')
               setNewKey('')
+              setNewExpiresAt('')
               setScopes(new Set())
               setShowCreate(true)
             }}
@@ -212,6 +231,13 @@ export function ApiKeysPanel() {
               value={newName}
               onChange={(e) => setNewName(e.currentTarget.value)}
               placeholder="e.g. splunk-forwarder"
+            />
+            <TextInput
+              type="date"
+              label="Expires"
+              description="Leave blank for a non-expiring key"
+              value={newExpiresAt}
+              onChange={(e) => setNewExpiresAt(e.currentTarget.value)}
             />
             <Stack gap={6}>
               <Text size="sm" fw={600}>

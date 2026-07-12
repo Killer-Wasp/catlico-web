@@ -5,6 +5,7 @@ import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DataTable } from '#/components/Table/DataTable'
 import {
+  deleteSlaPolicy,
   slaPoliciesQueryOptions,
   settingsKeys,
   upsertSlaPolicies,
@@ -14,6 +15,7 @@ import type {
   SlaPolicyUpsertInput,
 } from '#/components/pages/settings/settingsQueries'
 import {
+  confirmDelete,
   ErrorPanel,
   LoadingPanel,
   notifyError,
@@ -150,6 +152,35 @@ export function SlaPanel() {
     )
   }
 
+  const deleteMutation = useMutation({
+    mutationFn: (input: { id: number; severity: number }) =>
+      deleteSlaPolicy(input.id),
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({
+        queryKey: [...settingsKeys.all, 'sla-policies'],
+      })
+      setRows((current) => current.filter((r) => r.severity !== input.severity))
+      notifySuccess('SLA policy deleted')
+    },
+    onError: (error) => notifyError(error, 'Failed to delete SLA policy'),
+  })
+
+  // Remove a policy row. Rows that exist on the server (matched by severity)
+  // are deleted through the API behind a confirm; a row added locally but not
+  // yet saved has no server id, so it is just dropped from local edit state.
+  const removePolicy = (severity: number) => {
+    const saved = data?.items.find((p) => p.severity === severity)
+    if (!saved) {
+      setRows((current) => current.filter((r) => r.severity !== severity))
+      return
+    }
+    confirmDelete({
+      title: 'Delete SLA policy',
+      message: `Delete the ${SEVERITY_LABELS[severity] ?? severity} SLA policy? Cases at this severity will no longer be tracked against it.`,
+      onConfirm: () => deleteMutation.mutate({ id: saved.id, severity }),
+    })
+  }
+
   const addPolicy = () => {
     const existing = new Set(rows.map((row) => row.severity))
     const severity = [1, 2, 3, 4].find((value) => !existing.has(value))
@@ -252,8 +283,33 @@ export function SlaPanel() {
           />
         ),
       },
+      {
+        id: 'actions',
+        header: '',
+        meta: { ta: 'right' },
+        cell: ({ row }) => {
+          const saved = data?.items.find(
+            (p) => p.severity === row.original.severity,
+          )
+          return (
+            <Button
+              size="xs"
+              variant="default"
+              color="red"
+              aria-label={`Delete ${SEVERITY_LABELS[row.original.severity] ?? row.original.severity} SLA policy`}
+              loading={
+                deleteMutation.isPending &&
+                deleteMutation.variables?.severity === row.original.severity
+              }
+              onClick={() => removePolicy(row.original.severity)}
+            >
+              {saved ? 'Delete' : 'Remove'}
+            </Button>
+          )
+        },
+      },
     ],
-    [],
+    [data, deleteMutation.isPending, deleteMutation.variables],
   )
 
   if (isPending) return <LoadingPanel label="Loading SLA policies..." />
