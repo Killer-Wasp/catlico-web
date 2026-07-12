@@ -375,6 +375,10 @@ export function Navbar({
   const setActiveOrganisation = (orgId: string | null) => {
     if (!orgId) return
     localStorage.setItem('catlico.orgId', orgId)
+    // Same-tab signal so listeners keyed on the active org (e.g. the header's
+    // notification socket) can react — the `storage` event only fires in OTHER
+    // tabs, never the one that wrote.
+    window.dispatchEvent(new Event('catlico:org-changed'))
     setActiveOrgId(orgId)
     void queryClient.invalidateQueries()
   }
