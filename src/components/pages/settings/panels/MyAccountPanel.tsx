@@ -22,6 +22,7 @@ import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
+import { NotificationPreferences } from '#/components/pages/settings/panels/NotificationPreferences'
 
 function notifyError(fallback: string) {
   return (error: unknown) =>
@@ -148,126 +149,130 @@ export function MyAccountPanel() {
     lastName.trim() !== (user.last_name ?? '')
 
   return (
-    <Panel title="My account">
-      <Box p={18}>
-        <Stack gap="xl">
-          <div>
-            <Text fw={600} mb="xs">
-              Profile picture
-            </Text>
-            <Group>
-              {localPreview ? (
-                <Avatar src={localPreview} size={72} radius="xl" />
-              ) : (
-                <UserAvatar user={user} size={72} />
-              )}
-              <Stack gap={6}>
-                <Group gap="xs">
-                  <Button
-                    size="xs"
-                    variant="default"
-                    loading={avatarMutation.isPending}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    {user.has_avatar ? 'Change picture' : 'Upload picture'}
-                  </Button>
-                  {user.has_avatar && (
+    <Stack gap="md">
+      <Panel title="My account">
+        <Box p={18}>
+          <Stack gap="xl">
+            <div>
+              <Text fw={600} mb="xs">
+                Profile picture
+              </Text>
+              <Group>
+                {localPreview ? (
+                  <Avatar src={localPreview} size={72} radius="xl" />
+                ) : (
+                  <UserAvatar user={user} size={72} />
+                )}
+                <Stack gap={6}>
+                  <Group gap="xs">
                     <Button
                       size="xs"
-                      variant="subtle"
-                      color="red"
-                      loading={removeMutation.isPending}
-                      onClick={() => removeMutation.mutate()}
+                      variant="default"
+                      loading={avatarMutation.isPending}
+                      onClick={() => fileRef.current?.click()}
                     >
-                      Remove
+                      {user.has_avatar ? 'Change picture' : 'Upload picture'}
                     </Button>
-                  )}
-                </Group>
-                <Text fz={11} c="dimmed">
-                  PNG, JPG or GIF. Shown next to your name across the app.
-                </Text>
-              </Stack>
-            </Group>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={onPickFile}
-            />
-          </div>
-
-          <Divider />
-
-          <div>
-            <Text fw={600} mb="xs">
-              Name
-            </Text>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              <TextInput
-                label="First name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.currentTarget.value)}
+                    {user.has_avatar && (
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        loading={removeMutation.isPending}
+                        onClick={() => removeMutation.mutate()}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </Group>
+                  <Text fz={11} c="dimmed">
+                    PNG, JPG or GIF. Shown next to your name across the app.
+                  </Text>
+                </Stack>
+              </Group>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={onPickFile}
               />
-              <TextInput
-                label="Last name"
-                value={lastName}
-                onChange={(e) => setLastName(e.currentTarget.value)}
-              />
-            </SimpleGrid>
-            <Group justify="flex-end" mt="md">
-              <Button
-                color="orange"
-                loading={nameMutation.isPending}
-                disabled={!nameDirty}
-                onClick={() => nameMutation.mutate()}
-              >
-                Save name
-              </Button>
-            </Group>
-          </div>
+            </div>
 
-          <Divider />
+            <Divider />
 
-          <div>
-            <Text fw={600} mb="xs">
-              Email &amp; password
-            </Text>
-            <Stack gap="md">
-              <TextInput
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.currentTarget.value)}
-              />
+            <div>
+              <Text fw={600} mb="xs">
+                Name
+              </Text>
               <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                <PasswordInput
-                  label="New password"
-                  placeholder="Leave blank to keep current"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.currentTarget.value)}
+                <TextInput
+                  label="First name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.currentTarget.value)}
                 />
-                <PasswordInput
-                  label="Current password"
-                  description="Required to change email or password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.currentTarget.value)}
+                <TextInput
+                  label="Last name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.currentTarget.value)}
                 />
               </SimpleGrid>
-            </Stack>
-            <Group justify="flex-end" mt="md">
-              <Button
-                color="orange"
-                loading={credentialsMutation.isPending}
-                disabled={!credentialsDirty || !currentPassword}
-                onClick={() => credentialsMutation.mutate()}
-              >
-                Update credentials
-              </Button>
-            </Group>
-          </div>
-        </Stack>
-      </Box>
-    </Panel>
+              <Group justify="flex-end" mt="md">
+                <Button
+                  color="orange"
+                  loading={nameMutation.isPending}
+                  disabled={!nameDirty}
+                  onClick={() => nameMutation.mutate()}
+                >
+                  Save name
+                </Button>
+              </Group>
+            </div>
+
+            <Divider />
+
+            <div>
+              <Text fw={600} mb="xs">
+                Email &amp; password
+              </Text>
+              <Stack gap="md">
+                <TextInput
+                  label="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.currentTarget.value)}
+                />
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                  <PasswordInput
+                    label="New password"
+                    placeholder="Leave blank to keep current"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.currentTarget.value)}
+                  />
+                  <PasswordInput
+                    label="Current password"
+                    description="Required to change email or password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.currentTarget.value)}
+                  />
+                </SimpleGrid>
+              </Stack>
+              <Group justify="flex-end" mt="md">
+                <Button
+                  color="orange"
+                  loading={credentialsMutation.isPending}
+                  disabled={!credentialsDirty || !currentPassword}
+                  onClick={() => credentialsMutation.mutate()}
+                >
+                  Update credentials
+                </Button>
+              </Group>
+            </div>
+          </Stack>
+        </Box>
+      </Panel>
+
+      <NotificationPreferences />
+    </Stack>
   )
 }

@@ -14,9 +14,18 @@ export type UserNotification = {
   created_at: string
 }
 
+/** One row of the per-user notification-preferences catalog. */
+export type NotificationPreferenceItem = {
+  event_type: string
+  label: string
+  category: string
+  enabled: boolean
+}
+
 export const notificationKeys = {
   all: ['notifications'] as const,
   list: () => [...notificationKeys.all, 'list'] as const,
+  preferences: () => [...notificationKeys.all, 'preferences'] as const,
 }
 
 export async function fetchNotifications(): Promise<UserNotification[]> {
@@ -36,6 +45,30 @@ export async function markNotificationRead(id: string): Promise<void> {
 export async function markAllNotificationsRead(): Promise<void> {
   await api.post('notifications/read-all')
 }
+
+export async function fetchNotificationPreferences(): Promise<
+  NotificationPreferenceItem[]
+> {
+  const { items } = await api
+    .get('notifications/preferences')
+    .json<{ items: NotificationPreferenceItem[] }>()
+  return items
+}
+
+export async function updateNotificationPreferences(
+  preferences: Record<string, boolean>,
+): Promise<NotificationPreferenceItem[]> {
+  const { items } = await api
+    .put('notifications/preferences', { json: { preferences } })
+    .json<{ items: NotificationPreferenceItem[] }>()
+  return items
+}
+
+export const notificationPreferencesQueryOptions = () =>
+  queryOptions({
+    queryKey: notificationKeys.preferences(),
+    queryFn: fetchNotificationPreferences,
+  })
 
 export const notificationsQueryOptions = () =>
   queryOptions({
