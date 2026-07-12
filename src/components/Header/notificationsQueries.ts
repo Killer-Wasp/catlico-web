@@ -41,6 +41,8 @@ export const notificationsQueryOptions = () =>
   queryOptions({
     queryKey: notificationKeys.list(),
     queryFn: fetchNotifications,
-    // Poll so the bell stays roughly live without a WS wire-up (that can come later).
+    // `useNotificationSocket` invalidates this on live activity events, so the
+    // bell updates instantly in the common case; this poll is just the
+    // fallback for when the socket is down (or briefly reconnecting).
     refetchInterval: 60_000,
   })

@@ -5,6 +5,7 @@ import {
   notificationKeys,
   notificationsQueryOptions,
 } from '#/components/Header/notificationsQueries'
+import { useNotificationSocket } from '#/components/Header/useNotificationSocket'
 import { UserAvatar } from '#/components/Users/UserAvatar'
 import { userDisplayName } from '#/components/Users/usersQueries'
 import { logout } from '#/lib/auth/session'
@@ -62,6 +63,10 @@ export function Header() {
   const unreadCount = notifications.filter((item) => item.read_at === null).length
   const { data: currentUser } = useQuery(currentUserQueryOptions())
   const navigate = useNavigate()
+
+  // Instant bell updates: invalidate the notifications query the moment an
+  // activity event lands on the socket, instead of waiting on the 60s poll.
+  useNotificationSocket()
 
   // The "/" shortcut the search box advertises. Mantine's useHotkeys ignores
   // keystrokes typed into inputs, so this only fires from the page at large.
