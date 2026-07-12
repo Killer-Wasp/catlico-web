@@ -43,6 +43,8 @@ const CASE: CasePublic = {
   },
   created_at: '2026-06-12T09:12:00Z',
   updated_at: '2026-06-12T10:05:00Z',
+  sla_due_at: null,
+  sla_state: null,
 }
 
 const TASKS: TaskPublic[] = [
@@ -177,7 +179,6 @@ describe('case detail data helpers', () => {
     expect(detail.summary).toBe('Tokens revoked for affected accounts.')
     expect(detail.responders).toEqual([])
     expect(detail.related).toEqual([])
-    expect(detail.ttps).toEqual([])
   })
 
   test('maps tasks (with work-logs) for the tasks panel', () => {

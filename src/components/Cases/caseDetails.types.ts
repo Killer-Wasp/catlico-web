@@ -1,4 +1,5 @@
 import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
+import type { SlaState } from './cases.types'
 
 export type CaseDetailTaskStatus =
   | 'waiting'
@@ -118,7 +119,10 @@ export type CaseDetail = {
   updated: string | null
   updatedAgo: string | null
   closed: string | null
-  sla: string
+  /** ISO time the resolve-SLA is due, or null when no policy applies. */
+  slaDueAt: string | null
+  /** Resolve-SLA state for an open case (ok | at-risk | breached), else null. */
+  slaState: SlaState
   /** Case description as Markdown (CommonMark), edited and rendered via Tiptap. */
   descriptionMarkdown: string
   /** Analyst working hypothesis (the case summary), shown below the description. */
@@ -128,5 +132,4 @@ export type CaseDetail = {
   shares: number
   responders: { action: string; provider: string }[]
   related: { id: string; title: string }[]
-  ttps: string[]
 }

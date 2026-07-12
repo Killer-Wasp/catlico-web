@@ -87,7 +87,8 @@ const caseDetail: CaseDetail = {
   updated: 'Today 11:40',
   updatedAgo: '32m ago',
   closed: null,
-  sla: '3h 18m to SLA',
+  slaDueAt: '2026-06-12T18:00:00Z',
+  slaState: 'at-risk',
   descriptionMarkdown: 'OAuth consent grant investigation.',
   summary: 'Containment is underway.',
   customFields: [
@@ -99,7 +100,6 @@ const caseDetail: CaseDetail = {
   shares: 0,
   responders: [],
   related: [],
-  ttps: [],
 }
 
 // Each panel now fetches its own section; the harness seeds these fixtures into
@@ -376,7 +376,8 @@ describe('case summary card', () => {
 
     expect(within(trafficRow).getByText(/tlp:/i)).toBeDefined()
     expect(within(trafficRow).getByText(/pap:/i)).toBeDefined()
-    expect(within(trafficRow).getByText(caseDetail.sla)).toBeDefined()
+    // The SLA chip renders the state; the relative-time suffix is time-dependent.
+    expect(within(trafficRow).getByText(/SLA at risk/i)).toBeDefined()
     expect(within(tagsRow).getByText('T1528')).toBeDefined()
     expect(
       within(tagsRow)

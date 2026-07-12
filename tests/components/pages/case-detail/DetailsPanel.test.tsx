@@ -35,7 +35,8 @@ const caseDetail: CaseDetail = {
   updated: null,
   updatedAgo: null,
   closed: null,
-  sla: 'within',
+  slaDueAt: null,
+  slaState: null,
   descriptionMarkdown: '',
   summary: null,
   customFields: [],
@@ -43,7 +44,6 @@ const caseDetail: CaseDetail = {
   shares: 0,
   responders: [],
   related: [],
-  ttps: [],
 }
 
 function renderPanel() {

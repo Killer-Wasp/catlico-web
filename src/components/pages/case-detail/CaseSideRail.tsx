@@ -2,7 +2,6 @@ import type {
   CaseDetail,
   CaseDetailAlert,
 } from '#/components/Cases/caseDetails.types'
-import { Tag } from '#/components/Tag/Tag'
 import { SEV } from '#/lib/domain'
 import {
   ActionIcon,
@@ -19,6 +18,7 @@ import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { actionNotice } from './constants'
+import { TtpsPanel } from './TtpsPanel'
 import { AlertDrawer } from '../alerts/AlertDrawer'
 
 export function CaseSideRail({ caseDetail }: { caseDetail: CaseDetail }) {
@@ -77,12 +77,7 @@ export function CaseSideRail({ caseDetail }: { caseDetail: CaseDetail }) {
       </SideCard>
 
       <SideCard title="TTPs" badge="ATT&CK">
-        <Group gap={6} wrap="wrap">
-          {caseDetail.ttps.map((ttp) => (
-            <Tag key={ttp} label={ttp} />
-          ))}
-          <Tag label="+ technique" />
-        </Group>
+        <TtpsPanel caseId={caseDetail.id} />
       </SideCard>
 
       <AlertDrawer

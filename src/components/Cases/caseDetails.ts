@@ -47,6 +47,8 @@ export type CasePublic = {
   custom_fields: Record<string, unknown>
   created_at: string
   updated_at: string | null
+  sla_due_at: string | null
+  sla_state: 'ok' | 'at-risk' | 'breached' | null
 }
 
 export type TaskPublic = {
@@ -432,7 +434,8 @@ export function toCaseDetail(
       caseItem.updated_at == null ? null : dayjs(caseItem.updated_at).fromNow(),
     closed:
       caseItem.end_date == null ? null : compactDateTime(caseItem.end_date),
-    sla: 'No SLA set',
+    slaDueAt: caseItem.sla_due_at,
+    slaState: caseItem.sla_state,
     descriptionMarkdown: caseItem.description,
     summary: caseItem.summary?.trim() || null,
     customFields: customFieldRows(caseItem.custom_fields),
@@ -453,6 +456,5 @@ export function toCaseDetail(
             },
           ]),
     ],
-    ttps: caseItem.tags.filter((tag) => /^T\d{4}(?:\.\d{3})?$/.test(tag)),
   }
 }
