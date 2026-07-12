@@ -3,6 +3,7 @@ import { Box, Group, Tabs, Text, Title } from '@mantine/core'
 import { ModalsProvider } from '@mantine/modals'
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
+import { AttackCatalogPanel } from './settings/panels/AttackCatalogPanel'
 import { AuditLogPanel } from './settings/panels/AuditLogPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
 import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
@@ -43,6 +44,7 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'Custom fields') return <CustomFieldsPanel />
   if (section === 'Observable types') return <ObservableTypesPanel />
   if (section === 'Taxonomies & tags') return <TaxonomiesPanel />
+  if (section === 'ATT&CK catalog') return <AttackCatalogPanel />
   if (section === 'Notifications') return <NotificationsPanel />
   if (section === 'SLA policies') return <SlaPanel />
   if (section === 'API keys') return <ApiKeysPanel />

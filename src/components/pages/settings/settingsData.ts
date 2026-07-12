@@ -6,6 +6,7 @@ export type SettingsSection =
   | 'Custom fields'
   | 'Observable types'
   | 'Taxonomies & tags'
+  | 'ATT&CK catalog'
   | 'Notifications'
   | 'SLA policies'
   | 'API keys'
@@ -13,7 +14,6 @@ export type SettingsSection =
   | 'Audit log'
 
 export type Role = 'admin' | 'analyst' | 'readonly'
-export type IntegrationState = 'CONNECTED' | 'AUTH ERROR'
 
 export const settingsSections: SettingsSection[] = [
   'My account',
@@ -23,6 +23,7 @@ export const settingsSections: SettingsSection[] = [
   'Custom fields',
   'Observable types',
   'Taxonomies & tags',
+  'ATT&CK catalog',
   'Notifications',
   'SLA policies',
   'API keys',
