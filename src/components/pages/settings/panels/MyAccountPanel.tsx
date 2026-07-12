@@ -22,7 +22,7 @@ import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { LoadingPanel, Panel } from '#/components/pages/settings/settingsUi'
-import { NotificationPreferences } from '#/components/pages/settings/panels/NotificationPreferences'
+import { NotificationPreferencesPanel } from '#/components/pages/settings/panels/NotificationPreferencesPanel'
 
 function notifyError(fallback: string) {
   return (error: unknown) =>
@@ -272,7 +272,7 @@ export function MyAccountPanel() {
         </Box>
       </Panel>
 
-      <NotificationPreferences />
+      <NotificationPreferencesPanel />
     </Stack>
   )
 }

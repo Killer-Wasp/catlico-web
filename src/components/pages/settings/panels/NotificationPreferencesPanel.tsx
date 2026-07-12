@@ -27,7 +27,7 @@ function groupByCategory(items: NotificationPreferenceItem[]) {
   return groups
 }
 
-export function NotificationPreferences() {
+export function NotificationPreferencesPanel() {
   const queryClient = useQueryClient()
   const {
     data: items,
@@ -35,32 +35,43 @@ export function NotificationPreferences() {
     isError,
   } = useQuery(notificationPreferencesQueryOptions())
 
-  // The event_type whose toggle is mid-flight, so we can disable just that
-  // switch while its write is in progress (rapid toggles don't race visually).
-  const [pendingType, setPendingType] = useState<string | null>(null)
+  // The set of event_types whose toggle is currently mid-flight, so each switch
+  // disables independently while ITS OWN write is in progress. A scalar would
+  // mishandle concurrent toggles (switch B's mutation would re-enable switch A
+  // and its settle would clear A's pending flag out of order).
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
+  const addPending = (eventType: string) =>
+    setPending((prev) => new Set(prev).add(eventType))
+  const removePending = (eventType: string) =>
+    setPending((prev) => {
+      const next = new Set(prev)
+      next.delete(eventType)
+      return next
+    })
 
   const mutation = useMutation({
     mutationFn: ({
-      event_type,
+      eventType,
       enabled,
     }: {
-      event_type: string
+      eventType: string
       enabled: boolean
-    }) => updateNotificationPreferences({ [event_type]: enabled }),
-    onMutate: ({ event_type }) => setPendingType(event_type),
-    onSuccess: () => {
-      // Refresh this panel and the bell feed (its server-side filtering changed).
-      queryClient.invalidateQueries({
-        queryKey: notificationKeys.preferences(),
-      })
-      queryClient.invalidateQueries({ queryKey: notificationKeys.all })
+    }) => updateNotificationPreferences({ [eventType]: enabled }),
+    onMutate: ({ eventType }) => addPending(eventType),
+    onSuccess: (data) => {
+      // The PUT returns the fresh catalog, so seed it directly rather than
+      // refetching. Invalidating `notificationKeys.all` would refetch the
+      // preferences query too (`all` prefixes `preferences()`) and undo this.
+      queryClient.setQueryData(notificationKeys.preferences(), data)
+      // The bell feed's server-side filtering changed, so refresh just it.
+      queryClient.invalidateQueries({ queryKey: notificationKeys.list() })
     },
     onError: () =>
       notifications.show({
         color: 'red',
         message: 'Failed to update notification preferences',
       }),
-    onSettled: () => setPendingType(null),
+    onSettled: (_data, _error, { eventType }) => removePending(eventType),
   })
 
   const groups = items ? groupByCategory(items) : []
@@ -99,12 +110,10 @@ export function NotificationPreferences() {
                       key={item.event_type}
                       label={item.label}
                       checked={item.enabled}
-                      disabled={
-                        mutation.isPending && pendingType === item.event_type
-                      }
+                      disabled={pending.has(item.event_type)}
                       onChange={(event) =>
                         mutation.mutate({
-                          event_type: item.event_type,
+                          eventType: item.event_type,
                           enabled: event.currentTarget.checked,
                         })
                       }
