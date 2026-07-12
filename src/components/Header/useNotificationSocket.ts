@@ -16,7 +16,13 @@
  * fresh org (the `storage` event only fires in OTHER tabs, never this one).
  *
  * Message contract (server-defined, not negotiable here):
- *   - Activity events: JSON text `{"type":"event","event":{...}}`.
+ *   - Activity events: JSON text `{"type":"event","event":{...}}` — org-wide
+ *     activity; invalidates the notifications query so it refetches.
+ *   - Per-user notifications: JSON text
+ *     `{"type":"notification","notification":{...}}` — the actual pushed
+ *     notification object; applied to the cache directly (prepend + dedup by
+ *     id) so the bell updates without a refetch. Idempotent: the server may
+ *     re-send on a drain retry, so a duplicate id is a no-op.
  *   - Keepalive frames: the plain-text strings "ping" / "pong" (not JSON) —
  *     the server pings when idle; we reply "pong". `JSON.parse` throws on
  *     these, so non-JSON frames are simply ignored.
@@ -29,6 +35,7 @@ import { API_BASE } from '#/lib/api/client'
 import { getAccessToken, getActiveOrgId } from '#/lib/auth/session'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
+import type { UserNotification } from '#/components/Header/notificationsQueries'
 import type { QueryClient } from '@tanstack/react-query'
 import type { RefObject } from 'react'
 
@@ -60,6 +67,30 @@ function isActivityEvent(message: unknown): boolean {
     typeof message === 'object' &&
     message !== null &&
     (message as { type?: unknown }).type === 'event'
+  )
+}
+
+/** `{"type":"notification","notification": <UserNotification>}` */
+type NotificationMessage = {
+  type: 'notification'
+  notification: UserNotification
+}
+
+function isNotificationMessage(
+  message: unknown,
+): message is NotificationMessage {
+  if (
+    typeof message !== 'object' ||
+    message === null ||
+    (message as { type?: unknown }).type !== 'notification'
+  ) {
+    return false
+  }
+  const notification = (message as { notification?: unknown }).notification
+  return (
+    typeof notification === 'object' &&
+    notification !== null &&
+    typeof (notification as { id?: unknown }).id === 'string'
   )
 }
 
@@ -178,7 +209,20 @@ function connect(queryClient: QueryClient, refs: SocketRefs): void {
     }
     try {
       const message: unknown = JSON.parse(ev.data as string)
-      if (isActivityEvent(message)) {
+      if (isNotificationMessage(message)) {
+        // Apply the pushed notification straight to the cache — no refetch.
+        // Prepend (newest-first, matching the server's `created_at desc`) and
+        // dedup by id so a re-sent drain retry is a no-op.
+        const incoming = message.notification
+        queryClient.setQueryData<UserNotification[]>(
+          notificationKeys.list(),
+          (prev) => {
+            const list = prev ?? []
+            if (list.some((n) => n.id === incoming.id)) return list
+            return [incoming, ...list]
+          },
+        )
+      } else if (isActivityEvent(message)) {
         queryClient.invalidateQueries({ queryKey: notificationKeys.all })
       }
     } catch {

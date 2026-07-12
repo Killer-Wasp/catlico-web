@@ -127,6 +127,129 @@ describe('useNotificationSocket', () => {
     })
   })
 
+  test('applies a pushed notification to the front of the cache without refetching', () => {
+    loggedIn('tok-123', 'org-456')
+
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(notificationKeys.list(), [
+      {
+        id: 'n0',
+        event_type: 'case.created',
+        title: 'Existing',
+        body: 'older',
+        payload: {},
+        read_at: '2026-07-13T00:00:00Z',
+        created_at: '2026-07-13T00:00:00Z',
+      },
+    ])
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    renderSocket(queryClient)
+
+    const ws = MockWebSocket.instances[0]
+    const notification = {
+      id: 'n1',
+      event_type: 'case.assigned',
+      title: 'Assigned to you',
+      body: 'You were assigned a case',
+      payload: { case_id: 'c1' },
+      read_at: null,
+      created_at: '2026-07-13T01:00:00Z',
+    }
+    act(() => {
+      ws.onmessage?.({
+        data: JSON.stringify({ type: 'notification', notification }),
+      })
+    })
+
+    const list = queryClient.getQueryData(notificationKeys.list()) as Array<{
+      id: string
+    }>
+    expect(list.map((n) => n.id)).toEqual(['n1', 'n0'])
+    // Applied directly to the cache — no invalidate/refetch for this message.
+    expect(invalidateSpy).not.toHaveBeenCalled()
+  })
+
+  test('dedups a re-sent notification by id (idempotent drain retry)', () => {
+    loggedIn('tok-123', 'org-456')
+
+    const queryClient = new QueryClient()
+    renderSocket(queryClient)
+
+    const ws = MockWebSocket.instances[0]
+    const notification = {
+      id: 'n1',
+      event_type: 'case.assigned',
+      title: 'Assigned to you',
+      body: 'You were assigned a case',
+      payload: {},
+      read_at: null,
+      created_at: '2026-07-13T01:00:00Z',
+    }
+    const frame = {
+      data: JSON.stringify({ type: 'notification', notification }),
+    }
+    act(() => {
+      ws.onmessage?.(frame)
+      ws.onmessage?.(frame)
+    })
+
+    const list = queryClient.getQueryData(notificationKeys.list()) as Array<{
+      id: string
+    }>
+    expect(list.map((n) => n.id)).toEqual(['n1'])
+  })
+
+  test('applying an unread notification raises the derived unread count', () => {
+    loggedIn('tok-123', 'org-456')
+
+    const queryClient = new QueryClient()
+    renderSocket(queryClient)
+
+    const ws = MockWebSocket.instances[0]
+    act(() => {
+      ws.onmessage?.({
+        data: JSON.stringify({
+          type: 'notification',
+          notification: {
+            id: 'n1',
+            event_type: 'case.assigned',
+            title: 'Assigned to you',
+            body: 'You were assigned a case',
+            payload: {},
+            read_at: null,
+            created_at: '2026-07-13T01:00:00Z',
+          },
+        }),
+      })
+    })
+
+    const list =
+      queryClient.getQueryData<Array<{ read_at: string | null }>>(
+        notificationKeys.list(),
+      ) ?? []
+    // Header derives the badge as `list.filter(n => n.read_at === null).length`.
+    const unread = list.filter((n) => n.read_at === null).length
+    expect(unread).toBe(1)
+  })
+
+  test('ignores a notification message with no valid id, and does not invalidate', () => {
+    loggedIn('tok-123', 'org-456')
+
+    const queryClient = new QueryClient()
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    renderSocket(queryClient)
+
+    const ws = MockWebSocket.instances[0]
+    act(() => {
+      ws.onmessage?.({
+        data: JSON.stringify({ type: 'notification', notification: {} }),
+      })
+    })
+
+    expect(queryClient.getQueryData(notificationKeys.list())).toBeUndefined()
+    expect(invalidateSpy).not.toHaveBeenCalled()
+  })
+
   test('ignores a plain-text "ping" keepalive frame without throwing or invalidating', () => {
     loggedIn('tok-123', 'org-456')
 
