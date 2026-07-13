@@ -24,7 +24,6 @@ import { Route as AppPluginRunnersRouteImport } from './routes/_app/plugin-runne
 import { Route as AppOrganisationsRouteImport } from './routes/_app/organisations'
 import { Route as AppObservablesRouteImport } from './routes/_app/observables'
 import { Route as AppKnowledgeBaseRouteImport } from './routes/_app/knowledge-base'
-import { Route as AppFunctionsRouteImport } from './routes/_app/functions'
 import { Route as AppDashboardsRouteImport } from './routes/_app/dashboards'
 import { Route as AppAttackMatrixRouteImport } from './routes/_app/attack-matrix'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
@@ -34,7 +33,6 @@ import { Route as AppCaseTemplatesIndexRouteImport } from './routes/_app/case-te
 import { Route as AppAlertsIndexRouteImport } from './routes/_app/alerts.index'
 import { Route as AppSettingsSectionRouteImport } from './routes/_app/settings.$section'
 import { Route as AppKnowledgeBasePageIdRouteImport } from './routes/_app/knowledge-base/$pageId'
-import { Route as AppFunctionsNewRouteImport } from './routes/_app/functions/new'
 import { Route as AppCasesCreateRouteImport } from './routes/_app/cases/create'
 import { Route as AppCasesCaseIdRouteImport } from './routes/_app/cases/$caseId'
 import { Route as AppCaseTemplatesTemplateIdRouteImport } from './routes/_app/case-templates/$templateId'
@@ -116,11 +114,6 @@ const AppKnowledgeBaseRoute = AppKnowledgeBaseRouteImport.update({
   path: '/knowledge-base',
   getParentRoute: () => AppRoute,
 } as any)
-const AppFunctionsRoute = AppFunctionsRouteImport.update({
-  id: '/functions',
-  path: '/functions',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppDashboardsRoute = AppDashboardsRouteImport.update({
   id: '/dashboards',
   path: '/dashboards',
@@ -166,11 +159,6 @@ const AppKnowledgeBasePageIdRoute = AppKnowledgeBasePageIdRouteImport.update({
   path: '/$pageId',
   getParentRoute: () => AppKnowledgeBaseRoute,
 } as any)
-const AppFunctionsNewRoute = AppFunctionsNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AppFunctionsRoute,
-} as any)
 const AppCasesCreateRoute = AppCasesCreateRouteImport.update({
   id: '/cases/create',
   path: '/cases/create',
@@ -211,7 +199,6 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AppAlertsRouteWithChildren
   '/attack-matrix': typeof AppAttackMatrixRoute
   '/dashboards': typeof AppDashboardsRoute
-  '/functions': typeof AppFunctionsRouteWithChildren
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
   '/organisations': typeof AppOrganisationsRoute
@@ -226,7 +213,6 @@ export interface FileRoutesByFullPath {
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/cases/create': typeof AppCasesCreateRoute
-  '/functions/new': typeof AppFunctionsNewRoute
   '/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/settings/$section': typeof AppSettingsSectionRoute
   '/alerts/': typeof AppAlertsIndexRoute
@@ -242,7 +228,6 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/attack-matrix': typeof AppAttackMatrixRoute
   '/dashboards': typeof AppDashboardsRoute
-  '/functions': typeof AppFunctionsRouteWithChildren
   '/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/observables': typeof AppObservablesRoute
   '/organisations': typeof AppOrganisationsRoute
@@ -256,7 +241,6 @@ export interface FileRoutesByTo {
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/create': typeof AppCasesCreateRoute
-  '/functions/new': typeof AppFunctionsNewRoute
   '/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/settings/$section': typeof AppSettingsSectionRoute
   '/alerts': typeof AppAlertsIndexRoute
@@ -275,7 +259,6 @@ export interface FileRoutesById {
   '/_app/alerts': typeof AppAlertsRouteWithChildren
   '/_app/attack-matrix': typeof AppAttackMatrixRoute
   '/_app/dashboards': typeof AppDashboardsRoute
-  '/_app/functions': typeof AppFunctionsRouteWithChildren
   '/_app/knowledge-base': typeof AppKnowledgeBaseRouteWithChildren
   '/_app/observables': typeof AppObservablesRoute
   '/_app/organisations': typeof AppOrganisationsRoute
@@ -291,7 +274,6 @@ export interface FileRoutesById {
   '/_app/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/_app/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/_app/cases/create': typeof AppCasesCreateRoute
-  '/_app/functions/new': typeof AppFunctionsNewRoute
   '/_app/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/_app/settings/$section': typeof AppSettingsSectionRoute
   '/_app/alerts/': typeof AppAlertsIndexRoute
@@ -311,7 +293,6 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/attack-matrix'
     | '/dashboards'
-    | '/functions'
     | '/knowledge-base'
     | '/observables'
     | '/organisations'
@@ -326,7 +307,6 @@ export interface FileRouteTypes {
     | '/case-templates/$templateId'
     | '/cases/$caseId'
     | '/cases/create'
-    | '/functions/new'
     | '/knowledge-base/$pageId'
     | '/settings/$section'
     | '/alerts/'
@@ -342,7 +322,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/attack-matrix'
     | '/dashboards'
-    | '/functions'
     | '/knowledge-base'
     | '/observables'
     | '/organisations'
@@ -356,7 +335,6 @@ export interface FileRouteTypes {
     | '/alerts/$alertId'
     | '/case-templates/$templateId'
     | '/cases/create'
-    | '/functions/new'
     | '/knowledge-base/$pageId'
     | '/settings/$section'
     | '/alerts'
@@ -374,7 +352,6 @@ export interface FileRouteTypes {
     | '/_app/alerts'
     | '/_app/attack-matrix'
     | '/_app/dashboards'
-    | '/_app/functions'
     | '/_app/knowledge-base'
     | '/_app/observables'
     | '/_app/organisations'
@@ -390,7 +367,6 @@ export interface FileRouteTypes {
     | '/_app/case-templates/$templateId'
     | '/_app/cases/$caseId'
     | '/_app/cases/create'
-    | '/_app/functions/new'
     | '/_app/knowledge-base/$pageId'
     | '/_app/settings/$section'
     | '/_app/alerts/'
@@ -516,13 +492,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppKnowledgeBaseRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/functions': {
-      id: '/_app/functions'
-      path: '/functions'
-      fullPath: '/functions'
-      preLoaderRoute: typeof AppFunctionsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/dashboards': {
       id: '/_app/dashboards'
       path: '/dashboards'
@@ -586,13 +555,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppKnowledgeBasePageIdRouteImport
       parentRoute: typeof AppKnowledgeBaseRoute
     }
-    '/_app/functions/new': {
-      id: '/_app/functions/new'
-      path: '/new'
-      fullPath: '/functions/new'
-      preLoaderRoute: typeof AppFunctionsNewRouteImport
-      parentRoute: typeof AppFunctionsRoute
-    }
     '/_app/cases/create': {
       id: '/_app/cases/create'
       path: '/cases/create'
@@ -652,18 +614,6 @@ const AppAlertsRouteWithChildren = AppAlertsRoute._addFileChildren(
   AppAlertsRouteChildren,
 )
 
-interface AppFunctionsRouteChildren {
-  AppFunctionsNewRoute: typeof AppFunctionsNewRoute
-}
-
-const AppFunctionsRouteChildren: AppFunctionsRouteChildren = {
-  AppFunctionsNewRoute: AppFunctionsNewRoute,
-}
-
-const AppFunctionsRouteWithChildren = AppFunctionsRoute._addFileChildren(
-  AppFunctionsRouteChildren,
-)
-
 interface AppKnowledgeBaseRouteChildren {
   AppKnowledgeBasePageIdRoute: typeof AppKnowledgeBasePageIdRoute
 }
@@ -707,7 +657,6 @@ interface AppRouteChildren {
   AppAlertsRoute: typeof AppAlertsRouteWithChildren
   AppAttackMatrixRoute: typeof AppAttackMatrixRoute
   AppDashboardsRoute: typeof AppDashboardsRoute
-  AppFunctionsRoute: typeof AppFunctionsRouteWithChildren
   AppKnowledgeBaseRoute: typeof AppKnowledgeBaseRouteWithChildren
   AppObservablesRoute: typeof AppObservablesRoute
   AppOrganisationsRoute: typeof AppOrganisationsRoute
@@ -729,7 +678,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppAlertsRoute: AppAlertsRouteWithChildren,
   AppAttackMatrixRoute: AppAttackMatrixRoute,
   AppDashboardsRoute: AppDashboardsRoute,
-  AppFunctionsRoute: AppFunctionsRouteWithChildren,
   AppKnowledgeBaseRoute: AppKnowledgeBaseRouteWithChildren,
   AppObservablesRoute: AppObservablesRoute,
   AppOrganisationsRoute: AppOrganisationsRoute,

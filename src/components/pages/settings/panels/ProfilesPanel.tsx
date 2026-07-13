@@ -39,8 +39,8 @@ const KINDS: PermissionKind[] = ['read', 'write', 'delete', 'run']
 
 type DomainRow = {
   domain: string
-  // Permissions grouped by column. A column can hold more than one grant — e.g.
-  // the Automation domain has both `run:enrichment` and `run:function` under `run`.
+  // Permissions grouped by column. A column can hold more than one grant
+  // under the same kind (e.g. `run:enrichment` under `run`).
   cells: Record<PermissionKind, PermissionInfo[]>
 }
 

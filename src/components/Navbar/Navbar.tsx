@@ -16,7 +16,6 @@ import {
   ScrollText,
   Server,
   Settings,
-  SquareFunction,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -125,7 +124,6 @@ function sectionsForCounts(counts: NavbarCounts): NavSection[] {
     {
       title: 'Automate',
       items: [
-        { icon: SquareFunction, label: 'Functions', to: '/functions' },
         { icon: BookOpen, label: 'Knowledge base', to: '/knowledge-base' },
       ],
     },
