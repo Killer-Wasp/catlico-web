@@ -28,6 +28,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ExternalLink, MoreHorizontal, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
+import { InlineMarkdown } from './InlineMarkdown'
 import styles from './styles.module.css'
 
 export function AlertDetailDrawer({
@@ -280,7 +281,7 @@ export function AlertDetailDrawer({
 
         <DrawerSection title="Description">
           <Text fz={14} lh={1.45} c="var(--text)">
-            {alert.description}
+            <InlineMarkdown text={alert.description} />
           </Text>
         </DrawerSection>
 

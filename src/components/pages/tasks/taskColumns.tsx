@@ -13,6 +13,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Check, EllipsisVertical, ExternalLink, Play } from 'lucide-react'
 import { Assignee, DuePill, TaskStatusBadge } from './Components'
 import type { TableColumnMeta } from '#/components/Table/columnMeta'
+import { markdownPreview } from '#/lib/markdownPreview'
 import {
   includesAnySubstring,
   includesOne,
@@ -118,8 +119,8 @@ export function buildTaskColumns({
                 {task.kind}
               </Badge>
             </Group>
-            <Text mt={3} ff="monospace" fz={11} c="dimmed">
-              {task.description}
+            <Text mt={3} ff="monospace" fz={11} c="dimmed" lineClamp={1}>
+              {markdownPreview(task.description)}
             </Text>
           </Box>
         )

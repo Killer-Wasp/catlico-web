@@ -1,10 +1,18 @@
 import { Badge, Box, Button, Group } from '@mantine/core'
 import { RichTextEditor } from '@mantine/tiptap'
 import FileHandler from '@tiptap/extension-file-handler'
+import {
+  Table,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from '@tiptap/extension-table'
+import { TaskItem } from '@tiptap/extension-task-item'
+import { TaskList } from '@tiptap/extension-task-list'
 import { Markdown } from '@tiptap/markdown'
 import { useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { Paperclip } from 'lucide-react'
+import { ListChecks, Paperclip, Table as TableIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
 export function TaskMarkdownEditor({
@@ -41,6 +49,12 @@ export function TaskMarkdownEditor({
     extensions: [
       StarterKit,
       Markdown,
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      TaskList,
+      TaskItem.configure({ nested: true }),
       ...(onFilesChange
         ? [
             FileHandler.configure({
@@ -81,10 +95,31 @@ export function TaskMarkdownEditor({
         <RichTextEditor.ControlsGroup>
           <RichTextEditor.BulletList />
           <RichTextEditor.OrderedList />
+          <RichTextEditor.Control
+            onClick={() => editor?.chain().focus().toggleTaskList().run()}
+            active={editor?.isActive('taskList')}
+            aria-label="Task list"
+            title="Task list"
+          >
+            <ListChecks size={16} />
+          </RichTextEditor.Control>
           <RichTextEditor.Blockquote />
           <RichTextEditor.CodeBlock />
         </RichTextEditor.ControlsGroup>
         <RichTextEditor.ControlsGroup>
+          <RichTextEditor.Control
+            onClick={() =>
+              editor
+                ?.chain()
+                .focus()
+                .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                .run()
+            }
+            aria-label="Insert table"
+            title="Insert table"
+          >
+            <TableIcon size={16} />
+          </RichTextEditor.Control>
           <RichTextEditor.Link />
           <RichTextEditor.Unlink />
         </RichTextEditor.ControlsGroup>

@@ -29,6 +29,7 @@ import { ArrowLeft, Flag, Paperclip, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { CaseDrawerSection } from './CaseDrawerSection'
 import { actionNotice } from './constants'
+import { RichMarkdownView } from './RichMarkdownView'
 import styles from './styles.module.css'
 import { TaskMarkdownEditor } from './TaskMarkdownEditor'
 import {
@@ -209,9 +210,13 @@ export function TaskDetailPanel({
           />
         ) : (
           <Paper withBorder radius="sm" p="sm" bg="gray.0">
-            <Text fz={14} lh={1.45}>
-              {task.description || 'No description yet.'}
-            </Text>
+            {task.description ? (
+              <RichMarkdownView markdown={task.description} />
+            ) : (
+              <Text fz={14} lh={1.45} c="dimmed">
+                No description yet.
+              </Text>
+            )}
           </Paper>
         )}
       </CaseDrawerSection>
@@ -341,9 +346,7 @@ function TaskWorkLogCard({
           onSave={save}
         />
       ) : (
-        <Text fz={13} lh={1.45}>
-          {log.body}
-        </Text>
+        <RichMarkdownView markdown={log.body} fz={13} />
       )}
 
       {log.attachments.length ? (
