@@ -3,10 +3,18 @@ import { avatarFor } from '#/components/Cases/cases'
 import { trafficLabel } from '#/components/Cases/caseDetails'
 import {
   caseKeys,
+  caseObservablesQueryOptions,
   closeCase,
   setCaseTags,
   updateCaseAssignee,
 } from '#/components/Cases/casesQueries'
+import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
+import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDialog'
+import {
+  analyzerRunTargets,
+  dispatchAnalyzerRuns,
+  notifyAnalyzerRuns,
+} from '#/components/Plugins/runAnalyzers'
 import { mentionableUsersQueryOptions } from './mentionSuggestion'
 import { SEV } from '#/lib/domain'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
@@ -54,6 +62,48 @@ export function CaseSummaryCard({
   const { data: members } = useQuery(mentionableUsersQueryOptions())
   const [editingTags, setEditingTags] = useState(false)
   const [draftTags, setDraftTags] = useState(caseDetail.tags)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  // The case's observables, sourced from the same query the Observables tab
+  // uses. "Run analyzers" fans a picker selection out across all of them.
+  const {
+    data: caseObservables = [],
+    isLoading: observablesLoading,
+    isError: observablesError,
+  } = useQuery(caseObservablesQueryOptions(caseId))
+
+  const runCaseAnalyzers = useMutation({
+    mutationFn: ({ pluginIds, force }: PluginPickerSelection) =>
+      dispatchAnalyzerRuns(
+        analyzerRunTargets(
+          caseObservables.map((observable) => observable.id),
+          pluginIds,
+        ),
+        force,
+      ),
+    onSuccess: (results) => notifyAnalyzerRuns(results),
+    // Keep the picker open with its Run spinner while the fan-out is in flight;
+    // the caller (not the dialog) closes it once the mutation settles.
+    onSettled: () => setPickerOpen(false),
+  })
+
+  // Zero-observables is a dead end for a fan-out, so short-circuit with a
+  // friendly notice rather than opening a picker that can dispatch nothing.
+  // But `data` is also `[]` while the query is loading or errored, so only
+  // treat an empty list as "no observables" once the query has settled with
+  // data — otherwise open the picker (its Run stays disabled until a plugin is
+  // selected, by which point the observables have loaded).
+  const handleRunAnalyzers = () => {
+    if (observablesLoading || observablesError) {
+      setPickerOpen(true)
+      return
+    }
+    if (caseObservables.length === 0) {
+      actionNotice('No observables to analyze')
+      return
+    }
+    setPickerOpen(true)
+  }
 
   useEffect(() => {
     setEditingTags(false)
@@ -191,6 +241,7 @@ export function CaseSummaryCard({
           closeDisabled={caseDetail.status !== 'open'}
           closePending={closeCaseMutation.isPending}
           onCloseCase={() => closeCaseMutation.mutate()}
+          onRunAnalyzers={handleRunAnalyzers}
         />
       </Group>
 
@@ -228,6 +279,16 @@ export function CaseSummaryCard({
           <SummaryField label="Closed">{caseDetail.closed}</SummaryField>
         ) : null}
       </Group>
+
+      <PluginPickerDialog
+        opened={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        isRunning={runCaseAnalyzers.isPending}
+        contextLabel={`Run on ${caseObservables.length} observable${
+          caseObservables.length === 1 ? '' : 's'
+        } in case ${caseDetail.id}`}
+        onRun={(selection) => runCaseAnalyzers.mutate(selection)}
+      />
     </Paper>
   )
 }
@@ -317,10 +378,12 @@ function CaseActionsMenu({
   closeDisabled,
   closePending,
   onCloseCase,
+  onRunAnalyzers,
 }: {
   closeDisabled: boolean
   closePending: boolean
   onCloseCase: () => void
+  onRunAnalyzers: () => void
 }) {
   return (
     <Menu shadow="md" width={280} position="bottom-end" withinPortal>
@@ -339,7 +402,7 @@ function CaseActionsMenu({
         <Menu.Item
           color="orange"
           leftSection={<Play size={16} />}
-          onClick={() => actionNotice('Analyzer run queued')}
+          onClick={onRunAnalyzers}
         >
           Run analyzers
         </Menu.Item>
