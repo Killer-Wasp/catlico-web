@@ -327,9 +327,6 @@ describe('ObservablesPage', () => {
     expect(
       screen.getByRole('button', { name: 'Run analyzers on selected' }),
     ).toHaveProperty('disabled', true)
-    expect(
-      screen.getByRole('button', { name: 'Export selected to MISP' }),
-    ).toHaveProperty('disabled', true)
   })
 
   test('enables bulk actions when an observable is selected', async () => {
@@ -346,9 +343,6 @@ describe('ObservablesPage', () => {
 
     expect(
       screen.getByRole('button', { name: 'Run analyzers on selected' }),
-    ).toHaveProperty('disabled', false)
-    expect(
-      screen.getByRole('button', { name: 'Export selected to MISP' }),
     ).toHaveProperty('disabled', false)
   })
 
@@ -387,9 +381,6 @@ describe('ObservablesPage', () => {
     expect(screen.getByText(/properties/i)).toBeDefined()
     expect(screen.getByRole('button', { name: 'Toggle IOC' })).toBeDefined()
     expect(screen.getByRole('button', { name: 'Mark sighted' })).toBeDefined()
-    expect(
-      screen.getByRole('button', { name: 'Export to MISP' }),
-    ).toHaveProperty('disabled', true)
   })
 
   test('updates observable flags from detail actions', async () => {

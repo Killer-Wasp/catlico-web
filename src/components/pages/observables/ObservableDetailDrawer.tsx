@@ -155,7 +155,6 @@ function ObservableDetailContent({
             Mark sighted
           </Button>
         ) : null}
-        <Button disabled>Export to MISP</Button>
       </Group>
     </Stack>
   )

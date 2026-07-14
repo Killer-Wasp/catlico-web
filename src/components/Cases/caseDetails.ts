@@ -441,7 +441,6 @@ export function toCaseDetail(
     customFields: customFieldRows(caseItem.custom_fields),
     linkedAlerts: alerts.map(toCaseDetailAlert),
     shares: 0,
-    responders: [],
     related: [
       ...caseItem.merged_from.map((id) => ({
         id: `#${id}`,

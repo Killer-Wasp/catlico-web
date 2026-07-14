@@ -238,14 +238,9 @@ export function ObservablesPage() {
         selectMode={selectMode}
         onToggleSelectMode={toggleSelectMode}
         selectActions={
-          <>
-            <Button variant="default" size="xs" disabled={selectedCount === 0}>
-              Run analyzers on selected
-            </Button>
-            <Button variant="default" size="xs" disabled={selectedCount === 0}>
-              Export selected to MISP
-            </Button>
-          </>
+          <Button variant="default" size="xs" disabled={selectedCount === 0}>
+            Run analyzers on selected
+          </Button>
         }
         actions={
           selectMode ? undefined : <Button size="xs">+ Add observable</Button>

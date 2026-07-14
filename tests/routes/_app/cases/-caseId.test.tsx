@@ -98,7 +98,6 @@ const caseDetail: CaseDetail = {
   ],
   linkedAlerts: [],
   shares: 0,
-  responders: [],
   related: [],
 }
 
@@ -455,9 +454,6 @@ describe('case observables tab', () => {
       within(drawer).getAllByText('hxxps://cdn-au-billing[.]net/invoice.php')
         .length,
     ).toBeGreaterThan(0)
-    expect(
-      within(drawer).getByRole('button', { name: /export to misp/i }),
-    ).toBeDefined()
   })
 
   test('updates IOC and sighted flags from the observable detail drawer', async () => {

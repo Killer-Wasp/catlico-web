@@ -4,20 +4,16 @@ import type {
 } from '#/components/Cases/caseDetails.types'
 import { SEV } from '#/lib/domain'
 import {
-  ActionIcon,
   Badge,
   Box,
-  Button,
   Group,
   Paper,
   Stack,
   Text,
   UnstyledButton,
 } from '@mantine/core'
-import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { actionNotice } from './constants'
 import { TtpsPanel } from './TtpsPanel'
 import { AlertDrawer } from '../alerts/AlertDrawer'
 
@@ -26,44 +22,6 @@ export function CaseSideRail({ caseDetail }: { caseDetail: CaseDetail }) {
 
   return (
     <Stack gap="md">
-      <SideCard
-        title="Run responder"
-        badge="Cortex"
-        action={
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            aria-label="Add responder"
-            onClick={() => actionNotice('Responder picker opened')}
-          >
-            <Plus size={16} />
-          </ActionIcon>
-        }
-      >
-        <Stack gap="xs">
-          {caseDetail.responders.map((responder) => (
-            <Button
-              key={responder.action}
-              variant="default"
-              justify="space-between"
-              fullWidth
-              onClick={() =>
-                actionNotice(
-                  `${responder.action} queued via ${responder.provider}`,
-                )
-              }
-              rightSection={
-                <Text ff="monospace" fz={11} c="dimmed">
-                  {responder.provider}
-                </Text>
-              }
-            >
-              {responder.action}
-            </Button>
-          ))}
-        </Stack>
-      </SideCard>
-
       <SideCard title="Linked alerts">
         <Stack gap={0}>
           {caseDetail.linkedAlerts.map((alert) => (
@@ -128,12 +86,10 @@ function LinkedAlertRow({
 function SideCard({
   title,
   badge,
-  action,
   children,
 }: {
   title: string
   badge?: string
-  action?: ReactNode
   children: ReactNode
 }) {
   return (
@@ -149,7 +105,6 @@ function SideCard({
             {badge}
           </Badge>
         ) : null}
-        <Box ml="auto">{action}</Box>
       </Group>
       <Box p="md">{children}</Box>
     </Paper>

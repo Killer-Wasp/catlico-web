@@ -24,7 +24,6 @@ import {
   confirmDelete,
   ErrorPanel,
   LoadingPanel,
-  notify,
   Panel,
 } from '#/components/pages/settings/settingsUi'
 import { usePermissions } from '#/lib/auth/usePermissions'
@@ -125,18 +124,7 @@ export function TaxonomiesPanel() {
 
   return (
     <Stack gap="md">
-      <Panel
-        title="Taxonomies"
-        count={`${namespaces.length} namespaces`}
-        action={
-          <Button
-            variant="default"
-            onClick={() => notify('MISP taxonomy import not yet implemented.')}
-          >
-            Import MISP taxonomy
-          </Button>
-        }
-      >
+      <Panel title="Taxonomies" count={`${namespaces.length} namespaces`}>
         <Stack gap={0} p={18} pt={6} pb={6}>
           {namespaces.map(
             ({ namespace, tags, predicateCount }: NamespaceGroup) => (

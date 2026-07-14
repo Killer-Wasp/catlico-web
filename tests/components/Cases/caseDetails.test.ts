@@ -177,7 +177,6 @@ describe('case detail data helpers', () => {
       'First paragraph\n\nSecond paragraph',
     )
     expect(detail.summary).toBe('Tokens revoked for affected accounts.')
-    expect(detail.responders).toEqual([])
     expect(detail.related).toEqual([])
   })
 

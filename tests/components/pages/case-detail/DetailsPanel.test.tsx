@@ -42,7 +42,6 @@ const caseDetail: CaseDetail = {
   customFields: [],
   linkedAlerts: [],
   shares: 0,
-  responders: [],
   related: [],
 }
 

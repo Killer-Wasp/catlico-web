@@ -130,6 +130,5 @@ export type CaseDetail = {
   customFields: [string, string][]
   linkedAlerts: CaseDetailAlert[]
   shares: number
-  responders: { action: string; provider: string }[]
   related: { id: string; title: string }[]
 }
