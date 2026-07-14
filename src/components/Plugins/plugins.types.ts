@@ -345,8 +345,12 @@ export type RunnablePlugin = {
   capabilities: string[]
 }
 
-/** Body for `POST /observables/{id}/plugin-runs`. */
-export type QueueObservablePluginRunRequest = {
+/**
+ * Body for the manual plugin-run routes — `POST /observables/{id}/plugin-runs`,
+ * `POST /cases/{id}/plugin-runs`, and `POST /alerts/{id}/plugin-runs`. Same shape
+ * for every target, so this type is neutral about which entity it queues against.
+ */
+export type QueuePluginRunRequest = {
   plugin_id: string
   force?: boolean
 }

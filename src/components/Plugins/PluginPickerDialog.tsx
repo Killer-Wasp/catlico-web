@@ -36,6 +36,13 @@ export type PluginPickerDialogProps = {
   onClose: () => void
   /** Capability filter for the runnable list. Defaults to `enrichment`. */
   capability?: string
+  /**
+   * What kind of plugin is being run — drives the visible copy (title,
+   * loading/error/empty states) as "Run {noun}s" / "runnable {noun}s". Defaults
+   * to `analyzer` (the enrichment picker); pass `responder` for the responder
+   * picker. Purely cosmetic — the actual list is filtered by `capability`.
+   */
+  noun?: string
   /** Optional context line under the title, e.g. "Run on 3 observables". */
   contextLabel?: string
   /** True while the caller's fan-out is in flight — keeps Run busy/disabled. */
@@ -48,6 +55,7 @@ export function PluginPickerDialog({
   opened,
   onClose,
   capability = 'enrichment',
+  noun = 'analyzer',
   contextLabel,
   isRunning = false,
   onRun,
@@ -103,7 +111,7 @@ export function PluginPickerDialog({
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Run analyzers">
+    <Modal opened={opened} onClose={onClose} title={`Run ${noun}s`}>
       <Stack gap="md">
         {contextLabel ? (
           <Text fz="sm" c="dimmed">
@@ -115,13 +123,13 @@ export function PluginPickerDialog({
           <Group gap="xs">
             <Loader size="sm" />
             <Text fz="sm" c="dimmed">
-              Loading runnable analyzers…
+              Loading runnable {noun}s…
             </Text>
           </Group>
         ) : isError ? (
           <Alert color="red" variant="light">
             <Group justify="space-between" wrap="nowrap">
-              <Text fz="sm">Couldn’t load runnable analyzers.</Text>
+              <Text fz="sm">Couldn’t load runnable {noun}s.</Text>
               <Button size="xs" variant="default" onClick={() => refetch()}>
                 Retry
               </Button>
@@ -129,7 +137,7 @@ export function PluginPickerDialog({
           </Alert>
         ) : runnable.length === 0 ? (
           <Text fz="sm" c="dimmed">
-            No runnable analyzers. Enable and configure a plugin on a healthy
+            No runnable {noun}s. Enable and configure a plugin on a healthy
             runner first.
           </Text>
         ) : (

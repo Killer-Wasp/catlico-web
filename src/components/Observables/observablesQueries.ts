@@ -11,7 +11,7 @@ import type {
 } from './observables.types'
 import type {
   PluginRunPublic,
-  QueueObservablePluginRunRequest,
+  QueuePluginRunRequest,
 } from '#/components/Plugins/plugins.types'
 
 type Page<T> = { items: T[]; total: number; skip: number; limit: number }
@@ -164,7 +164,7 @@ export async function updateObservableFlags(
  */
 export async function queueObservablePluginRun(
   observableId: string,
-  body: QueueObservablePluginRunRequest,
+  body: QueuePluginRunRequest,
 ): Promise<PluginRunPublic> {
   return api
     .post(`observables/${observableId}/plugin-runs`, { json: body })

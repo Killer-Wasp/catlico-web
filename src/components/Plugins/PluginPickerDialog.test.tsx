@@ -114,6 +114,26 @@ describe('PluginPickerDialog', () => {
     expect(getMock).toHaveBeenCalledWith('plugins/runnable?capability=responder')
   })
 
+  it('defaults its copy to "analyzer" (title "Run analyzers")', async () => {
+    renderDialog()
+    await screen.findByText('VirusTotal')
+    expect(screen.getByText('Run analyzers')).toBeInTheDocument()
+    expect(screen.queryByText('Run responders')).not.toBeInTheDocument()
+  })
+
+  it('derives its copy from the noun prop (title "Run responders", empty state "No runnable responders")', async () => {
+    renderDialog({ noun: 'responder' })
+    await screen.findByText('VirusTotal')
+    expect(screen.getByText('Run responders')).toBeInTheDocument()
+    expect(screen.queryByText('Run analyzers')).not.toBeInTheDocument()
+
+    // And the empty state tracks the noun too.
+    cleanup()
+    getMock.mockReturnValue({ json: () => Promise.resolve([]) } as never)
+    renderDialog({ noun: 'responder' })
+    expect(await screen.findByText(/no runnable responders/i)).toBeInTheDocument()
+  })
+
   it('resets the selection when closed and reopened', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const tree = (opened: boolean) => (

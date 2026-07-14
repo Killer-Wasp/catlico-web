@@ -47,7 +47,7 @@ import type {
 import type { Case } from './cases.types'
 import type {
   PluginRunPublic,
-  QueueObservablePluginRunRequest,
+  QueuePluginRunRequest,
 } from '#/components/Plugins/plugins.types'
 
 /** Mirrors the backend AttachmentPublic model. */
@@ -463,7 +463,7 @@ export async function closeCase(id: string): Promise<void> {
  */
 export async function queueCasePluginRun(
   id: string,
-  body: QueueObservablePluginRunRequest,
+  body: QueuePluginRunRequest,
 ): Promise<PluginRunPublic> {
   const numeric = id.replace(/^#/, '')
   return api

@@ -312,6 +312,7 @@ export function CaseSummaryCard({
         opened={responderPickerOpen}
         onClose={() => setResponderPickerOpen(false)}
         capability="responder"
+        noun="responder"
         isRunning={runCaseResponders.isPending}
         contextLabel={`Run on case ${caseDetail.id}`}
         onRun={(selection) => runCaseResponders.mutate(selection)}
