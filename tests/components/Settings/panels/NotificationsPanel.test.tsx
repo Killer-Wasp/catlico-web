@@ -1,4 +1,11 @@
 // @vitest-environment jsdom
+//
+// The notifier destination URL is a WRITE-ONLY secret: the create form sends it
+// as `secrets.url` (never as the plaintext `target`), a webhook signing secret
+// rides along as `secrets.signing_secret`, and the edit/rotate flow reveals a
+// fresh URL input (the URL is never returned, so it is never prefilled). List
+// rows and the delete-confirm render the server-derived `target` LABEL, never a
+// URL. A 422 from the server surfaces as a friendly inline field error.
 import { NotificationsPanel } from '#/components/pages/settings/panels/NotificationsPanel'
 import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
@@ -12,6 +19,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import {
   afterEach,
@@ -34,13 +42,16 @@ vi.mock('#/lib/api/client', () => ({
 
 type JsonResponse = { json: () => Promise<unknown> }
 
+const SLACK_URL = 'https://hooks.slack.example/services/T/B/abc'
+
+// `target` is the server-derived DISPLAY LABEL — never the destination URL.
 const notifierDto = {
   id: 'notif-1',
   type: 'webhook' as const,
-  target: 'https://hooks.slack.example/abc',
-  config: { channel: '#alerts' },
+  target: 'hooks.slack.example/services/T/B/…',
+  config: {},
   enabled: true,
-  has_secrets: false,
+  has_secrets: true,
   organisation_id: 'origin-soc',
   created_at: '2026-06-20T00:00:00Z',
   updated_at: null,
@@ -50,7 +61,7 @@ const notifierDto2 = {
   id: 'notif-2',
   type: 'email' as const,
   target: 'analyst@example.test',
-  config: { template: 'default' },
+  config: {},
   enabled: false,
   has_secrets: false,
   organisation_id: 'origin-soc',
@@ -68,6 +79,17 @@ const ruleDto = {
   organisation_id: 'origin-soc',
   created_at: '2026-06-20T00:00:00Z',
   updated_at: null,
+}
+
+/** A ky-style HTTPError: `isHTTPError` keys off `name === 'HTTPError'`. */
+function httpError(status: number, body: unknown): Error {
+  const err = new Error(`HTTP ${status}`)
+  Object.assign(err, {
+    name: 'HTTPError',
+    response: { status, json: () => Promise.resolve(body) },
+    data: body,
+  })
+  return err
 }
 
 beforeAll(() => {
@@ -124,7 +146,12 @@ beforeEach(() => {
     const url = String(input)
     if (url.includes('notifiers')) {
       return {
-        json: async () => ({ items: [notifierDto, notifierDto2], total: 2, skip: 0, limit: 100 }),
+        json: async () => ({
+          items: [notifierDto, notifierDto2],
+          total: 2,
+          skip: 0,
+          limit: 100,
+        }),
       } satisfies JsonResponse as ReturnType<typeof api.get>
     }
     return {
@@ -137,43 +164,33 @@ beforeEach(() => {
   } satisfies JsonResponse as ReturnType<typeof api.patch>)
 
   vi.mocked(api.post).mockReturnValue({
-    json: async () => ({
-      id: 'notif-3',
-      type: 'slack',
-      target: 'https://hooks.slack.example/xyz',
-      config: { channel: '#incidents' },
-      enabled: true,
-      has_secrets: false,
-      organisation_id: 'origin-soc',
-      created_at: '2026-06-24T00:00:00Z',
-      updated_at: null,
-    }),
+    json: async () => ({ ...notifierDto, id: 'notif-3' }),
   } satisfies JsonResponse as ReturnType<typeof api.post>)
 
-  vi.mocked(api.delete).mockReturnValue(
-    {} as ReturnType<typeof api.delete>,
-  )
+  vi.mocked(api.delete).mockReturnValue({} as ReturnType<typeof api.delete>)
 })
 
 afterEach(cleanup)
+
+async function openCreateModal() {
+  fireEvent.click(screen.getByText('+ Add notifier'))
+  return screen.findByRole('dialog')
+}
 
 describe('NotificationsPanel', () => {
   test('warns when a rule is enabled but wired to no notifiers', async () => {
     render(<Harness />)
     await screen.findByText('Critical alerts')
-    expect(
-      screen.getByText(/wired to no notifiers/i),
-    ).toBeDefined()
+    expect(screen.getByText(/wired to no notifiers/i)).toBeDefined()
   })
 
   test('selecting a notifier for a rule PATCHes its notifier_ids', async () => {
     render(<Harness />)
     await screen.findByText('Critical alerts')
 
-    // Open the rule's notifier picker and choose the first notifier option.
     fireEvent.click(screen.getByPlaceholderText('Select notifiers'))
     const option = await screen.findByRole('option', {
-      name: /webhook — https:\/\/hooks\.slack\.example\/abc/i,
+      name: /webhook — hooks\.slack\.example/i,
     })
     fireEvent.click(option)
 
@@ -185,165 +202,246 @@ describe('NotificationsPanel', () => {
     )
   })
 
-  test('shows a per-notifier secrets indicator', async () => {
-    render(<Harness />)
-    await screen.findByText('webhook')
-    // Both fixtures have has_secrets=false → "no secret" badge + "Set secrets" cta.
-    expect(screen.getAllByText('no secret').length).toBeGreaterThan(0)
-    expect(
-      screen.getAllByRole('button', { name: /set secrets/i }).length,
-    ).toBeGreaterThan(0)
-  })
-
-  test('rotating secrets PATCHes the notifier with the new JSON', async () => {
-    render(<Harness />)
-    await screen.findByText('webhook')
-
-    fireEvent.click(
-      screen.getAllByRole('button', { name: /set secrets/i })[0],
-    )
-    await screen.findByRole('dialog')
-
-    fireEvent.change(screen.getByRole('textbox', { name: /secrets/i }), {
-      target: { value: '{"token":"abc"}' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /save secrets/i }))
-
-    await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledWith('notifications/notifiers/notif-1', {
-        json: { secrets: { token: 'abc' } },
-      }),
-    )
-  })
-
-  test('invalid secrets JSON blocks the rotation PATCH', async () => {
-    render(<Harness />)
-    await screen.findByText('webhook')
-
-    fireEvent.click(
-      screen.getAllByRole('button', { name: /set secrets/i })[0],
-    )
-    await screen.findByRole('dialog')
-
-    fireEvent.change(screen.getByRole('textbox', { name: /secrets/i }), {
-      target: { value: '{bad' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /save secrets/i }))
-
-    await waitFor(() => expect(screen.getByText('Invalid JSON')).toBeDefined())
-    expect(api.patch).not.toHaveBeenCalledWith(
-      'notifications/notifiers/notif-1',
-      expect.objectContaining({ json: expect.anything() }),
-    )
-  })
-
   test('renders notifiers, rules, and message template from the backend', async () => {
     render(<Harness />)
 
     expect(await screen.findByText('webhook')).toBeDefined()
     expect(screen.getByText('email')).toBeDefined()
     expect(screen.getByText('Critical alerts')).toBeDefined()
-    const messageElements = screen.getAllByText(/Message template/)
-    expect(messageElements.length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Message template/).length).toBeGreaterThan(0)
   })
 
-  test('clicking + Add notifier opens the create modal', async () => {
+  test('list rows show the target label, never the destination URL', async () => {
+    render(<Harness />)
+    await screen.findByText('hooks.slack.example/services/T/B/…')
+    expect(screen.queryByText(SLACK_URL)).toBeNull()
+  })
+
+  test('shows a per-notifier secrets indicator', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+    // notif-1 has_secrets=true, notif-2 has_secrets=false.
+    expect(screen.getByText('Secrets configured')).toBeDefined()
+    expect(screen.getByText('No secrets')).toBeDefined()
+  })
+
+  test('+ Add notifier opens the create modal', async () => {
     render(<Harness />)
     await screen.findByText('webhook')
 
-    fireEvent.click(screen.getByText('+ Add notifier'))
-
-    const dialog = await screen.findByRole('dialog')
-    expect(dialog).toBeDefined()
+    await openCreateModal()
     expect(screen.getByText('Add notifier')).toBeDefined()
   })
 
-  test('invalid JSON in config or secrets blocks submission and shows validation errors', async () => {
+  test('create posts the URL inside secrets, not as the plaintext target', async () => {
     render(<Harness />)
     await screen.findByText('webhook')
 
-    fireEvent.click(screen.getByText('+ Add notifier'))
-    await screen.findByRole('dialog')
-
-    const configTextarea = screen.getByRole('textbox', { name: /config/i })
-    fireEvent.change(configTextarea, { target: { value: '{bad json' } })
-
-    fireEvent.click(screen.getByText('Create notifier'))
-
-    await waitFor(() => {
-      expect(screen.getByText('Invalid JSON')).toBeDefined()
+    const dialog = await openCreateModal()
+    fireEvent.change(within(dialog).getByLabelText(/destination url/i), {
+      target: { value: SLACK_URL },
     })
-    expect(api.post).not.toHaveBeenCalled()
-  })
-
-  test('valid form submission calls POST and invalidates settings on success', async () => {
-    render(<Harness />)
-    await screen.findByText('webhook')
-    const getCount = vi.mocked(api.get).mock.calls.length
-
-    fireEvent.click(screen.getByText('+ Add notifier'))
-    await screen.findByRole('dialog')
-
-    fireEvent.click(screen.getByText('Create notifier'))
+    fireEvent.click(within(dialog).getByText('Create notifier'))
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('notifications/notifiers/', {
-        json: {
-          type: 'webhook',
-          target: undefined,
-          enabled: true,
-          config: {},
-          secrets: {},
-        },
+        json: expect.objectContaining({
+          type: 'slack',
+          secrets: { url: SLACK_URL },
+        }),
       }),
     )
+    const body = vi.mocked(api.post).mock.calls[0][1] as {
+      json: { target?: string }
+    }
+    expect(body.json.target).not.toBe(SLACK_URL)
 
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
-    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await waitFor(() => expect(screen.getByText('Notifier created')).toBeDefined())
+  })
 
-    await waitFor(() => {
-      expect(screen.getByText('Notifier created')).toBeDefined()
+  test('a webhook create posts secrets.signing_secret', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    const dialog = await openCreateModal()
+    // Switch the type to Webhook via the Mantine Select.
+    fireEvent.click(within(dialog).getByLabelText(/type/i))
+    fireEvent.click(await screen.findByRole('option', { name: /webhook/i }))
+
+    fireEvent.change(within(dialog).getByLabelText(/destination url/i), {
+      target: { value: 'https://example.com/hook' },
     })
+    fireEvent.change(within(dialog).getByLabelText(/signing secret/i), {
+      target: { value: 's3cr3t' },
+    })
+    fireEvent.click(within(dialog).getByText('Create notifier'))
 
     await waitFor(() =>
-      expect(vi.mocked(api.get).mock.calls.length).toBeGreaterThan(getCount),
+      expect(api.post).toHaveBeenCalledWith('notifications/notifiers/', {
+        json: expect.objectContaining({
+          type: 'webhook',
+          secrets: { url: 'https://example.com/hook', signing_secret: 's3cr3t' },
+        }),
+      }),
     )
   })
 
-  test('shows error notification when create fails', async () => {
+  test('an empty URL blocks the create POST with a field error', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    const dialog = await openCreateModal()
+    fireEvent.click(within(dialog).getByText('Create notifier'))
+
+    await waitFor(() =>
+      expect(screen.getByText(/destination url is required/i)).toBeDefined(),
+    )
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  test('surfaces a 422 (bad scheme / private IP) as an inline field error', async () => {
     vi.mocked(api.post).mockReturnValue({
-      json: async () => { throw new Error('Backend unavailable') },
+      json: async () => {
+        throw httpError(422, {
+          detail: [
+            {
+              loc: ['body', 'secrets', 'url'],
+              msg: 'URL must use the http or https scheme',
+            },
+          ],
+        })
+      },
     } satisfies JsonResponse as unknown as ReturnType<typeof api.post>)
 
     render(<Harness />)
     await screen.findByText('webhook')
 
-    fireEvent.click(screen.getByText('+ Add notifier'))
-    await screen.findByRole('dialog')
-
-    fireEvent.click(screen.getByText('Create notifier'))
-
-    await waitFor(() => {
-      expect(screen.getByText('Backend unavailable')).toBeDefined()
+    const dialog = await openCreateModal()
+    fireEvent.change(within(dialog).getByLabelText(/destination url/i), {
+      target: { value: 'ftp://nope' },
     })
+    fireEvent.click(within(dialog).getByText('Create notifier'))
+
+    expect(
+      await screen.findByText('URL must use the http or https scheme'),
+    ).toBeDefined()
   })
 
-  test('deleting a notifier confirms then calls DELETE and invalidates settings', async () => {
+  test('shows error notification when create fails', async () => {
+    vi.mocked(api.post).mockReturnValue({
+      json: async () => {
+        throw new Error('Backend unavailable')
+      },
+    } satisfies JsonResponse as unknown as ReturnType<typeof api.post>)
+
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    const dialog = await openCreateModal()
+    fireEvent.change(within(dialog).getByLabelText(/destination url/i), {
+      target: { value: SLACK_URL },
+    })
+    fireEvent.click(within(dialog).getByText('Create notifier'))
+
+    await waitFor(() =>
+      expect(screen.getByText('Backend unavailable')).toBeDefined(),
+    )
+  })
+
+  test('edit shows the label + secrets indicator and does NOT prefill a URL', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[0])
+    const dialog = await screen.findByRole('dialog')
+
+    expect(within(dialog).getByText(/hooks\.slack\.example/)).toBeDefined()
+    expect(within(dialog).getByText(/secrets configured/i)).toBeDefined()
+
+    // The URL input is revealed on demand and starts empty (nothing to prefill).
+    fireEvent.click(within(dialog).getByRole('button', { name: /change url/i }))
+    expect(within(dialog).getByLabelText(/destination url/i)).toHaveValue('')
+  })
+
+  test('the change-URL flow PATCHes a fresh secrets.url', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[0])
+    const dialog = await screen.findByRole('dialog')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /change url/i }))
+    fireEvent.change(within(dialog).getByLabelText(/destination url/i), {
+      target: { value: 'https://hooks.slack.example/services/NEW/HOOK/z' },
+    })
+    fireEvent.click(within(dialog).getByText('Save changes'))
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('notifications/notifiers/notif-1', {
+        json: {
+          secrets: { url: 'https://hooks.slack.example/services/NEW/HOOK/z' },
+        },
+      }),
+    )
+  })
+
+  test('removing a webhook signing secret PATCHes signing_secret: null', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    // notif-1 is the webhook fixture; open its editor.
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[0])
+    const dialog = await screen.findByRole('dialog')
+
+    fireEvent.click(within(dialog).getByLabelText('Remove stored signing secret'))
+    fireEvent.click(within(dialog).getByText('Save changes'))
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('notifications/notifiers/notif-1', {
+        json: { secrets: { signing_secret: null } },
+      }),
+    )
+  })
+
+  test('typing a signing secret then checking remove still sends null (removal wins)', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[0])
+    const dialog = await screen.findByRole('dialog')
+
+    fireEvent.change(within(dialog).getByLabelText('Signing secret'), {
+      target: { value: 'typed-value' },
+    })
+    fireEvent.click(within(dialog).getByLabelText('Remove stored signing secret'))
+    fireEvent.click(within(dialog).getByText('Save changes'))
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('notifications/notifiers/notif-1', {
+        json: { secrets: { signing_secret: null } },
+      }),
+    )
+  })
+
+  test('deleting a notifier confirms with the label then calls DELETE', async () => {
     render(<Harness />)
     await screen.findByText('webhook')
     const getCount = vi.mocked(api.get).mock.calls.length
 
-    // Each notifier row has its own Delete button; act on the first.
     fireEvent.click(screen.getAllByRole('button', { name: /^delete$/i })[0])
 
-    // Confirmation modal from confirmDelete; confirm to proceed.
-    const confirmModal = await screen.findByRole('dialog')
-    const confirmButton = Array.from(
-      confirmModal.querySelectorAll('button'),
-    ).find((b) => b.textContent === 'Delete')
-    expect(confirmButton).toBeDefined()
-    fireEvent.click(confirmButton as HTMLButtonElement)
+    // Confirmation modal from confirmDelete; its copy names the label, not a URL.
+    const confirmButton = await screen.findByRole('button', {
+      name: 'Delete notifier',
+    })
+    const confirmDialog = confirmButton.closest('[role="dialog"]') as HTMLElement
+    expect(
+      within(confirmDialog).getByText(/hooks\.slack\.example/),
+    ).toBeDefined()
+    expect(within(confirmDialog).queryByText(SLACK_URL)).toBeNull()
+
+    fireEvent.click(confirmButton)
 
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith('notifications/notifiers/notif-1'),
@@ -357,15 +455,10 @@ describe('NotificationsPanel', () => {
     render(<Harness />)
     await screen.findByText('webhook')
 
-    fireEvent.click(screen.getByText('+ Add notifier'))
-    await screen.findByRole('dialog')
-
+    await openCreateModal()
     fireEvent.click(screen.getByText('Cancel'))
 
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
-    })
-
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(api.post).not.toHaveBeenCalled()
   })
 })

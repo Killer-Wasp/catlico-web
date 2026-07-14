@@ -7,15 +7,16 @@ import {
   LoadingOverlay,
   Modal,
   MultiSelect,
+  PasswordInput,
   Select,
   Stack,
   Switch,
   Text,
-  Textarea,
   TextInput,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isHTTPError } from 'ky'
 import { useState } from 'react'
 import {
   createNotifier,
@@ -28,6 +29,41 @@ import {
 } from '#/components/pages/settings/settingsQueries'
 import type { NotifierPublic } from '#/components/pages/settings/settingsQueries'
 import { confirmDelete, Panel } from '#/components/pages/settings/settingsUi'
+
+/** Notifier types whose destination is an http(s) URL secret. */
+type UrlNotifierType = 'slack' | 'webhook'
+
+type FastAPIError = {
+  detail?: { loc: (string | number)[]; msg: string }[]
+}
+
+/**
+ * Map a server 422 onto per-field error setters. FastAPI reports the offending
+ * field as the last element of each `loc`; anything we can't route to a field
+ * falls through to `fallback` (a toast). Mirrors the plugin-config secret flow.
+ */
+function applyValidationError(
+  error: unknown,
+  setters: Partial<Record<string, (msg: string) => void>>,
+  fallback: (msg: string) => void,
+): void {
+  if (isHTTPError(error) && error.response.status === 422) {
+    const detail = (error as { data?: FastAPIError }).data?.detail ?? []
+    let mapped = false
+    for (const d of detail) {
+      const field = d.loc[d.loc.length - 1]
+      const set = typeof field === 'string' ? setters[field] : undefined
+      if (set) {
+        set(d.msg)
+        mapped = true
+      }
+    }
+    if (mapped) return
+    fallback(detail[0]?.msg ?? 'Validation failed')
+    return
+  }
+  fallback(error instanceof Error ? error.message : 'Request failed')
+}
 
 export function NotificationsPanel() {
   const queryClient = useQueryClient()
@@ -78,26 +114,31 @@ export function NotificationsPanel() {
   // Options for the per-rule notifier picker; label a notifier by type + target.
   const notifierOptions = notifiers.map((n) => ({
     value: n.id,
-    label: `${n.type} — ${n.target || '(no target)'}`,
+    label: `${n.type} — ${n.target || '(no label)'}`,
   }))
 
+  // ── Create ────────────────────────────────────────────────────────────────
+  // The destination URL is a write-only secret sent as `secrets.url` — never as
+  // the plaintext `target`. `target` is only an optional display label (the
+  // server derives one from the URL when omitted). Webhooks may also carry a
+  // signing secret.
   const [showCreate, setShowCreate] = useState(false)
-  const [ntype, setNtype] = useState<NotifierPublic['type']>('webhook')
-  const [ntarget, setNtarget] = useState('')
+  const [ntype, setNtype] = useState<UrlNotifierType>('slack')
+  const [nurl, setNurl] = useState('')
+  const [nlabel, setNlabel] = useState('')
+  const [nsigningSecret, setNsigningSecret] = useState('')
   const [nenabled, setNenabled] = useState(true)
-  const [nconfig, setNconfig] = useState('{}')
-  const [nsecrets, setNsecrets] = useState('{}')
-  const [nconfigError, setNconfigError] = useState('')
-  const [nsecretsError, setNsecretsError] = useState('')
+  const [nurlError, setNurlError] = useState('')
+  const [nsigningError, setNsigningError] = useState('')
 
   const resetCreateForm = () => {
-    setNtype('webhook')
-    setNtarget('')
+    setNtype('slack')
+    setNurl('')
+    setNlabel('')
+    setNsigningSecret('')
     setNenabled(true)
-    setNconfig('{}')
-    setNsecrets('{}')
-    setNconfigError('')
-    setNsecretsError('')
+    setNurlError('')
+    setNsigningError('')
   }
 
   const openCreate = () => {
@@ -111,50 +152,38 @@ export function NotificationsPanel() {
   }
 
   const createMutation = useMutation({
-    mutationFn: (input: {
-      config: Record<string, unknown>
-      secrets: Record<string, unknown>
-    }) =>
+    mutationFn: (secrets: Record<string, unknown>) =>
       createNotifier({
         type: ntype,
-        target: ntarget || undefined,
+        target: nlabel.trim() || undefined,
         enabled: nenabled,
-        config: input.config,
-        secrets: input.secrets,
+        secrets,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       closeCreate()
       notifications.show({ color: 'teal', message: 'Notifier created' })
     },
-    onError: (error) => {
-      const msg = error instanceof Error ? error.message : 'Failed to create notifier'
-      notifications.show({ color: 'red', message: msg })
-    },
+    onError: (error) =>
+      applyValidationError(
+        error,
+        { url: setNurlError, signing_secret: setNsigningError },
+        (message) => notifications.show({ color: 'red', message }),
+      ),
   })
 
-  // Parse/validate the JSON fields in the click handler so validation errors
-  // surface inline without ever entering the create request lifecycle.
   const handleCreate = () => {
-    let config: Record<string, unknown> = {}
-    let secrets: Record<string, unknown> = {}
-    let valid = true
-    try {
-      config = JSON.parse(nconfig)
-      setNconfigError('')
-    } catch {
-      setNconfigError('Invalid JSON')
-      valid = false
+    setNurlError('')
+    setNsigningError('')
+    if (!nurl.trim()) {
+      setNurlError('Destination URL is required')
+      return
     }
-    try {
-      secrets = JSON.parse(nsecrets)
-      setNsecretsError('')
-    } catch {
-      setNsecretsError('Invalid JSON')
-      valid = false
+    const secrets: Record<string, unknown> = { url: nurl.trim() }
+    if (ntype === 'webhook' && nsigningSecret.trim()) {
+      secrets.signing_secret = nsigningSecret.trim()
     }
-    if (!valid) return
-    createMutation.mutate({ config, secrets })
+    createMutation.mutate(secrets)
   }
 
   const deleteMutation = useMutation({
@@ -167,50 +196,82 @@ export function NotificationsPanel() {
       notifications.show({ color: 'red', message: 'Failed to delete notifier' }),
   })
 
-  // Secret rotation. Secrets are write-only (never returned), so the only edit
-  // path is to submit a fresh JSON object that replaces them.
-  const [rotateFor, setRotateFor] = useState<NotifierPublic | null>(null)
-  const [rotateJson, setRotateJson] = useState('{}')
-  const [rotateError, setRotateError] = useState('')
+  // ── Edit / rotate ───────────────────────────────────────────────────────────
+  // The URL is never returned, so there is nothing to prefill. Editing shows the
+  // label + a "secrets configured" flag and reveals a fresh write-only URL input
+  // on demand. Secret-write semantics: a submitted string replaces, an omitted
+  // key keeps, and `null` deletes (used to remove a webhook signing secret).
+  const [editFor, setEditFor] = useState<NotifierPublic | null>(null)
+  const [showUrlField, setShowUrlField] = useState(false)
+  const [editUrl, setEditUrl] = useState('')
+  const [editUrlError, setEditUrlError] = useState('')
+  const [editSigningSecret, setEditSigningSecret] = useState('')
+  const [editSigningError, setEditSigningError] = useState('')
+  const [removeSigning, setRemoveSigning] = useState(false)
 
-  const openRotate = (notifier: NotifierPublic) => {
-    setRotateFor(notifier)
-    setRotateJson('{}')
-    setRotateError('')
+  const openEdit = (notifier: NotifierPublic) => {
+    setEditFor(notifier)
+    setShowUrlField(false)
+    setEditUrl('')
+    setEditUrlError('')
+    setEditSigningSecret('')
+    setEditSigningError('')
+    setRemoveSigning(false)
   }
 
-  const closeRotate = () => {
-    setRotateFor(null)
-    setRotateJson('{}')
-    setRotateError('')
+  const closeEdit = () => {
+    setEditFor(null)
+    setShowUrlField(false)
+    setEditUrl('')
+    setEditUrlError('')
+    setEditSigningSecret('')
+    setEditSigningError('')
+    setRemoveSigning(false)
   }
 
-  const rotateMutation = useMutation({
+  const editMutation = useMutation({
     mutationFn: (input: { id: string; secrets: Record<string, unknown> }) =>
       updateNotifier(input.id, { secrets: input.secrets }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
-      closeRotate()
+      closeEdit()
       notifications.show({ color: 'teal', message: 'Notifier secrets updated' })
     },
-    onError: (error) => {
-      const msg =
-        error instanceof Error ? error.message : 'Failed to update secrets'
-      notifications.show({ color: 'red', message: msg })
-    },
+    onError: (error) =>
+      applyValidationError(
+        error,
+        { url: setEditUrlError, signing_secret: setEditSigningError },
+        (message) => notifications.show({ color: 'red', message }),
+      ),
   })
 
-  const handleRotate = () => {
-    if (!rotateFor) return
-    let secrets: Record<string, unknown>
-    try {
-      secrets = JSON.parse(rotateJson)
-      setRotateError('')
-    } catch {
-      setRotateError('Invalid JSON')
+  const handleEdit = () => {
+    if (!editFor) return
+    setEditUrlError('')
+    setEditSigningError('')
+    const secrets: Record<string, unknown> = {}
+    if (showUrlField) {
+      if (!editUrl.trim()) {
+        setEditUrlError('Enter a URL, or cancel to keep the current one')
+        return
+      }
+      secrets.url = editUrl.trim()
+    }
+    if (editFor.type === 'webhook') {
+      // Removal wins over a typed value: if the user checks "remove" we send
+      // null (delete) even if they had also typed a replacement, so the intent
+      // to clear is never silently overridden.
+      if (removeSigning) {
+        secrets.signing_secret = null
+      } else if (editSigningSecret.trim()) {
+        secrets.signing_secret = editSigningSecret.trim()
+      }
+    }
+    if (Object.keys(secrets).length === 0) {
+      notifications.show({ color: 'blue', message: 'No changes to save' })
       return
     }
-    rotateMutation.mutate({ id: rotateFor.id, secrets })
+    editMutation.mutate({ id: editFor.id, secrets })
   }
 
   return (
@@ -309,8 +370,9 @@ export function NotificationsPanel() {
                   <Text fz={13} fw={700}>
                     {n.type}
                   </Text>
+                  {/* Server-derived display label — never the destination URL. */}
                   <Text ff="monospace" fz={11} c="var(--faint)">
-                    {n.target || '(no target)'}
+                    {n.target || '(no label)'}
                   </Text>
                 </Box>
                 <Badge
@@ -319,14 +381,14 @@ export function NotificationsPanel() {
                   radius="xl"
                   size="sm"
                 >
-                  {n.has_secrets ? 'secret set' : 'no secret'}
+                  {n.has_secrets ? 'Secrets configured' : 'No secrets'}
                 </Badge>
                 <Button
                   size="xs"
                   variant="default"
-                  onClick={() => openRotate(n)}
+                  onClick={() => openEdit(n)}
                 >
-                  {n.has_secrets ? 'Rotate secrets' : 'Set secrets'}
+                  Edit
                 </Button>
                 <Switch
                   checked={n.enabled}
@@ -348,6 +410,7 @@ export function NotificationsPanel() {
                   onClick={() =>
                     confirmDelete({
                       title: 'Delete notifier',
+                      confirmLabel: 'Delete notifier',
                       message: `Delete the ${n.type} notifier${n.target ? ` (${n.target})` : ''}? Notification rules using it will stop delivering here.`,
                       onConfirm: () => deleteMutation.mutate(n.id),
                     })
@@ -368,8 +431,8 @@ export function NotificationsPanel() {
 
       <Panel title="Message template" count="handlebars">
         <Text c="dimmed" p={18}>
-          Message templates are managed via the notifier config. Create a notifier
-          with the desired template in its config field.
+          Message templates are managed per notifier by the delivery backend.
+          Formatting for each channel is handled server-side.
         </Text>
       </Panel>
 
@@ -383,42 +446,47 @@ export function NotificationsPanel() {
             label="Type"
             data={[
               { value: 'slack', label: 'Slack' },
-              { value: 'email', label: 'Email' },
               { value: 'webhook', label: 'Webhook' },
-              { value: 'kafka', label: 'Kafka' },
             ]}
             value={ntype}
-            onChange={(v) => setNtype(v as NotifierPublic['type'])}
+            onChange={(v) => setNtype(v ?? 'slack')}
+            allowDeselect={false}
             required
           />
           <TextInput
-            label="Target"
-            description="URL, email address, or topic"
-            value={ntarget}
-            onChange={(e) => setNtarget(e.currentTarget.value)}
+            label="Destination URL"
+            description="Stored as a write-only secret — it is never shown again."
+            placeholder="https://…"
+            value={nurl}
+            error={nurlError}
+            onChange={(e) => {
+              setNurl(e.currentTarget.value)
+              if (nurlError) setNurlError('')
+            }}
+            required
           />
+          <TextInput
+            label="Label"
+            description="Optional display name. Derived from the URL if left blank."
+            value={nlabel}
+            onChange={(e) => setNlabel(e.currentTarget.value)}
+          />
+          {ntype === 'webhook' && (
+            <PasswordInput
+              label="Signing secret"
+              description="Optional. Used to sign webhook payloads."
+              value={nsigningSecret}
+              error={nsigningError}
+              onChange={(e) => {
+                setNsigningSecret(e.currentTarget.value)
+                if (nsigningError) setNsigningError('')
+              }}
+            />
+          )}
           <Checkbox
             label="Enabled"
             checked={nenabled}
             onChange={(e) => setNenabled(e.currentTarget.checked)}
-          />
-          <Textarea
-            label="Config"
-            description="JSON object"
-            value={nconfig}
-            onChange={(e) => setNconfig(e.currentTarget.value)}
-            error={nconfigError}
-            minRows={3}
-            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 12 } }}
-          />
-          <Textarea
-            label="Secrets"
-            description="JSON object"
-            value={nsecrets}
-            onChange={(e) => setNsecrets(e.currentTarget.value)}
-            error={nsecretsError}
-            minRows={3}
-            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 12 } }}
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={closeCreate}>
@@ -436,46 +504,97 @@ export function NotificationsPanel() {
       </Modal>
 
       <Modal
-        opened={rotateFor !== null}
-        onClose={closeRotate}
-        title={
-          rotateFor
-            ? `${rotateFor.has_secrets ? 'Rotate' : 'Set'} secrets — ${rotateFor.type}`
-            : 'Secrets'
-        }
+        opened={editFor !== null}
+        onClose={closeEdit}
+        title={editFor ? `Edit ${editFor.type} notifier` : 'Edit notifier'}
       >
-        <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            Secrets are write-only and never shown. Submitting replaces the
-            notifier's stored secrets with the JSON below.
-          </Text>
-          <Textarea
-            label="Secrets"
-            description="JSON object"
-            value={rotateJson}
-            onChange={(e) => setRotateJson(e.currentTarget.value)}
-            error={rotateError}
-            minRows={4}
-            styles={{
-              input: {
-                fontFamily: 'var(--mantine-font-family-monospace)',
-                fontSize: 12,
-              },
-            }}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeRotate}>
-              Cancel
-            </Button>
-            <Button
-              color="orange"
-              loading={rotateMutation.isPending}
-              onClick={handleRotate}
+        {editFor && (
+          <Stack gap="md">
+            <Box>
+              <Text fz={12} c="dimmed">
+                Label
+              </Text>
+              <Text ff="monospace" fz={13}>
+                {editFor.target || '(no label)'}
+              </Text>
+            </Box>
+            <Badge
+              variant="light"
+              color={editFor.has_secrets ? 'green' : 'gray'}
+              radius="xl"
+              size="sm"
+              w="fit-content"
             >
-              Save secrets
-            </Button>
-          </Group>
-        </Stack>
+              {editFor.has_secrets ? 'Secrets configured' : 'No secrets stored'}
+            </Badge>
+            <Text size="sm" c="dimmed">
+              The destination URL is write-only and never shown. Change it by
+              entering a fresh URL below; leave it untouched to keep the current
+              one.
+            </Text>
+
+            {showUrlField ? (
+              <TextInput
+                label="Destination URL"
+                description="Replaces the stored URL."
+                placeholder="https://…"
+                value={editUrl}
+                error={editUrlError}
+                onChange={(e) => {
+                  setEditUrl(e.currentTarget.value)
+                  if (editUrlError) setEditUrlError('')
+                }}
+                autoFocus
+              />
+            ) : (
+              <Button
+                variant="default"
+                w="fit-content"
+                onClick={() => setShowUrlField(true)}
+              >
+                Change URL
+              </Button>
+            )}
+
+            {editFor.type === 'webhook' && (
+              <Stack gap={4}>
+                <PasswordInput
+                  label="Signing secret"
+                  description={
+                    editFor.has_secrets
+                      ? 'Leave blank to keep the stored signing secret.'
+                      : 'Optional. Used to sign webhook payloads.'
+                  }
+                  value={editSigningSecret}
+                  error={editSigningError}
+                  disabled={removeSigning}
+                  onChange={(e) => {
+                    setEditSigningSecret(e.currentTarget.value)
+                    if (editSigningError) setEditSigningError('')
+                  }}
+                />
+                <Checkbox
+                  label="Remove stored signing secret"
+                  checked={removeSigning}
+                  onChange={(e) => setRemoveSigning(e.currentTarget.checked)}
+                />
+              </Stack>
+            )}
+
+            <Group justify="flex-end">
+              <Button variant="default" onClick={closeEdit}>
+                Cancel
+              </Button>
+              <Button
+                color="orange"
+                loading={editMutation.isPending}
+                onClick={handleEdit}
+              >
+                Save changes
+              </Button>
+            </Group>
+          </Stack>
+        )}
       </Modal>
     </Stack>
   )
