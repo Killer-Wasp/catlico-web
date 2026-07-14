@@ -1,5 +1,6 @@
 export type SettingsSection =
   | 'My account'
+  | 'Security'
   | 'Organisation'
   | 'Users & roles'
   | 'Profiles & permissions'
@@ -18,6 +19,7 @@ export type Role = 'admin' | 'analyst' | 'readonly'
 
 export const settingsSections: SettingsSection[] = [
   'My account',
+  'Security',
   'Organisation',
   'Users & roles',
   'Profiles & permissions',

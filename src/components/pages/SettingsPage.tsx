@@ -13,6 +13,7 @@ import { ObservableTypesPanel } from './settings/panels/ObservableTypesPanel'
 import { OrgProfilePanel } from './settings/panels/OrgProfilePanel'
 import { ProfilesPanel } from './settings/panels/ProfilesPanel'
 import { ReportTemplatesPanel } from './settings/panels/ReportTemplatesPanel'
+import { SecurityPanel } from './settings/panels/SecurityPanel'
 import { SlaPanel } from './settings/panels/SlaPanel'
 import { TaxonomiesPanel } from './settings/panels/TaxonomiesPanel'
 import { UsersPanel } from './settings/panels/UsersPanel'
@@ -41,6 +42,7 @@ const SECTION_READ_PERMISSION: Partial<Record<SettingsSection, string>> = {
 
 function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'My account') return <MyAccountPanel />
+  if (section === 'Security') return <SecurityPanel />
   if (section === 'Users & roles') return <UsersPanel />
   if (section === 'Profiles & permissions') return <ProfilesPanel />
   if (section === 'Custom fields') return <CustomFieldsPanel />

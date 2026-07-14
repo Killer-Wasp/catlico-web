@@ -139,6 +139,7 @@ export const settingsKeys = {
     [...settingsKeys.all, 'notification-rules', orgId] as const,
   reportTemplates: (orgId: string) =>
     [...settingsKeys.all, 'report-templates', orgId] as const,
+  sessions: () => [...settingsKeys.all, 'sessions'] as const,
 }
 
 function activeOrgId(): string {
@@ -730,4 +731,34 @@ export const reportTemplatesQueryOptions = (orgId = getActiveOrgId()) =>
     queryKey: settingsKeys.reportTemplates(orgId ?? ''),
     queryFn: fetchReportTemplates,
     enabled: Boolean(orgId),
+  })
+
+// --- Auth Sessions ----------------------------------------------------------
+// Per-user, not org-scoped: these are the caller's own active login sessions
+// (the refresh-token family behind the httpOnly cookie), so no org id is keyed
+// in and no `X-Organisation-Id` is required by the route.
+
+export type SessionPublic = {
+  id: string
+  created_at: string
+  expires_at: string
+  user_agent: string | null
+  ip_address: string | null
+  is_current: boolean
+}
+
+export async function fetchSessions(): Promise<SessionPublic[]> {
+  return api.get('auth/sessions').json<SessionPublic[]>()
+}
+
+/** Revoke a single session (204). Revoking the current one signs the user out
+ * at the next token refresh — the backend allows it. */
+export async function revokeSession(id: string): Promise<void> {
+  await api.delete(`auth/sessions/${id}`)
+}
+
+export const sessionsQueryOptions = () =>
+  queryOptions({
+    queryKey: settingsKeys.sessions(),
+    queryFn: fetchSessions,
   })
