@@ -175,6 +175,59 @@ export type RunnerStats = {
   runner_id: string
 }
 
+// ── Versions tab (GET /plugins/{id}/versions[/check-latest]) ────────────────
+
+/** A runner hosting a plugin version, for the Versions tab. */
+export type PluginVersionRunnerPublic = {
+  id: string
+  name: string
+  status: string
+  install_status: string
+  health_status: string | null
+}
+
+/**
+ * Installed-version metadata for a plugin. `installed_version` is null when the
+ * plugin is in the catalog but not installed on any runner (`runners` empty).
+ */
+export type PluginVersionInfoPublic = {
+  plugin_id: string
+  installed_version: string | null
+  installed_version_id: string | null
+  source_type: string | null
+  source_url: string | null
+  source_ref: string | null
+  commit_sha: string | null
+  status: string | null
+  installed_at: string | null
+  runners: PluginVersionRunnerPublic[]
+}
+
+export type PluginLatestCheckStatus = 'up_to_date' | 'update_available' | 'unknown'
+
+/**
+ * Best-effort update check. Separate call from the metadata fetch so its
+ * unknown/slow state never blocks the installed-version view. In v1 the
+ * source-latest check usually returns `unknown` (no registry yet) — a normal
+ * state, not an error.
+ */
+export type PluginLatestCheckPublic = {
+  plugin_id: string
+  installed_version: string | null
+  latest_version: string | null
+  update_available: boolean
+  status: PluginLatestCheckStatus
+  reason: string | null
+}
+
+/** Body for POST /plugin-runners/{runner_id}/plugins/install (re-install/upgrade). */
+export type PluginInstallRequest = {
+  plugin_id: string
+  source_url: string
+  source_ref?: string
+  version?: string
+}
+
 export type ProposedActionPublic = {
   id: string
   plugin_id: string

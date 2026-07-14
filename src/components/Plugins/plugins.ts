@@ -14,6 +14,9 @@ import type {
   AutoApplyRequest,
   StatsWindow,
   PluginStats,
+  PluginVersionInfoPublic,
+  PluginLatestCheckPublic,
+  PluginInstallRequest,
 } from './plugins.types'
 
 // ── Query key factory ───────────────────────────────────────────────────────
@@ -25,6 +28,9 @@ export const pluginKeys = {
   configStatus: (id: string) => [...pluginKeys.all, 'config-status', id] as const,
   stats: (id: string, window: StatsWindow) =>
     [...pluginKeys.all, 'stats', id, window] as const,
+  versions: (id: string) => [...pluginKeys.detail(id), 'versions'] as const,
+  versionCheck: (id: string) =>
+    [...pluginKeys.detail(id), 'version-check'] as const,
   runnable: (capability?: string) =>
     [...pluginKeys.all, 'runnable', capability ?? null] as const,
 }
@@ -135,7 +141,56 @@ export async function fetchPluginStats(
     .json<PluginStats>()
 }
 
+// ── Versions ─────────────────────────────────────────────────────────────────
+
+/** Installed-version metadata (version, source, runners it's installed on). */
+export async function fetchPluginVersions(
+  id: string,
+): Promise<PluginVersionInfoPublic> {
+  return api.get(`plugins/${id}/versions`).json<PluginVersionInfoPublic>()
+}
+
+/**
+ * Best-effort "is there a newer version?" check. A SEPARATE query from the
+ * metadata fetch so its unknown/slow state never blocks the installed view.
+ */
+export async function fetchPluginVersionCheck(
+  id: string,
+): Promise<PluginLatestCheckPublic> {
+  return api
+    .get(`plugins/${id}/versions/check-latest`)
+    .json<PluginLatestCheckPublic>()
+}
+
+export const pluginVersionsQueryOptions = (id: string | null) =>
+  queryOptions({
+    queryKey: pluginKeys.versions(id ?? ''),
+    queryFn: () => fetchPluginVersions(id as string),
+    enabled: id !== null,
+    staleTime: 30_000,
+  })
+
+export const pluginVersionCheckQueryOptions = (id: string | null) =>
+  queryOptions({
+    queryKey: pluginKeys.versionCheck(id ?? ''),
+    queryFn: () => fetchPluginVersionCheck(id as string),
+    enabled: id !== null,
+    staleTime: 30_000,
+  })
+
 // ── Mutations ───────────────────────────────────────────────────────────────
+
+/**
+ * Trigger a (re)install of a plugin on a runner from its git source — reused by
+ * the Versions tab's Upgrade action. Fire-and-forget: the API responds 202 and
+ * the runner reports install progress back asynchronously.
+ */
+export async function installPluginOnRunner(
+  runnerId: string,
+  payload: PluginInstallRequest,
+): Promise<void> {
+  await api.post(`plugin-runners/${runnerId}/plugins/install`, { json: payload })
+}
 
 export async function savePluginConfig(
   id: string,

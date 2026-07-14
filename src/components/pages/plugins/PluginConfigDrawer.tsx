@@ -43,6 +43,7 @@ import {
   pluginConfigQueryOptions,
   configStatusQueryOptions,
 } from '#/components/Plugins/plugins'
+import { PluginVersionsTab } from './PluginVersionsTab'
 import { SchemaField } from './schema-form/Field'
 import {
   buildFormSchema,
@@ -340,9 +341,7 @@ export function PluginConfigDrawer({
 
           {isAdmin && (
             <Tabs.Panel value="versions" pt="md" style={{ flex: 1, overflow: 'auto' }}>
-              <Text fz={14} c="dimmed">
-                Version management is not yet available.
-              </Text>
+              <PluginVersionsTab pluginId={plugin.id} />
             </Tabs.Panel>
           )}
         </Tabs>

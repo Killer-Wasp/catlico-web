@@ -40,6 +40,7 @@ import { DataTable } from '#/components/Table/DataTable'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { PluginConfigDrawer } from './PluginConfigDrawer'
 import { useStamp, errorMessage } from '#/lib/ui-helpers'
+import { usePermissions } from '#/lib/auth/usePermissions'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,7 @@ function nameColor(id: string): string {
 export function PluginsPage() {
   const queryClient = useQueryClient()
   const stamp = useStamp()
+  const { isSuperadmin } = usePermissions()
 
   const { data: plugins = [], isPending, isError, refetch } = useQuery(pluginsQueryOptions())
   const { data: runners = [] } = useQuery(pluginRunnersQueryOptions())
@@ -352,6 +354,7 @@ export function PluginsPage() {
       <PluginConfigDrawer
         plugin={activePlugin}
         readOnly={healthReadOnly}
+        isAdmin={isSuperadmin}
         onClose={() => setActivePlugin(null)}
       />
     </Box>
