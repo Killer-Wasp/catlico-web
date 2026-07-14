@@ -11,6 +11,7 @@ import {
   Select,
   Stack,
   Switch,
+  TagsInput,
   Text,
   TextInput,
 } from '@mantine/core'
@@ -27,11 +28,36 @@ import {
   updateNotificationRule,
   updateNotifier,
 } from '#/components/pages/settings/settingsQueries'
-import type { NotifierPublic } from '#/components/pages/settings/settingsQueries'
+import type {
+  NotifierCreateInput,
+  NotifierPublic,
+  NotifierUpdateInput,
+} from '#/components/pages/settings/settingsQueries'
 import { confirmDelete, Panel } from '#/components/pages/settings/settingsUi'
 
-/** Notifier types whose destination is an http(s) URL secret. */
-type UrlNotifierType = 'slack' | 'webhook'
+/** Notifier types the create form can produce. Kafka is intentionally omitted. */
+type CreatableNotifierType = 'slack' | 'webhook' | 'email'
+
+/** Basic per-entry email check for the email notifier's recipient list. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Trim, drop blanks, then validate each recipient. Returns the cleaned list, or
+ * an error message when the list is empty or an entry is not a valid address.
+ */
+function validateRecipients(
+  raw: string[],
+): { recipients: string[] } | { error: string } {
+  const recipients = raw.map((r) => r.trim()).filter(Boolean)
+  if (recipients.length === 0) {
+    return { error: 'Add at least one recipient email address.' }
+  }
+  const invalid = recipients.find((r) => !EMAIL_RE.test(r))
+  if (invalid) {
+    return { error: `"${invalid}" is not a valid email address.` }
+  }
+  return { recipients }
+}
 
 type FastAPIError = {
   detail?: { loc: (string | number)[]; msg: string }[]
@@ -118,27 +144,33 @@ export function NotificationsPanel() {
   }))
 
   // ── Create ────────────────────────────────────────────────────────────────
-  // The destination URL is a write-only secret sent as `secrets.url` — never as
-  // the plaintext `target`. `target` is only an optional display label (the
-  // server derives one from the URL when omitted). Webhooks may also carry a
-  // signing secret.
+  // Two shapes, branched on type:
+  //  • slack/webhook — the destination URL is a write-only secret sent as
+  //    `secrets.url` (never as the plaintext `target`); webhooks may add a
+  //    signing secret. `target` is only an optional display label.
+  //  • email — recipients are plain config (`config.recipients`), NOT a secret,
+  //    and there is no URL at all.
   const [showCreate, setShowCreate] = useState(false)
-  const [ntype, setNtype] = useState<UrlNotifierType>('slack')
+  const [ntype, setNtype] = useState<CreatableNotifierType>('slack')
   const [nurl, setNurl] = useState('')
   const [nlabel, setNlabel] = useState('')
   const [nsigningSecret, setNsigningSecret] = useState('')
+  const [nrecipients, setNrecipients] = useState<string[]>([])
   const [nenabled, setNenabled] = useState(true)
   const [nurlError, setNurlError] = useState('')
   const [nsigningError, setNsigningError] = useState('')
+  const [nrecipientsError, setNrecipientsError] = useState('')
 
   const resetCreateForm = () => {
     setNtype('slack')
     setNurl('')
     setNlabel('')
     setNsigningSecret('')
+    setNrecipients([])
     setNenabled(true)
     setNurlError('')
     setNsigningError('')
+    setNrecipientsError('')
   }
 
   const openCreate = () => {
@@ -152,13 +184,7 @@ export function NotificationsPanel() {
   }
 
   const createMutation = useMutation({
-    mutationFn: (secrets: Record<string, unknown>) =>
-      createNotifier({
-        type: ntype,
-        target: nlabel.trim() || undefined,
-        enabled: nenabled,
-        secrets,
-      }),
+    mutationFn: (input: NotifierCreateInput) => createNotifier(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       closeCreate()
@@ -167,12 +193,33 @@ export function NotificationsPanel() {
     onError: (error) =>
       applyValidationError(
         error,
-        { url: setNurlError, signing_secret: setNsigningError },
+        {
+          url: setNurlError,
+          signing_secret: setNsigningError,
+          recipients: setNrecipientsError,
+        },
         (message) => notifications.show({ color: 'red', message }),
       ),
   })
 
   const handleCreate = () => {
+    const target = nlabel.trim() || undefined
+    if (ntype === 'email') {
+      setNrecipientsError('')
+      const result = validateRecipients(nrecipients)
+      if ('error' in result) {
+        setNrecipientsError(result.error)
+        return
+      }
+      // Email has NO url/secrets — the list rides in plain config.
+      createMutation.mutate({
+        type: 'email',
+        target,
+        enabled: nenabled,
+        config: { recipients: result.recipients },
+      })
+      return
+    }
     setNurlError('')
     setNsigningError('')
     if (!nurl.trim()) {
@@ -183,7 +230,7 @@ export function NotificationsPanel() {
     if (ntype === 'webhook' && nsigningSecret.trim()) {
       secrets.signing_secret = nsigningSecret.trim()
     }
-    createMutation.mutate(secrets)
+    createMutation.mutate({ type: ntype, target, enabled: nenabled, secrets })
   }
 
   const deleteMutation = useMutation({
@@ -208,6 +255,10 @@ export function NotificationsPanel() {
   const [editSigningSecret, setEditSigningSecret] = useState('')
   const [editSigningError, setEditSigningError] = useState('')
   const [removeSigning, setRemoveSigning] = useState(false)
+  // Email recipients ARE returned (plain config), so unlike the URL they can be
+  // prefilled and edited in place.
+  const [editRecipients, setEditRecipients] = useState<string[]>([])
+  const [editRecipientsError, setEditRecipientsError] = useState('')
 
   const openEdit = (notifier: NotifierPublic) => {
     setEditFor(notifier)
@@ -217,6 +268,8 @@ export function NotificationsPanel() {
     setEditSigningSecret('')
     setEditSigningError('')
     setRemoveSigning(false)
+    setEditRecipients(notifier.config.recipients ?? [])
+    setEditRecipientsError('')
   }
 
   const closeEdit = () => {
@@ -227,26 +280,45 @@ export function NotificationsPanel() {
     setEditSigningSecret('')
     setEditSigningError('')
     setRemoveSigning(false)
+    setEditRecipients([])
+    setEditRecipientsError('')
   }
 
   const editMutation = useMutation({
-    mutationFn: (input: { id: string; secrets: Record<string, unknown> }) =>
-      updateNotifier(input.id, { secrets: input.secrets }),
+    mutationFn: (input: { id: string; patch: NotifierUpdateInput }) =>
+      updateNotifier(input.id, input.patch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       closeEdit()
-      notifications.show({ color: 'teal', message: 'Notifier secrets updated' })
+      notifications.show({ color: 'teal', message: 'Notifier updated' })
     },
     onError: (error) =>
       applyValidationError(
         error,
-        { url: setEditUrlError, signing_secret: setEditSigningError },
+        {
+          url: setEditUrlError,
+          signing_secret: setEditSigningError,
+          recipients: setEditRecipientsError,
+        },
         (message) => notifications.show({ color: 'red', message }),
       ),
   })
 
   const handleEdit = () => {
     if (!editFor) return
+    if (editFor.type === 'email') {
+      setEditRecipientsError('')
+      const result = validateRecipients(editRecipients)
+      if ('error' in result) {
+        setEditRecipientsError(result.error)
+        return
+      }
+      editMutation.mutate({
+        id: editFor.id,
+        patch: { config: { recipients: result.recipients } },
+      })
+      return
+    }
     setEditUrlError('')
     setEditSigningError('')
     const secrets: Record<string, unknown> = {}
@@ -271,7 +343,7 @@ export function NotificationsPanel() {
       notifications.show({ color: 'blue', message: 'No changes to save' })
       return
     }
-    editMutation.mutate({ id: editFor.id, secrets })
+    editMutation.mutate({ id: editFor.id, patch: { secrets } })
   }
 
   return (
@@ -447,42 +519,65 @@ export function NotificationsPanel() {
             data={[
               { value: 'slack', label: 'Slack' },
               { value: 'webhook', label: 'Webhook' },
+              { value: 'email', label: 'Email' },
             ]}
             value={ntype}
             onChange={(v) => setNtype(v ?? 'slack')}
             allowDeselect={false}
             required
           />
-          <TextInput
-            label="Destination URL"
-            description="Stored as a write-only secret — it is never shown again."
-            placeholder="https://…"
-            value={nurl}
-            error={nurlError}
-            onChange={(e) => {
-              setNurl(e.currentTarget.value)
-              if (nurlError) setNurlError('')
-            }}
-            required
-          />
+          {ntype === 'email' ? (
+            <TagsInput
+              label="Recipients"
+              description="Press Enter or comma after each address. At least one is required."
+              placeholder="ops@example.com"
+              value={nrecipients}
+              error={nrecipientsError}
+              onChange={(v) => {
+                setNrecipients(v)
+                if (nrecipientsError) setNrecipientsError('')
+              }}
+              splitChars={[',', ' ']}
+              clearable
+            />
+          ) : (
+            <>
+              <TextInput
+                label="Destination URL"
+                description="Stored as a write-only secret — it is never shown again."
+                placeholder="https://…"
+                value={nurl}
+                error={nurlError}
+                onChange={(e) => {
+                  setNurl(e.currentTarget.value)
+                  if (nurlError) setNurlError('')
+                }}
+                required
+              />
+              {ntype === 'webhook' && (
+                <PasswordInput
+                  label="Signing secret"
+                  description="Optional. Used to sign webhook payloads."
+                  value={nsigningSecret}
+                  error={nsigningError}
+                  onChange={(e) => {
+                    setNsigningSecret(e.currentTarget.value)
+                    if (nsigningError) setNsigningError('')
+                  }}
+                />
+              )}
+            </>
+          )}
           <TextInput
             label="Label"
-            description="Optional display name. Derived from the URL if left blank."
+            description={
+              ntype === 'email'
+                ? 'Optional display name for this notifier.'
+                : 'Optional display name. Derived from the URL if left blank.'
+            }
             value={nlabel}
             onChange={(e) => setNlabel(e.currentTarget.value)}
           />
-          {ntype === 'webhook' && (
-            <PasswordInput
-              label="Signing secret"
-              description="Optional. Used to sign webhook payloads."
-              value={nsigningSecret}
-              error={nsigningError}
-              onChange={(e) => {
-                setNsigningSecret(e.currentTarget.value)
-                if (nsigningError) setNsigningError('')
-              }}
-            />
-          )}
           <Checkbox
             label="Enabled"
             checked={nenabled}
@@ -518,67 +613,89 @@ export function NotificationsPanel() {
                 {editFor.target || '(no label)'}
               </Text>
             </Box>
-            <Badge
-              variant="light"
-              color={editFor.has_secrets ? 'green' : 'gray'}
-              radius="xl"
-              size="sm"
-              w="fit-content"
-            >
-              {editFor.has_secrets ? 'Secrets configured' : 'No secrets stored'}
-            </Badge>
-            <Text size="sm" c="dimmed">
-              The destination URL is write-only and never shown. Change it by
-              entering a fresh URL below; leave it untouched to keep the current
-              one.
-            </Text>
-
-            {showUrlField ? (
-              <TextInput
-                label="Destination URL"
-                description="Replaces the stored URL."
-                placeholder="https://…"
-                value={editUrl}
-                error={editUrlError}
-                onChange={(e) => {
-                  setEditUrl(e.currentTarget.value)
-                  if (editUrlError) setEditUrlError('')
+            {editFor.type === 'email' ? (
+              // Email recipients are plain config, not a write-only secret, so
+              // they are prefilled and edited directly — no URL / rotate copy.
+              <TagsInput
+                label="Recipients"
+                description="Press Enter or comma after each address. At least one is required."
+                placeholder="ops@example.com"
+                value={editRecipients}
+                error={editRecipientsError}
+                onChange={(v) => {
+                  setEditRecipients(v)
+                  if (editRecipientsError) setEditRecipientsError('')
                 }}
-                autoFocus
+                splitChars={[',', ' ']}
+                clearable
               />
             ) : (
-              <Button
-                variant="default"
-                w="fit-content"
-                onClick={() => setShowUrlField(true)}
-              >
-                Change URL
-              </Button>
-            )}
+              <>
+                <Badge
+                  variant="light"
+                  color={editFor.has_secrets ? 'green' : 'gray'}
+                  radius="xl"
+                  size="sm"
+                  w="fit-content"
+                >
+                  {editFor.has_secrets
+                    ? 'Secrets configured'
+                    : 'No secrets stored'}
+                </Badge>
+                <Text size="sm" c="dimmed">
+                  The destination URL is write-only and never shown. Change it by
+                  entering a fresh URL below; leave it untouched to keep the
+                  current one.
+                </Text>
 
-            {editFor.type === 'webhook' && (
-              <Stack gap={4}>
-                <PasswordInput
-                  label="Signing secret"
-                  description={
-                    editFor.has_secrets
-                      ? 'Leave blank to keep the stored signing secret.'
-                      : 'Optional. Used to sign webhook payloads.'
-                  }
-                  value={editSigningSecret}
-                  error={editSigningError}
-                  disabled={removeSigning}
-                  onChange={(e) => {
-                    setEditSigningSecret(e.currentTarget.value)
-                    if (editSigningError) setEditSigningError('')
-                  }}
-                />
-                <Checkbox
-                  label="Remove stored signing secret"
-                  checked={removeSigning}
-                  onChange={(e) => setRemoveSigning(e.currentTarget.checked)}
-                />
-              </Stack>
+                {showUrlField ? (
+                  <TextInput
+                    label="Destination URL"
+                    description="Replaces the stored URL."
+                    placeholder="https://…"
+                    value={editUrl}
+                    error={editUrlError}
+                    onChange={(e) => {
+                      setEditUrl(e.currentTarget.value)
+                      if (editUrlError) setEditUrlError('')
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <Button
+                    variant="default"
+                    w="fit-content"
+                    onClick={() => setShowUrlField(true)}
+                  >
+                    Change URL
+                  </Button>
+                )}
+
+                {editFor.type === 'webhook' && (
+                  <Stack gap={4}>
+                    <PasswordInput
+                      label="Signing secret"
+                      description={
+                        editFor.has_secrets
+                          ? 'Leave blank to keep the stored signing secret.'
+                          : 'Optional. Used to sign webhook payloads.'
+                      }
+                      value={editSigningSecret}
+                      error={editSigningError}
+                      disabled={removeSigning}
+                      onChange={(e) => {
+                        setEditSigningSecret(e.currentTarget.value)
+                        if (editSigningError) setEditSigningError('')
+                      }}
+                    />
+                    <Checkbox
+                      label="Remove stored signing secret"
+                      checked={removeSigning}
+                      onChange={(e) => setRemoveSigning(e.currentTarget.checked)}
+                    />
+                  </Stack>
+                )}
+              </>
             )}
 
             <Group justify="flex-end">

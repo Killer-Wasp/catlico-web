@@ -57,11 +57,14 @@ const notifierDto = {
   updated_at: null,
 }
 
+// Email notifiers carry their recipients in `config.recipients` (a plain,
+// server-returned list — NOT a write-only secret like the url/signing_secret of
+// slack/webhook), so the edit form can prefill and re-PATCH them.
 const notifierDto2 = {
   id: 'notif-2',
   type: 'email' as const,
-  target: 'analyst@example.test',
-  config: {},
+  target: 'Ops mailing list',
+  config: { recipients: ['ops@example.test', 'lead@example.test'] },
   enabled: false,
   has_secrets: false,
   organisation_id: 'origin-soc',
@@ -448,6 +451,115 @@ describe('NotificationsPanel', () => {
     )
     await waitFor(() =>
       expect(vi.mocked(api.get).mock.calls.length).toBeGreaterThan(getCount),
+    )
+  })
+
+  // ── Email notifier (recipients, NOT a URL/secret) ─────────────────────────
+  async function selectEmailType(dialog: HTMLElement) {
+    fireEvent.click(within(dialog).getByLabelText(/type/i))
+    fireEvent.click(await screen.findByRole('option', { name: /^email$/i }))
+  }
+
+  function addTag(input: HTMLElement, value: string) {
+    fireEvent.change(input, { target: { value } })
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+  }
+
+  test('selecting Email shows a recipients input and NO url/secret field', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    const dialog = await openCreateModal()
+    await selectEmailType(dialog)
+
+    expect(within(dialog).getByLabelText(/recipients/i)).toBeDefined()
+    expect(within(dialog).queryByLabelText(/destination url/i)).toBeNull()
+    expect(within(dialog).queryByLabelText(/signing secret/i)).toBeNull()
+  })
+
+  test('email create posts config.recipients with no secrets', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    const dialog = await openCreateModal()
+    await selectEmailType(dialog)
+
+    addTag(within(dialog).getByLabelText(/recipients/i), 'ops@example.com')
+    fireEvent.click(within(dialog).getByText('Create notifier'))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('notifications/notifiers/', {
+        json: expect.objectContaining({
+          type: 'email',
+          config: { recipients: ['ops@example.com'] },
+        }),
+      }),
+    )
+    const body = vi.mocked(api.post).mock.calls[0][1] as { json: object }
+    expect(body.json).not.toHaveProperty('secrets')
+  })
+
+  test('email create requires at least one recipient (empty blocks submit)', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    const dialog = await openCreateModal()
+    await selectEmailType(dialog)
+    fireEvent.click(within(dialog).getByText('Create notifier'))
+
+    await waitFor(() =>
+      expect(within(dialog).getByText(/at least one recipient/i)).toBeDefined(),
+    )
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  test('an invalid recipient email is flagged and blocks submit', async () => {
+    render(<Harness />)
+    await screen.findByText('webhook')
+
+    const dialog = await openCreateModal()
+    await selectEmailType(dialog)
+
+    addTag(within(dialog).getByLabelText(/recipients/i), 'not-an-email')
+    fireEvent.click(within(dialog).getByText('Create notifier'))
+
+    await waitFor(() =>
+      expect(within(dialog).getByText(/not a valid email/i)).toBeDefined(),
+    )
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  test('email edit prefills recipients and PATCHes the edited list (no URL language)', async () => {
+    render(<Harness />)
+    await screen.findByText('email')
+
+    // notif-2 is the email fixture (second row).
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[1])
+    const dialog = await screen.findByRole('dialog')
+
+    // Recipients are prefilled from config.recipients …
+    expect(within(dialog).getByText('ops@example.test')).toBeDefined()
+    expect(within(dialog).getByText('lead@example.test')).toBeDefined()
+    // … and there is no write-only URL / rotate language for email.
+    expect(within(dialog).queryByText(/write-only/i)).toBeNull()
+    expect(within(dialog).queryByLabelText(/destination url/i)).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: /change url/i })).toBeNull()
+
+    addTag(within(dialog).getByLabelText(/recipients/i), 'new@example.test')
+    fireEvent.click(within(dialog).getByText('Save changes'))
+
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('notifications/notifiers/notif-2', {
+        json: {
+          config: {
+            recipients: [
+              'ops@example.test',
+              'lead@example.test',
+              'new@example.test',
+            ],
+          },
+        },
+      }),
     )
   })
 

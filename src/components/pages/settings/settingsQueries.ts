@@ -584,11 +584,20 @@ export const slaPoliciesQueryOptions = (orgId = activeOrgId()) =>
 
 // --- Notifiers --------------------------------------------------------------
 
+/**
+ * Notifier config. The email type carries its delivery targets here as
+ * `recipients` (a plain, non-secret list — the server returns it, unlike the
+ * write-only url/signing_secret of slack/webhook). Other keys stay open.
+ */
+export type NotifierConfig = {
+  recipients?: string[]
+} & Record<string, unknown>
+
 export type NotifierPublic = {
   id: string
   type: 'slack' | 'email' | 'webhook' | 'kafka'
   target: string
-  config: Record<string, unknown>
+  config: NotifierConfig
   enabled: boolean
   has_secrets: boolean
   organisation_id: string
@@ -599,7 +608,7 @@ export type NotifierPublic = {
 export type NotifierCreateInput = {
   type: NotifierPublic['type']
   target?: string
-  config?: Record<string, unknown>
+  config?: NotifierConfig
   secrets?: Record<string, unknown>
   enabled?: boolean
 }
