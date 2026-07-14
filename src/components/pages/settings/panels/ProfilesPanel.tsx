@@ -1,4 +1,5 @@
 import {
+  Badge,
   Box,
   Button,
   Checkbox,
@@ -220,6 +221,9 @@ export function ProfilesPanel() {
     )
   }
 
+  // Built-in roles are view-only: the API 409s on any PATCH/DELETE, so mirror
+  // that here — permissions stay visible, but every mutation affordance is off.
+  const isBuiltin = activeProfile.is_builtin
   const dirty = !samePermissions(checkState, activeProfile.permissions)
 
   const toggle = (key: string, checked: boolean) => {
@@ -252,21 +256,31 @@ export function ProfilesPanel() {
         <Box p={18}>
           <Group gap={8} mb="md">
             {roles.map((item) => (
-              <Button
-                key={item.id}
-                variant={item.id === profile ? 'light' : 'default'}
-                color={item.id === profile ? 'orange' : 'gray'}
-                size="xs"
-                onClick={() => setProfile(item.id)}
-              >
-                {item.name}
-              </Button>
+              <Group key={item.id} gap={4} wrap="nowrap">
+                <Button
+                  variant={item.id === profile ? 'light' : 'default'}
+                  color={item.id === profile ? 'orange' : 'gray'}
+                  size="xs"
+                  onClick={() => setProfile(item.id)}
+                >
+                  {item.name}
+                </Button>
+                {item.is_builtin && (
+                  <Badge size="xs" color="gray" variant="light" radius="sm">
+                    Built-in
+                  </Badge>
+                )}
+              </Group>
             ))}
           </Group>
           <Text ff="monospace" fz={11} c="var(--faint)" mb="sm">
             {checkState.size} permission{checkState.size === 1 ? '' : 's'}{' '}
             granted
-            {canEdit ? '' : ' - read only (admin required to edit)'}
+            {isBuiltin
+              ? ' - built-in (view only)'
+              : canEdit
+                ? ''
+                : ' - read only (admin required to edit)'}
           </Text>
           <TableBox>
             <Table verticalSpacing={6}>
@@ -298,7 +312,7 @@ export function ProfilesPanel() {
                                 <Checkbox
                                   key={info.key}
                                   checked={checkState.has(info.key)}
-                                  disabled={!canEdit}
+                                  disabled={!canEdit || isBuiltin}
                                   // Only label per-checkbox when a column holds
                                   // more than one grant (e.g. Automation/run).
                                   label={
@@ -320,7 +334,7 @@ export function ProfilesPanel() {
               </Table.Tbody>
             </Table>
           </TableBox>
-          {(canEdit || canDelete) && (
+          {!isBuiltin && (canEdit || canDelete) && (
             <Group justify="flex-end" mt="md">
               {canDelete && (
                 <Button

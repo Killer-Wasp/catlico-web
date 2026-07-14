@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
+import { HTTPError } from 'ky'
 import { api } from '#/lib/api/client'
 import { getActiveOrgId, getSessionOrganisationIds } from '#/lib/auth/session'
 
@@ -32,6 +33,10 @@ export type RolePublic = {
   name: string
   permissions: string[]
   created_at: string
+  // The three shipped roles (org-admin, analyst, read-only) are built-in and
+  // cannot be modified or deleted — the API 409s on PATCH/DELETE. Custom roles
+  // are `false`.
+  is_builtin: boolean
 }
 
 export type PermissionKind = 'read' | 'write' | 'delete' | 'run'
@@ -278,15 +283,60 @@ export async function createRole(input: RoleCreateInput): Promise<RolePublic> {
   return api.post('roles/', { json: input }).json<RolePublic>()
 }
 
+/**
+ * Read the `detail` out of a FastAPI error body — a plain string (our custom
+ * 4xx/409s, e.g. "Built-in roles cannot be modified") or the validation-array
+ * shape (`[{ msg, loc }, …]`).
+ */
+function readDetail(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null
+  const detail = (body as { detail?: unknown }).detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const msgs = detail.map((entry) =>
+      entry && typeof entry === 'object' && 'msg' in entry
+        ? String((entry as { msg: unknown }).msg)
+        : String(entry),
+    )
+    return msgs.join('; ') || null
+  }
+  return null
+}
+
+/**
+ * Re-throw a role mutation failure with the server's `detail` as the message so
+ * a `notifyError(error, fallback)` surfaces the friendly text (e.g. the 409
+ * "Built-in roles cannot be modified"). Non-HTTP errors pass through untouched.
+ */
+async function rethrowRoleError(error: unknown): Promise<never> {
+  if (error instanceof HTTPError) {
+    // ky pre-parses the body into `error.data` (consuming the stream); prefer it
+    // and fall back to reading the response for older ky / test doubles.
+    const fromData = readDetail((error as { data?: unknown }).data)
+    const detail =
+      fromData ?? readDetail(await error.response.json().catch(() => null))
+    if (detail) throw new Error(detail)
+  }
+  throw error
+}
+
 export async function updateRole(
   roleId: string,
   input: RoleUpdateInput,
 ): Promise<RolePublic> {
-  return api.patch(`roles/${roleId}`, { json: input }).json<RolePublic>()
+  try {
+    return await api.patch(`roles/${roleId}`, { json: input }).json<RolePublic>()
+  } catch (error) {
+    return rethrowRoleError(error)
+  }
 }
 
 export async function deleteRole(roleId: string): Promise<void> {
-  await api.delete(`roles/${roleId}`)
+  try {
+    await api.delete(`roles/${roleId}`)
+  } catch (error) {
+    await rethrowRoleError(error)
+  }
 }
 
 export type AuditPublic = {
