@@ -15,6 +15,10 @@ import type {
   CaseListFilters,
 } from '#/components/Cases/casesQueries'
 import classes from '#/components/Cases/CasesPage.module.css'
+import {
+  MergeCasesDialog,
+  canMergeCases,
+} from '#/components/Cases/MergeCasesDialog'
 import { AssignMenu } from '#/components/Table/AssignMenu'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
@@ -45,6 +49,7 @@ export function CasesPage({
   const queryClient = useQueryClient()
 
   const [selectMode, setSelectMode] = useState(false)
+  const [mergeOpen, setMergeOpen] = useState(false)
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'id', desc: true },
@@ -230,6 +235,12 @@ export function CasesPage({
 
   return (
     <Box className={classes.page}>
+      <MergeCasesDialog
+        opened={mergeOpen}
+        sources={selectedCases.map((row) => row.original)}
+        onClose={() => setMergeOpen(false)}
+        onMerged={exitSelectMode}
+      />
       <TablePanel
         title="Open & recent cases"
         countNoun="cases"
@@ -245,6 +256,18 @@ export function CasesPage({
         selectMode={selectMode}
         onToggleSelectMode={() =>
           selectMode ? exitSelectMode() : setSelectMode(true)
+        }
+        selectActions={
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => setMergeOpen(true)}
+            disabled={!canMergeCases(selectedCases.length)}
+          >
+            {selectedCases.length
+              ? `Merge selected (${selectedCases.length})`
+              : 'Merge selected'}
+          </Button>
         }
         actions={
           selectMode ? (

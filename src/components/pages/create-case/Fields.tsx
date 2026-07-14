@@ -50,12 +50,18 @@ export function SegmentedButtons<T extends number>({
   value,
   onChange,
   required,
+  isDisabled,
 }: {
   label: string
   choices: { value: T; label: string; color: string }[]
   value: T
   onChange: (value: T) => void
   required?: boolean
+  /**
+   * Optionally disable individual choices — e.g. a restrictiveness floor where
+   * values below the floor can't be selected (case merge's TLP/PAP guard).
+   */
+  isDisabled?: (value: T) => boolean
 }) {
   return (
     <Stack gap={6}>
@@ -71,6 +77,7 @@ export function SegmentedButtons<T extends number>({
               variant="default"
               role="radio"
               aria-checked={active}
+              disabled={isDisabled?.(choice.value)}
               onClick={() => onChange(choice.value)}
               ff="monospace"
               fz={11}

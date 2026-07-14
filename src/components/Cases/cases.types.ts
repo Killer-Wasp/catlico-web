@@ -9,6 +9,7 @@ export type Case = {
   id: string
   sev: Severity
   tlp: Tlp
+  pap: Tlp
   status: CaseStatus
   statusName: string
   title: string

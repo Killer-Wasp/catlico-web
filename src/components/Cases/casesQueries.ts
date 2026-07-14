@@ -8,6 +8,8 @@
  */
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
+import { isHTTPError } from 'ky'
+import type { HTTPError } from 'ky'
 import { api, API_BASE } from '#/lib/api/client'
 import { getActiveOrgId } from '#/lib/auth/session'
 import { appendClauses } from '#/lib/filters'
@@ -229,6 +231,7 @@ function toCase(c: CasePublic): Case {
     id: `#${c.id}`,
     sev: clamp(c.severity, 1, 4) as Severity,
     tlp: clamp(c.tlp, 0, 3) as Tlp,
+    pap: clamp(c.pap, 0, 3) as Tlp,
     status: status.id,
     statusName: status.name,
     title: c.title,
@@ -320,6 +323,98 @@ export async function createCaseFromTemplate(
     id: `#${caseItem.id}`,
     numericId: caseItem.id,
     case: toCase(caseItem),
+  }
+}
+
+/**
+ * Input for a case-to-case merge. `sourceIds` are the display ids ("#12") of
+ * the 2+ cases being merged; `case` is the survivor to create (the human-edited
+ * form). The backend floors the survivor's tlp/pap to the most restrictive of
+ * the sources — the dialog mirrors that guard client-side.
+ */
+export type MergeCasesInput = {
+  sourceIds: string[]
+  case: {
+    title: string
+    description?: string
+    severity: number
+    tlp: number
+    pap: number
+    assigneeId?: string | null
+    summary?: string | null
+  }
+}
+
+/**
+ * Read the `detail` out of a FastAPI error body — a plain string (our custom
+ * 4xx/409s) or the validation-array shape (`[{ msg, loc }, …]`).
+ */
+function readDetail(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null
+  const detail = (body as { detail?: unknown }).detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const msgs = detail.map((entry) =>
+      entry && typeof entry === 'object' && 'msg' in entry
+        ? String((entry as { msg: unknown }).msg)
+        : String(entry),
+    )
+    return msgs.join('; ') || null
+  }
+  return null
+}
+
+/** Pull a human-readable message out of a FastAPI error body (`detail`). */
+async function extractErrorDetail(error: HTTPError): Promise<string | null> {
+  // ky pre-parses the response body into `error.data` (consuming the stream),
+  // so prefer it; fall back to reading the response for older ky / tests.
+  const fromData = readDetail((error as { data?: unknown }).data)
+  if (fromData) return fromData
+  try {
+    return readDetail(await error.response.json())
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Merge 2+ source cases into a fresh survivor case via POST /cases/merge. The
+ * sources become read-only tombstones (status Duplicated) and their children
+ * reparent to the survivor. Backend errors (409 already-merged, 4xx tlp/pap
+ * floor violation) are re-thrown with the server's `detail` as the message so
+ * callers can surface it directly.
+ */
+export async function mergeCases(
+  input: MergeCasesInput,
+): Promise<CreatedCaseResult> {
+  try {
+    const survivor = await api
+      .post('cases/merge', {
+        json: {
+          source_ids: input.sourceIds.map((id) => Number(id.replace(/^#/, ''))),
+          case: {
+            title: input.case.title.trim(),
+            description: input.case.description?.trim() ?? '',
+            severity: input.case.severity,
+            tlp: input.case.tlp,
+            pap: input.case.pap,
+            assignee_id: input.case.assigneeId ?? null,
+            summary: input.case.summary?.trim() || null,
+          },
+        },
+      })
+      .json<CasePublic>()
+    return {
+      id: `#${survivor.id}`,
+      numericId: survivor.id,
+      case: toCase(survivor),
+    }
+  } catch (error) {
+    if (isHTTPError(error)) {
+      const detail = await extractErrorDetail(error)
+      if (detail) throw new Error(detail)
+    }
+    throw error
   }
 }
 
