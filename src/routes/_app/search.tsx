@@ -198,7 +198,7 @@ function SearchPage() {
       </Title>
       <TextInput
         leftSection={<Search size={16} />}
-        placeholder="Search cases, alerts, observables, tasks, comments…"
+        placeholder="Search cases, alerts, observables, tasks, comments, knowledge base, attachments…"
         value={input}
         onChange={(e) => setInput(e.currentTarget.value)}
         mb="md"

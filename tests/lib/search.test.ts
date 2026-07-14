@@ -37,12 +37,17 @@ describe('hitRoute', () => {
     })
   })
 
-  test('case comment -> case comments tab', () => {
+  test('case comment -> case comments tab with ?comment= deep-link', () => {
     expect(
-      hitRoute('comment', { entity_type: 'case', entity_id: '412' }),
+      hitRoute('comment', {
+        id: 'c-1',
+        entity_type: 'case',
+        entity_id: '412',
+      }),
     ).toEqual({
       to: '/cases/$caseId/$tab',
       params: { caseId: '412', tab: 'comments' },
+      search: { comment: 'c-1' },
     })
   })
 

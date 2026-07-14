@@ -12,8 +12,10 @@ import {
 } from '#/components/Alerts/alertsQueries'
 import { caseKeys } from '#/components/Cases/casesQueries'
 import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
+import { recordRecentlyViewed } from '#/lib/recentlyViewed'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { AlertDetailDrawer } from './AlertDetailDrawer'
 
 /**
@@ -71,6 +73,19 @@ export function AlertDrawer({
     ...alertLinkedCasesQueryOptions(alertId ?? ''),
     enabled,
   })
+
+  // Feed the search palette's "Recently viewed" list once the alert loads.
+  useEffect(() => {
+    if (!alertId || !alert) return
+    recordRecentlyViewed({
+      type: 'alert',
+      id: alertId,
+      label: `${alert.id} ${alert.title}`,
+      route: { to: '/alerts/$alertId', params: { alertId } },
+    })
+    // Primitive deps (not the whole `alert` object) so a refetch that returns an
+    // equal-but-new object doesn't needlessly rewrite localStorage.
+  }, [alertId, alert?.id, alert?.title])
 
   const addComment = useMutation({
     mutationFn: createAlertComment,

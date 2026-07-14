@@ -34,14 +34,52 @@ import { useEffect, useRef, useState } from 'react'
 import { CasePanelHeader } from './CasePanelHeader'
 import { actionNotice } from './constants'
 
-export function CommentsPanel({ caseId }: { caseId: string }) {
+/** Transient class applied to a comment deep-linked via `?comment=`. */
+export const COMMENT_HIGHLIGHT_CLASS = 'comment-highlight'
+const HIGHLIGHT_MS = 2000
+
+export function CommentsPanel({
+  caseId,
+  highlightCommentId,
+}: {
+  caseId: string
+  /** When set (from `?comment=`), scroll that comment into view and briefly
+   *  highlight it once it's present in the list. */
+  highlightCommentId?: string
+}) {
   const queryClient = useQueryClient()
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const highlightedForRef = useRef<string | null>(null)
 
   const { data: comments = [] } = useQuery(
     caseCommentsQueryOptions(caseId, sortOrder),
   )
+
+  // Scroll to and flash the deep-linked comment once — but only after the
+  // list has loaded and actually contains it. Guarded by a ref so a comment
+  // refetch doesn't re-trigger the flash for the same target.
+  useEffect(() => {
+    if (!highlightCommentId) return
+    if (highlightedForRef.current === highlightCommentId) return
+    if (!comments.some((c) => c.id === highlightCommentId)) return
+    const el = document.getElementById(`comment-${highlightCommentId}`)
+    if (!el) return
+    highlightedForRef.current = highlightCommentId
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightedId(highlightCommentId)
+  }, [highlightCommentId, comments])
+
+  // The clear-timeout lives in its own effect keyed on `highlightedId` so its
+  // lifecycle is independent of `comments`: a refetch mid-window must not tear
+  // down and (via the ref guard) fail to re-arm the timer, which would leave
+  // the highlight stuck on forever.
+  useEffect(() => {
+    if (!highlightedId) return
+    const timer = setTimeout(() => setHighlightedId(null), HIGHLIGHT_MS)
+    return () => clearTimeout(timer)
+  }, [highlightedId])
 
   const deleteComment = useMutation({
     mutationFn: (commentId: string) => deleteCaseComment(commentId),
@@ -88,18 +126,27 @@ export function CommentsPanel({ caseId }: { caseId: string }) {
 
       {comments.map((comment, index) => {
         const [initials, color] = avatarFor(comment.author)
+        const isHighlighted = comment.id === highlightedId
         return (
           <Group
             key={comment.id}
+            id={`comment-${comment.id}`}
+            className={isHighlighted ? COMMENT_HIGHLIGHT_CLASS : undefined}
             gap="sm"
             align="flex-start"
             wrap="nowrap"
             py="md"
-            style={
-              index < comments.length - 1
+            px={isHighlighted ? 'sm' : undefined}
+            style={{
+              transition: 'background-color 300ms ease',
+              borderRadius: isHighlighted ? 8 : undefined,
+              backgroundColor: isHighlighted
+                ? 'var(--mantine-color-yellow-light)'
+                : undefined,
+              ...(index < comments.length - 1
                 ? { borderBottom: '1px solid var(--line-soft)' }
-                : undefined
-            }
+                : {}),
+            }}
           >
             <Avatar size={32} radius="xl" bg={color} c="white">
               {initials}

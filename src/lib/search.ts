@@ -127,12 +127,18 @@ export function searchQueryOptions(q: string, opts: SearchOptions = {}) {
 }
 
 type RouteTarget =
-  | { to: '/cases/$caseId/$tab'; params: { caseId: string; tab: string } }
+  | {
+      to: '/cases/$caseId/$tab'
+      params: { caseId: string; tab: string }
+      /** Deep-link a specific comment on the comments tab (scroll + highlight). */
+      search?: { comment: string }
+    }
   | { to: '/alerts/$alertId'; params: { alertId: string } }
   | { to: '/knowledge-base/$pageId'; params: { pageId: string } }
 
-/** Where clicking/entering a hit navigates. No scroll-to-anchor in v1 —
- * we land on the parent's relevant tab. */
+/** Where clicking/entering a hit navigates. Comment hits deep-link to the
+ * specific comment via `?comment=`; everything else lands on the parent's
+ * relevant tab. */
 export function hitRoute(
   type: SearchEntityType,
   hit: {
@@ -143,9 +149,14 @@ export function hitRoute(
     entity_id?: string
   },
 ): RouteTarget {
-  const caseTab = (caseId: number | string, tab: string): RouteTarget => ({
+  const caseTab = (
+    caseId: number | string,
+    tab: string,
+    search?: { comment: string },
+  ): RouteTarget => ({
     to: '/cases/$caseId/$tab',
     params: { caseId: String(caseId), tab },
+    ...(search ? { search } : {}),
   })
   const alertPage = (alertId: number | string): RouteTarget => ({
     to: '/alerts/$alertId',
@@ -163,7 +174,11 @@ export function hitRoute(
       return caseTab(hit.case_id!, 'tasks')
     case 'comment':
       return hit.entity_type === 'case'
-        ? caseTab(hit.entity_id!, 'comments')
+        ? caseTab(
+            hit.entity_id!,
+            'comments',
+            hit.id != null ? { comment: String(hit.id) } : undefined,
+          )
         : alertPage(hit.entity_id!)
     case 'knowledge_base':
       return { to: '/knowledge-base/$pageId', params: { pageId: String(hit.id!) } }

@@ -18,7 +18,7 @@ import {
 } from '@mantine/hooks'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Search } from 'lucide-react'
+import { Bell, BookOpen, Fingerprint, FolderOpen, Search } from 'lucide-react'
 import { Snippet } from '#/components/Search/Snippet'
 import {
   SEARCH_TYPES,
@@ -27,6 +27,11 @@ import {
   type SearchEntityType,
   type SearchResponse,
 } from '#/lib/search'
+import { getRecentlyViewed } from '#/lib/recentlyViewed'
+import type {
+  RecentlyViewedEntry,
+  RecentlyViewedType,
+} from '#/lib/recentlyViewed'
 
 const OPEN_EVENT = 'catlico:open-search'
 
@@ -46,6 +51,13 @@ const TAB_LABELS: Record<PaletteTab, string> = {
   comment: 'Comments',
   knowledge_base: 'Knowledge base',
   attachment: 'Attachments',
+}
+
+const RECENT_ICON: Record<RecentlyViewedType, React.ReactNode> = {
+  case: <FolderOpen size={15} />,
+  alert: <Bell size={15} />,
+  observable: <Fingerprint size={15} />,
+  knowledge_base: <BookOpen size={15} />,
 }
 
 type Row = {
@@ -195,7 +207,10 @@ function rowsForTab(tab: PaletteTab, data: SearchResponse | undefined): Row[] {
           i,
         ),
       )
-    } else {
+      // Explicit branch (not a catch-all `else`) so a future search type can't
+      // silently render as an attachment. Exhaustive today, defensive tomorrow.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    } else if (t === 'attachment') {
       data.results.attachment.slice(0, perType).forEach((h, i) =>
         push(
           {
@@ -232,11 +247,23 @@ export function SearchPalette({
   const [query, setQuery] = useState(initialQuery)
   const [tab, setTab] = useState<PaletteTab>('all')
   const [active, setActive] = useState(0)
+  const [recent, setRecent] = useState<RecentlyViewedEntry[]>([])
   const [debounced] = useDebouncedValue(query, 200)
   const navigate = useNavigate()
 
   useHotkeys([['mod+K', open]])
   useWindowEvent(OPEN_EVENT, open)
+
+  // Refresh the recently-viewed list each time the palette opens, so it
+  // reflects entities visited since it was last shown.
+  useEffect(() => {
+    if (opened) setRecent(getRecentlyViewed())
+  }, [opened])
+
+  const goToRecent = (entry: RecentlyViewedEntry) => {
+    close()
+    navigate(entry.route as Parameters<typeof navigate>[0])
+  }
 
   const { data, isError, refetch } = useQuery(
     searchQueryOptions(debounced, { limit: 5, groupObservables: true }),
@@ -301,18 +328,45 @@ export function SearchPalette({
     >
       <TextInput
         data-autofocus
-        aria-label="Search cases, alerts, observables, tasks and comments"
+        aria-label="Search cases, alerts, observables, tasks, comments, knowledge base and attachments"
         leftSection={<Search size={16} />}
         rightSection={<Kbd size="xs">esc</Kbd>}
-        placeholder="Search cases, alerts, observables, tasks, comments…"
+        placeholder="Search cases, alerts, observables, tasks, comments, knowledge base, attachments…"
         value={query}
         onChange={(e) => setQuery(e.currentTarget.value)}
         onKeyDown={onKeyDown}
       />
       {query.trim().length < 2 ? (
-        <Text size="sm" c="dimmed" p="md" ta="center">
-          Type to search cases, alerts, observables, tasks and comments
-        </Text>
+        recent.length > 0 ? (
+          <Box mt="xs">
+            <Text size="xs" c="dimmed" tt="uppercase" mt="xs" mb={4}>
+              Recently viewed
+            </Text>
+            {recent.slice(0, 8).map((entry) => (
+              <UnstyledButton
+                key={`${entry.type}-${entry.id}`}
+                onClick={() => goToRecent(entry)}
+                w="100%"
+                p={6}
+                style={{ borderRadius: 6 }}
+              >
+                <Group gap="xs" wrap="nowrap">
+                  <Box c="dimmed" style={{ display: 'flex' }}>
+                    {RECENT_ICON[entry.type]}
+                  </Box>
+                  <Text size="sm" truncate>
+                    {entry.label}
+                  </Text>
+                </Group>
+              </UnstyledButton>
+            ))}
+          </Box>
+        ) : (
+          <Text size="sm" c="dimmed" p="md" ta="center">
+            Type to search cases, alerts, observables, tasks, comments,
+            knowledge base and attachments
+          </Text>
+        )
       ) : isError ? (
         <Text size="sm" c="dimmed" p="md" ta="center">
           Search failed.{' '}

@@ -97,10 +97,13 @@ export function CaseTabPanel({
   tab,
   caseDetail,
   caseId,
+  highlightCommentId,
 }: {
   tab: CaseTab
   caseDetail: CaseDetail
   caseId: string
+  /** Forwarded to the comments tab for `?comment=` deep-link scroll+highlight. */
+  highlightCommentId?: string
 }) {
   switch (tab) {
     case 'custom-fields':
@@ -110,7 +113,9 @@ export function CaseTabPanel({
     case 'observables':
       return <ObservablesPanel caseDetail={caseDetail} caseId={caseId} />
     case 'comments':
-      return <CommentsPanel caseId={caseId} />
+      return (
+        <CommentsPanel caseId={caseId} highlightCommentId={highlightCommentId} />
+      )
     case 'attachments':
       return <AttachmentsPanel caseId={caseId} />
     case 'timeline':
