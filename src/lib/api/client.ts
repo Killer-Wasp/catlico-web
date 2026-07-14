@@ -86,7 +86,12 @@ export const api = ky.create({
         const token = getAccessToken()
         const orgId = getActiveOrgId()
         if (token) request.headers.set('Authorization', `Bearer ${token}`)
-        if (orgId) request.headers.set('X-Organisation-Id', orgId)
+        // Default the active org, but let a caller target a *different* org by
+        // passing an explicit `X-Organisation-Id` header (e.g. listing another
+        // org's roles as a superadmin). Only fill it in when not already set so
+        // the explicit value wins.
+        if (orgId && !request.headers.has('X-Organisation-Id'))
+          request.headers.set('X-Organisation-Id', orgId)
       },
     ],
     afterResponse: [

@@ -122,6 +122,9 @@ export const settingsKeys = {
     [...settingsKeys.all, 'accessible-organisations'] as const,
   members: (orgId: string) => [...settingsKeys.all, 'members', orgId] as const,
   roles: () => [...settingsKeys.all, 'roles'] as const,
+  rolesForOrg: (orgId: string) =>
+    [...settingsKeys.all, 'roles', orgId] as const,
+  users: () => [...settingsKeys.all, 'users'] as const,
   customFields: (filters: SettingsListFilters = DEFAULT_SETTINGS_FILTERS) =>
     [...settingsKeys.all, 'custom-fields', filters] as const,
   audits: (filters: SettingsListFilters = DEFAULT_SETTINGS_FILTERS) =>
@@ -357,6 +360,27 @@ export const rolesQueryOptions = () =>
   queryOptions({
     queryKey: settingsKeys.roles(),
     queryFn: fetchRoles,
+    retry: false,
+  })
+
+/**
+ * List the roles of a *specific* organisation, not necessarily the active one.
+ * The `roles/` route resolves its org from the `X-Organisation-Id` header; the
+ * explicit header here overrides the api client's active-org default (see
+ * `#/lib/api/client`). Used by the "All users" wizard's add-to-org step, where a
+ * superadmin can attach an account to any org they can see.
+ */
+export async function fetchRolesForOrg(orgId: string): Promise<RolePublic[]> {
+  return api
+    .get('roles/', { headers: { 'X-Organisation-Id': orgId } })
+    .json<RolePublic[]>()
+}
+
+export const rolesForOrgQueryOptions = (orgId: string | null) =>
+  queryOptions({
+    queryKey: settingsKeys.rolesForOrg(orgId ?? ''),
+    queryFn: () => fetchRolesForOrg(orgId as string),
+    enabled: Boolean(orgId),
     retry: false,
   })
 
@@ -761,4 +785,67 @@ export const sessionsQueryOptions = () =>
   queryOptions({
     queryKey: settingsKeys.sessions(),
     queryFn: fetchSessions,
+  })
+
+// --- Global user accounts (superadmin-only) ---------------------------------
+// These manage the GLOBAL user resource — accounts that exist independently of
+// any organisation. This is distinct from `organisations/{orgId}/members`
+// (see UsersPanel), which manages an account's membership *within* one org.
+// Every route here is superadmin-gated on the backend (403 otherwise).
+
+export type UserPublic = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  is_active: boolean
+  is_superadmin: boolean
+  has_avatar: boolean
+  created_at: string
+  last_login_at: string | null
+}
+
+export type UserCreateInput = {
+  email: string
+  // Optional: a password-less account can't sign in until it goes through the
+  // forgot-password flow. The wizard offers "set now" or "send a reset link".
+  password?: string
+  first_name: string
+  last_name: string
+  is_superadmin: boolean
+}
+
+export type UserUpdateInput = Partial<{
+  first_name: string
+  last_name: string
+  is_active: boolean
+  is_superadmin: boolean
+  // An admin-set password revokes that user's refresh sessions (backend).
+  password: string
+}>
+
+export async function fetchUsers(): Promise<UserPublic[]> {
+  return api.get('users/').json<UserPublic[]>()
+}
+
+export async function createUser(input: UserCreateInput): Promise<UserPublic> {
+  return api.post('users/', { json: input }).json<UserPublic>()
+}
+
+export async function updateUser(
+  id: string,
+  patch: UserUpdateInput,
+): Promise<UserPublic> {
+  return api.patch(`users/${id}`, { json: patch }).json<UserPublic>()
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await api.delete(`users/${id}`)
+}
+
+export const usersQueryOptions = () =>
+  queryOptions({
+    queryKey: settingsKeys.users(),
+    queryFn: fetchUsers,
+    retry: false,
   })

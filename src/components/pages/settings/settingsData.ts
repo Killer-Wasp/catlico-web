@@ -13,6 +13,7 @@ export type SettingsSection =
   | 'API keys'
   | 'Integrations'
   | 'Report templates'
+  | 'All users'
   | 'Audit log'
 
 export type Role = 'admin' | 'analyst' | 'readonly'
@@ -32,6 +33,7 @@ export const settingsSections: SettingsSection[] = [
   'API keys',
   'Integrations',
   'Report templates',
+  'All users',
   'Audit log',
 ]
 

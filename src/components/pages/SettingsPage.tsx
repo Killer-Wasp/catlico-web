@@ -2,6 +2,7 @@ import classes from '#/components/Cases/CasesPage.module.css'
 import { Box, Group, Tabs, Text, Title } from '@mantine/core'
 import { ModalsProvider } from '@mantine/modals'
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
+import { AllUsersPanel } from './settings/panels/AllUsersPanel'
 import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
 import { AttackCatalogPanel } from './settings/panels/AttackCatalogPanel'
 import { AuditLogPanel } from './settings/panels/AuditLogPanel'
@@ -54,6 +55,7 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'API keys') return <ApiKeysPanel />
   if (section === 'Integrations') return <IntegrationsPanel />
   if (section === 'Report templates') return <ReportTemplatesPanel />
+  if (section === 'All users') return <AllUsersPanel />
   if (section === 'Audit log') return <AuditLogPanel />
   return <OrgProfilePanel />
 }
@@ -80,6 +82,8 @@ export function SettingsLayout() {
   // empty nav for admins). Once known, hide sections the user can't read.
   const visibleSections = settingsSections.filter((s) => {
     if (!isLoaded) return true
+    // Global user accounts and the audit log are platform-admin surfaces.
+    if (s === 'All users') return isSuperadmin
     if (s === 'Audit log') return isSuperadmin
     const needed = SECTION_READ_PERMISSION[s]
     return needed ? can(needed) : true
