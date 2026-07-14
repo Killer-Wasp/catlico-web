@@ -9,28 +9,16 @@ import type {
 } from '#/components/Observables/observables.types'
 import {
   caseObservablesQueryOptions,
-  createCaseObservable,
   invalidateObservableQueries,
 } from '#/components/Cases/casesQueries'
 import { updateObservableFlags } from '#/components/Observables/observablesQueries'
-import { observableTypesQueryOptions } from '#/components/pages/settings/settingsQueries'
+import { CreateObservableDialog } from '#/components/Observables/CreateObservableDialog'
 import { ObservableDetailDrawer } from '#/components/pages/ObservablesPage'
 import { addFlag, toggleFlag } from '#/components/pages/observables/tableFns'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
 import type { TableColumnMeta } from '#/components/Table/columnMeta'
-import { TLP } from '#/lib/domain'
-import type { Tlp } from '#/lib/domain'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from '@mantine/core'
+import { Badge, Button, Stack, Text } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -116,40 +104,11 @@ export function ObservablesPanel({
     Partial<Record<string, ObservableFlag[]>>
   >({})
   const [addingObservable, setAddingObservable] = useState(false)
-  const [newType, setNewType] = useState<string | null>(null)
-  const [newData, setNewData] = useState('')
-  const [newTlp, setNewTlp] = useState<string>('2')
-  const [newIoc, setNewIoc] = useState(false)
-  const [newSighted, setNewSighted] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: caseObservables = [] } = useQuery(
     caseObservablesQueryOptions(caseId),
   )
-  const { data: obsTypes } = useQuery(observableTypesQueryOptions())
-  const nonAttachmentTypes = (obsTypes ?? [])
-    .filter((t) => !t.is_attachment)
-    .map((t) => t.name)
-
-  const addObservable = useMutation({
-    mutationFn: () =>
-      createCaseObservable(caseId, {
-        observable_type: newType!,
-        data: newData,
-        tlp: Number(newTlp),
-        ioc: newIoc,
-        sighted: newSighted,
-      }),
-    onSuccess: () => {
-      invalidateObservableQueries(queryClient, caseId)
-      setAddingObservable(false)
-      setNewType(null)
-      setNewData('')
-      setNewTlp('2')
-      setNewIoc(false)
-      setNewSighted(false)
-    },
-  })
 
   const flagMutation = useMutation({
     mutationFn: ({ id, flags }: { id: string; flags: ObservableFlag[] }) =>
@@ -226,57 +185,12 @@ export function ObservablesPanel({
         onClose={() => setActiveObservable(null)}
       />
 
-      <Modal
+      <CreateObservableDialog
         opened={addingObservable}
         onClose={() => setAddingObservable(false)}
-        title="Add observable"
-      >
-        <Stack gap="md">
-          <Select
-            label="Type"
-            data={nonAttachmentTypes.map((name) => ({
-              value: name,
-              label: name,
-            }))}
-            value={newType}
-            onChange={setNewType}
-            required
-          />
-          <TextInput
-            label="Value"
-            value={newData}
-            onChange={(e) => setNewData(e.currentTarget.value)}
-            required
-          />
-          <Select
-            label="TLP"
-            data={[0, 1, 2, 3].map((n) => ({
-              value: String(n),
-              label: `${n} — ${TLP[n as Tlp]}`,
-            }))}
-            value={newTlp}
-            onChange={(v) => setNewTlp(v ?? '2')}
-          />
-          <Checkbox
-            label="IOC (indicator of compromise)"
-            checked={newIoc}
-            onChange={(e) => setNewIoc(e.currentTarget.checked)}
-          />
-          <Checkbox
-            label="Sighted"
-            checked={newSighted}
-            onChange={(e) => setNewSighted(e.currentTarget.checked)}
-          />
-          <Button
-            fullWidth
-            disabled={!newType || !newData.trim()}
-            loading={addObservable.isPending}
-            onClick={() => addObservable.mutate()}
-          >
-            Add observable
-          </Button>
-        </Stack>
-      </Modal>
+        caseId={Number(caseId)}
+        onCreated={() => invalidateObservableQueries(queryClient, caseId)}
+      />
 
       <TablePanel
         title="Observables"

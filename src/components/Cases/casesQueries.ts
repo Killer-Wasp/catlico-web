@@ -508,6 +508,37 @@ export async function createCaseObservable(
     .json<ObservablePublic>()
 }
 
+/**
+ * Create a file-backed (attachment-type) observable via the multipart endpoint
+ * `POST /cases/{id}/observables/file`. The observable's `data` is derived
+ * server-side from the uploaded file's content hash. Mirrors the JSON
+ * `createCaseObservable` for string observables. The backend 409s on a
+ * duplicate (same case + type + file).
+ */
+export async function createCaseObservableFile(
+  caseId: string,
+  body: {
+    observable_type: string
+    file: File
+    message?: string
+    tlp?: number
+    ioc?: boolean
+    sighted?: boolean
+  },
+): Promise<ObservablePublic> {
+  const numeric = caseId.replace(/^#/, '')
+  const form = new FormData()
+  form.append('file', body.file)
+  form.append('observable_type', body.observable_type)
+  if (body.message != null) form.append('message', body.message)
+  if (body.tlp != null) form.append('tlp', String(body.tlp))
+  if (body.ioc != null) form.append('ioc', String(body.ioc))
+  if (body.sighted != null) form.append('sighted', String(body.sighted))
+  return api
+    .post(`cases/${numeric}/observables/file`, { body: form })
+    .json<ObservablePublic>()
+}
+
 async function fetchCase(id: string): Promise<Case> {
   const numeric = id.replace(/^#/, '')
   const c = await api.get(`cases/${numeric}`).json<CasePublic>()

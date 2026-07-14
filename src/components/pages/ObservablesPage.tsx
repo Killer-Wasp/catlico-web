@@ -6,9 +6,11 @@ import type {
 import { observableTypeLabels } from '#/components/Observables/observables'
 import {
   observableFacetsQueryOptions,
+  observableKeys,
   observablesQueryOptions,
   updateObservableFlags,
 } from '#/components/Observables/observablesQueries'
+import { CreateObservableDialog } from '#/components/Observables/CreateObservableDialog'
 import type {
   ObservableListFilters,
   ObservableSort,
@@ -21,7 +23,7 @@ import { Box, Button } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { ObservableDetailDrawer } from './observables/ObservableDetailDrawer'
 import { buildObservableColumns } from './observables/observableColumns'
@@ -45,7 +47,9 @@ export function ObservablesPage() {
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [tokens, setTokens] = useState<Token[]>([])
+  const [addingObservable, setAddingObservable] = useState(false)
   const pageSize = pagination.pageSize
+  const queryClient = useQueryClient()
 
   const filters = useMemo<ObservableListFilters>(() => {
     const sort = sorting.at(0)
@@ -243,7 +247,11 @@ export function ObservablesPage() {
           </Button>
         }
         actions={
-          selectMode ? undefined : <Button size="xs">+ Add observable</Button>
+          selectMode ? undefined : (
+            <Button size="xs" onClick={() => setAddingObservable(true)}>
+              + Add observable
+            </Button>
+          )
         }
       >
         <DataTable
@@ -273,6 +281,14 @@ export function ObservablesPage() {
           )
         }
         onClose={() => setActiveObservable(null)}
+      />
+
+      <CreateObservableDialog
+        opened={addingObservable}
+        onClose={() => setAddingObservable(false)}
+        onCreated={() =>
+          queryClient.invalidateQueries({ queryKey: observableKeys.all })
+        }
       />
     </Box>
   )
