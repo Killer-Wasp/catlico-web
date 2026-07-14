@@ -51,7 +51,7 @@ describe('proposed actions queries', () => {
   })
 
   test('maps all action types correctly', async () => {
-    const types = ['add_tag', 'create_task', 'append_task_log', 'add_related_observable', 'change_severity_status', 'patch_case_description', 'execute_responder_action']
+    const types = ['add_tag', 'create_task', 'append_task_log', 'add_related_observable', 'change_severity_status', 'patch_case_description']
     const dtos = types.map((t) => ({ ...ACTION_DTO, action_type: t }))
     vi.mocked(api.get).mockImplementation(() => ({
       json: async () => dtos,

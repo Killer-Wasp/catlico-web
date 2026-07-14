@@ -36,7 +36,6 @@ const TYPE_MAP: Record<string, ProposedActionType> = {
   add_related_observable: 'add_related_observable',
   change_severity_status: 'change_severity_status',
   patch_case_description: 'patch_case_description',
-  execute_responder_action: 'execute_responder_action',
 }
 
 function toProposedAction(dto: ProposedActionPublic): ProposedAction {

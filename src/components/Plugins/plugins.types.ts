@@ -29,7 +29,6 @@ export type ProposedActionType =
   | 'add_related_observable'
   | 'change_severity_status'
   | 'patch_case_description'
-  | 'execute_responder_action'
 
 export type RunnerEnrollmentState = 'pending' | 'enrolled'
 

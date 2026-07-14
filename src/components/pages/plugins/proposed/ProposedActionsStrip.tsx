@@ -36,7 +36,6 @@ const ACTION_LABELS: Record<string, string> = {
   add_related_observable: 'Add related observable',
   change_severity_status: 'Change severity/status',
   patch_case_description: 'Update description',
-  execute_responder_action: 'Execute responder action',
 }
 
 function actionLabel(t: string): string {

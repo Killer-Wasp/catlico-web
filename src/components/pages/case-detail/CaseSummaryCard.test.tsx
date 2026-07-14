@@ -29,7 +29,10 @@ import type {
 } from '#/components/Cases/caseDetails.types'
 import { api } from '#/lib/api/client'
 import { queueObservablePluginRun } from '#/components/Observables/observablesQueries'
-import { caseObservablesQueryOptions } from '#/components/Cases/casesQueries'
+import {
+  caseObservablesQueryOptions,
+  queueCasePluginRun,
+} from '#/components/Cases/casesQueries'
 import { notifications } from '@mantine/notifications'
 import type { RunnablePlugin } from '#/components/Plugins/plugins.types'
 
@@ -60,10 +63,12 @@ vi.mock('./mentionSuggestion', () => ({
 vi.mock('#/components/Cases/casesQueries', async (importOriginal) => ({
   ...(await importOriginal()),
   caseObservablesQueryOptions: vi.fn(),
+  queueCasePluginRun: vi.fn(),
 }))
 
 const getMock = vi.mocked(api.get)
 const queueMock = vi.mocked(queueObservablePluginRun)
+const caseRunMock = vi.mocked(queueCasePluginRun)
 const obsQueryMock = vi.mocked(caseObservablesQueryOptions)
 
 const PLUGINS: RunnablePlugin[] = [
@@ -78,6 +83,21 @@ const PLUGINS: RunnablePlugin[] = [
     name: 'AbuseIPDB',
     description: 'Abuse',
     capabilities: ['enrichment'],
+  },
+]
+
+const RESPONDERS: RunnablePlugin[] = [
+  {
+    id: 'r1',
+    name: 'Mailer',
+    description: 'Send email',
+    capabilities: ['responder'],
+  },
+  {
+    id: 'r2',
+    name: 'BlockIP',
+    description: 'Block at firewall',
+    capabilities: ['responder'],
   },
 ]
 
@@ -165,11 +185,29 @@ async function openRunAnalyzers() {
   fireEvent.click(item)
 }
 
+async function openRunResponders() {
+  fireEvent.click(screen.getByRole('button', { name: 'Case actions' }))
+  const item = await screen.findByText('Run responder')
+  fireEvent.click(item)
+}
+
 beforeEach(() => {
   getMock.mockReset()
-  getMock.mockReturnValue({ json: () => Promise.resolve(PLUGINS) } as never)
+  // Capability-aware: the responder picker asks for responder plugins, the
+  // analyzer picker for enrichment ones.
+  getMock.mockImplementation(
+    (url) =>
+      ({
+        json: () =>
+          Promise.resolve(
+            String(url).includes('capability=responder') ? RESPONDERS : PLUGINS,
+          ),
+      }) as never,
+  )
   queueMock.mockReset()
   queueMock.mockResolvedValue({ id: 'run-1' } as never)
+  caseRunMock.mockReset()
+  caseRunMock.mockResolvedValue({ id: 'crun-1' } as never)
   vi.mocked(notifications.show).mockReset()
   setObservables(OBSERVABLES)
 })
@@ -272,5 +310,61 @@ describe('CaseSummaryCard — Run analyzers', () => {
     expect(screen.queryByText('VirusTotal')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Run' })).toBeNull()
     expect(queueMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('CaseSummaryCard — Run responder', () => {
+  it('opens the plugin picker with capability=responder from the case actions menu', async () => {
+    renderCard()
+    await openRunResponders()
+
+    // Picker opened and lists responder-capable plugins, fetched with the
+    // responder capability filter.
+    await screen.findByText('Mailer')
+    expect(getMock).toHaveBeenCalledWith(
+      'plugins/runnable?capability=responder',
+    )
+    expect(screen.getByRole('button', { name: 'Run' })).toBeTruthy()
+  })
+
+  it('dispatches one case responder run per selected plugin (not fanned over observables) and toasts a summary', async () => {
+    renderCard()
+    await openRunResponders()
+    await screen.findByText('Mailer')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /select all/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+
+    // 2 responders → one case-targeted call each. Responders act on the case
+    // itself, so this is NOT the (observable × plugin) cross-product.
+    await waitFor(() => expect(caseRunMock).toHaveBeenCalledTimes(2))
+    expect(caseRunMock).toHaveBeenCalledWith('#42', {
+      plugin_id: 'r1',
+      force: false,
+    })
+    expect(caseRunMock).toHaveBeenCalledWith('#42', {
+      plugin_id: 'r2',
+      force: false,
+    })
+    // Nothing dispatched at the observable level.
+    expect(queueMock).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(notifications.show).toHaveBeenCalled())
+  })
+
+  it('threads the force flag through to every responder run', async () => {
+    renderCard()
+    await openRunResponders()
+    await screen.findByText('Mailer')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /mailer/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /force re-run/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+
+    await waitFor(() => expect(caseRunMock).toHaveBeenCalledTimes(1))
+    expect(caseRunMock).toHaveBeenCalledWith('#42', {
+      plugin_id: 'r1',
+      force: true,
+    })
   })
 })

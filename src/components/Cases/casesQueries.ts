@@ -45,6 +45,10 @@ import type {
   CaseDetailTimelineEvent,
 } from './caseDetails.types'
 import type { Case } from './cases.types'
+import type {
+  PluginRunPublic,
+  QueueObservablePluginRunRequest,
+} from '#/components/Plugins/plugins.types'
 
 /** Mirrors the backend AttachmentPublic model. */
 export type AttachmentPublic = {
@@ -448,6 +452,23 @@ export async function closeCase(id: string): Promise<void> {
   await api.patch(`cases/${numeric}`, {
     json: { status: 'Resolved' },
   })
+}
+
+/**
+ * Queue one manual plugin run against a case — e.g. a responder the analyst
+ * fires by hand. Mirrors `queueObservablePluginRun`, but the target is the case
+ * itself (responders act on the whole case, not a single observable), so there is
+ * no fan-out over observables. `force: true` bypasses the dedup no-op. Returns
+ * the server's synthetic queued-run view.
+ */
+export async function queueCasePluginRun(
+  id: string,
+  body: QueueObservablePluginRunRequest,
+): Promise<PluginRunPublic> {
+  const numeric = id.replace(/^#/, '')
+  return api
+    .post(`cases/${numeric}/plugin-runs`, { json: body })
+    .json<PluginRunPublic>()
 }
 
 export async function setCaseTags(id: string, tags: string[]): Promise<void> {

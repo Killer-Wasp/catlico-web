@@ -14,6 +14,7 @@ import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDia
 import {
   analyzerRunTargets,
   dispatchAnalyzerRuns,
+  dispatchCaseResponderRuns,
   notifyAnalyzerRuns,
 } from '#/components/Plugins/runAnalyzers'
 import { mentionableUsersQueryOptions } from './mentionSuggestion'
@@ -44,6 +45,7 @@ import {
   MoreHorizontal,
   Play,
   XCircle,
+  Zap,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
@@ -64,6 +66,7 @@ export function CaseSummaryCard({
   const [editingTags, setEditingTags] = useState(false)
   const [draftTags, setDraftTags] = useState(caseDetail.tags)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [responderPickerOpen, setResponderPickerOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
 
   // The case's observables, sourced from the same query the Observables tab
@@ -87,6 +90,17 @@ export function CaseSummaryCard({
     // Keep the picker open with its Run spinner while the fan-out is in flight;
     // the caller (not the dialog) closes it once the mutation settles.
     onSettled: () => setPickerOpen(false),
+  })
+
+  // Responders act on the case itself, so there's no observable fan-out and no
+  // zero-observables dead end — just open the picker (filtered to responders).
+  // Its Run stays disabled until a plugin is picked, and the picker shows its own
+  // empty state when no responder is runnable.
+  const runCaseResponders = useMutation({
+    mutationFn: ({ pluginIds, force }: PluginPickerSelection) =>
+      dispatchCaseResponderRuns(caseId, pluginIds, force),
+    onSuccess: (results) => notifyAnalyzerRuns(results),
+    onSettled: () => setResponderPickerOpen(false),
   })
 
   // Zero-observables is a dead end for a fan-out, so short-circuit with a
@@ -244,6 +258,7 @@ export function CaseSummaryCard({
           closePending={closeCaseMutation.isPending}
           onCloseCase={() => closeCaseMutation.mutate()}
           onRunAnalyzers={handleRunAnalyzers}
+          onRunResponders={() => setResponderPickerOpen(true)}
           onExportReport={() => setExportOpen(true)}
         />
       </Group>
@@ -291,6 +306,15 @@ export function CaseSummaryCard({
           caseObservables.length === 1 ? '' : 's'
         } in case ${caseDetail.id}`}
         onRun={(selection) => runCaseAnalyzers.mutate(selection)}
+      />
+
+      <PluginPickerDialog
+        opened={responderPickerOpen}
+        onClose={() => setResponderPickerOpen(false)}
+        capability="responder"
+        isRunning={runCaseResponders.isPending}
+        contextLabel={`Run on case ${caseDetail.id}`}
+        onRun={(selection) => runCaseResponders.mutate(selection)}
       />
 
       <CaseReportExportDialog
@@ -389,12 +413,14 @@ function CaseActionsMenu({
   closePending,
   onCloseCase,
   onRunAnalyzers,
+  onRunResponders,
   onExportReport,
 }: {
   closeDisabled: boolean
   closePending: boolean
   onCloseCase: () => void
   onRunAnalyzers: () => void
+  onRunResponders: () => void
   onExportReport: () => void
 }) {
   return (
@@ -417,6 +443,13 @@ function CaseActionsMenu({
           onClick={onRunAnalyzers}
         >
           Run analyzers
+        </Menu.Item>
+        <Menu.Item
+          color="orange"
+          leftSection={<Zap size={16} />}
+          onClick={onRunResponders}
+        >
+          Run responder
         </Menu.Item>
         <Menu.Divider />
         <Menu.Item
