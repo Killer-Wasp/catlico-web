@@ -17,6 +17,7 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PluginVersionsTab } from './PluginVersionsTab'
+import { notifications } from '@mantine/notifications'
 import { api } from '#/lib/api/client'
 import type {
   PluginVersionInfoPublic,
@@ -28,8 +29,14 @@ vi.mock('#/lib/api/client', () => ({
   API_BASE: '/api/v1',
 }))
 
+// Notifications render into a portal the tests don't mount — assert on `show`.
+vi.mock('@mantine/notifications', () => ({
+  notifications: { show: vi.fn() },
+}))
+
 const getMock = vi.mocked(api.get)
 const postMock = vi.mocked(api.post)
+const notifyMock = vi.mocked(notifications.show)
 
 const INSTALLED: PluginVersionInfoPublic = {
   plugin_id: 'virustotal',
@@ -104,6 +111,7 @@ function stubGets(
 
 function renderTab(pluginId = 'virustotal') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const invalidateSpy = vi.spyOn(client, 'invalidateQueries')
   render(
     <QueryClientProvider client={client}>
       <MantineProvider>
@@ -111,12 +119,14 @@ function renderTab(pluginId = 'virustotal') {
       </MantineProvider>
     </QueryClientProvider>,
   )
+  return { invalidateSpy }
 }
 
 beforeEach(() => {
   getMock.mockReset()
   postMock.mockReset()
   postMock.mockResolvedValue(undefined as never)
+  notifyMock.mockReset()
   stubGets()
 })
 afterEach(() => cleanup())
@@ -181,5 +191,50 @@ describe('PluginVersionsTab', () => {
         source_ref: 'main',
       },
     })
+  })
+
+  it('shows an error state with a Retry button when the metadata query fails', async () => {
+    getMock.mockImplementation((input) => {
+      const url = String(input)
+      if (url.endsWith('/check-latest')) {
+        return { json: () => Promise.resolve(CHECK_UNKNOWN) } as never
+      }
+      return { json: () => Promise.reject(new Error('boom')) } as never
+    })
+    renderTab()
+
+    expect(await screen.findByText(/couldn.t load version info/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+  })
+
+  it('upgrades the healthy runners even if one runner install fails, and still invalidates', async () => {
+    stubGets(INSTALLED, CHECK_UPDATE)
+    // r2's install rejects; r1 succeeds.
+    postMock.mockImplementation((input) => {
+      const url = String(input)
+      return url.includes('/r2/')
+        ? (Promise.reject(new Error('runner down')) as never)
+        : (Promise.resolve(undefined) as never)
+    })
+
+    const { invalidateSpy } = renderTab()
+
+    const upgrade = await screen.findByRole('button', { name: /upgrade/i })
+    fireEvent.click(upgrade)
+
+    // Both runners were attempted despite r2 failing.
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2))
+    // A partial success still repaints the versions view.
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['plugins', 'detail', 'virustotal', 'versions'],
+      }),
+    )
+    // The partial-failure summary surfaces the success count.
+    await waitFor(() =>
+      expect(notifyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringMatching(/1 of 2 runners/i) }),
+      ),
+    )
   })
 })

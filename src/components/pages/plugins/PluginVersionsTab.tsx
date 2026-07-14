@@ -83,10 +83,17 @@ export function PluginVersionsTab({ pluginId }: { pluginId: string }) {
   const upgrade = useMutation({
     mutationFn: async () => {
       const runners = data?.runners ?? []
-      const source_url = data?.source_url ?? ''
-      const source_ref = data?.source_ref ?? 'main'
-      // Upgrade every runner the plugin is installed on.
-      await Promise.all(
+      const source_url = data?.source_url
+      // Defend the invariant: never trigger an install without a real source.
+      // `update_available` implies a source in v1, but if that ever breaks we
+      // must not silently POST an empty URL → a garbage/failing install.
+      if (!source_url) {
+        throw new Error('Cannot upgrade: plugin has no source URL')
+      }
+      const source_ref = data.source_ref ?? 'main'
+      // Upgrade every runner the plugin is installed on. `allSettled` so one
+      // runner's failure doesn't discard the successes on the others.
+      const results = await Promise.allSettled(
         runners.map((runner) =>
           installPluginOnRunner(runner.id, {
             plugin_id: pluginId,
@@ -95,9 +102,26 @@ export function PluginVersionsTab({ pluginId }: { pluginId: string }) {
           }),
         ),
       )
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length
+      return { succeeded, total: runners.length }
     },
-    onSuccess: () => {
-      notifications.show({ color: 'green', message: 'Upgrade started' })
+    onSuccess: ({ succeeded, total }) => {
+      const failed = total - succeeded
+      if (succeeded === 0) {
+        notifications.show({
+          color: 'red',
+          message: `Upgrade failed on all ${total} runner${total === 1 ? '' : 's'}`,
+        })
+        return
+      }
+      notifications.show({
+        color: failed > 0 ? 'yellow' : 'green',
+        message:
+          failed > 0
+            ? `Upgrade started on ${succeeded} of ${total} runners; ${failed} failed`
+            : 'Upgrade started',
+      })
+      // Any success means at least one runner is now (re)installing — repaint.
       queryClient.invalidateQueries({ queryKey: pluginKeys.versions(pluginId) })
       check.refetch()
     },
@@ -247,7 +271,7 @@ export function PluginVersionsTab({ pluginId }: { pluginId: string }) {
                 {check.data?.latest_version ? `: ${check.data.latest_version}` : ''}
               </Text>
             </Group>
-            {installed && data.runners.length > 0 && (
+            {installed && data.source_url && data.runners.length > 0 && (
               <Button
                 size="xs"
                 color="yellow"
