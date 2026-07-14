@@ -44,6 +44,8 @@ const TAB_LABELS: Record<PaletteTab, string> = {
   observable: 'Observables',
   task: 'Tasks',
   comment: 'Comments',
+  knowledge_base: 'Knowledge base',
+  attachment: 'Attachments',
 }
 
 type Row = {
@@ -152,7 +154,7 @@ function rowsForTab(tab: PaletteTab, data: SearchResponse | undefined): Row[] {
           i,
         ),
       )
-    } else {
+    } else if (t === 'comment') {
       data.results.comment.slice(0, perType).forEach((h, i) =>
         push(
           {
@@ -168,6 +170,48 @@ function rowsForTab(tab: PaletteTab, data: SearchResponse | undefined): Row[] {
               </Text>
             ),
             target: hitRoute('comment', h),
+          },
+          i,
+        ),
+      )
+    } else if (t === 'knowledge_base') {
+      data.results.knowledge_base.slice(0, perType).forEach((h, i) =>
+        push(
+          {
+            key: `kb-${h.id}`,
+            type: t,
+            label: (
+              <Group gap={4} wrap="nowrap">
+                <Text size="sm" fw={500} truncate>
+                  {h.title}
+                </Text>
+                <Text size="xs" c="dimmed" truncate>
+                  <Snippet text={h.snippet} />
+                </Text>
+              </Group>
+            ),
+            target: hitRoute('knowledge_base', h),
+          },
+          i,
+        ),
+      )
+    } else {
+      data.results.attachment.slice(0, perType).forEach((h, i) =>
+        push(
+          {
+            key: `attachment-${h.id}`,
+            type: t,
+            label: (
+              <Group gap={4} wrap="nowrap">
+                <Text size="sm" truncate>
+                  {h.name}
+                </Text>
+                <Text size="xs" c="dimmed" ff="monospace">
+                  Case #{h.case_id}
+                </Text>
+              </Group>
+            ),
+            target: hitRoute('attachment', h),
           },
           i,
         ),

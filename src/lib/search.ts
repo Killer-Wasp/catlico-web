@@ -3,7 +3,14 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
 
-export type SearchEntityType = 'case' | 'alert' | 'observable' | 'task' | 'comment'
+export type SearchEntityType =
+  | 'case'
+  | 'alert'
+  | 'observable'
+  | 'task'
+  | 'comment'
+  | 'knowledge_base'
+  | 'attachment'
 
 export const SEARCH_TYPES: SearchEntityType[] = [
   'case',
@@ -11,6 +18,8 @@ export const SEARCH_TYPES: SearchEntityType[] = [
   'observable',
   'task',
   'comment',
+  'knowledge_base',
+  'attachment',
 ]
 
 export type CaseHit = {
@@ -59,6 +68,18 @@ export type CommentHit = {
   author_name: string
   created_at: string
 }
+export type KnowledgeBaseHit = {
+  id: number
+  title: string
+  snippet: string
+}
+export type AttachmentHit = {
+  id: number
+  public_id: string
+  case_id: number
+  attachment_id: string
+  name: string
+}
 
 export type SearchResponse = {
   counts: Record<SearchEntityType, number>
@@ -69,6 +90,8 @@ export type SearchResponse = {
     observable_groups: ObservableGroupHit[]
     task: TaskHit[]
     comment: CommentHit[]
+    knowledge_base: KnowledgeBaseHit[]
+    attachment: AttachmentHit[]
   }
 }
 
@@ -106,6 +129,7 @@ export function searchQueryOptions(q: string, opts: SearchOptions = {}) {
 type RouteTarget =
   | { to: '/cases/$caseId/$tab'; params: { caseId: string; tab: string } }
   | { to: '/alerts/$alertId'; params: { alertId: string } }
+  | { to: '/knowledge-base/$pageId'; params: { pageId: string } }
 
 /** Where clicking/entering a hit navigates. No scroll-to-anchor in v1 —
  * we land on the parent's relevant tab. */
@@ -141,5 +165,9 @@ export function hitRoute(
       return hit.entity_type === 'case'
         ? caseTab(hit.entity_id!, 'comments')
         : alertPage(hit.entity_id!)
+    case 'knowledge_base':
+      return { to: '/knowledge-base/$pageId', params: { pageId: String(hit.id!) } }
+    case 'attachment':
+      return caseTab(hit.case_id!, 'attachments')
   }
 }

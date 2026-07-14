@@ -62,6 +62,8 @@ const TAB_LABELS: Record<SearchEntityType, string> = {
   observable: 'Observables',
   task: 'Tasks',
   comment: 'Comments',
+  knowledge_base: 'Knowledge base',
+  attachment: 'Attachments',
 }
 
 // Backend enum wire values (`CaseStatus` in app/models/case_.py) are
@@ -313,6 +315,36 @@ function SearchPage() {
                 </Text>
               </Box>,
               `comment-${h.id}`,
+            ),
+          )}
+        {type === 'knowledge_base' &&
+          data?.results.knowledge_base.map((h) =>
+            rowLink(
+              hitRoute('knowledge_base', h),
+              <Box style={{ minWidth: 0 }}>
+                <Text fw={500} truncate>
+                  {h.title}
+                </Text>
+                <Text size="sm" c="dimmed" truncate>
+                  <Snippet text={h.snippet} />
+                </Text>
+              </Box>,
+              `kb-${h.id}`,
+            ),
+          )}
+        {type === 'attachment' &&
+          data?.results.attachment.map((h) =>
+            rowLink(
+              hitRoute('attachment', h),
+              <Group wrap="nowrap" gap="sm">
+                <Text fw={500} truncate style={{ flex: 1 }}>
+                  {h.name}
+                </Text>
+                <Text size="sm" c="dimmed" ff="monospace">
+                  {h.public_id}
+                </Text>
+              </Group>,
+              `attachment-${h.id}`,
             ),
           )}
         {isError && (
