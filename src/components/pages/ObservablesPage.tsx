@@ -11,6 +11,12 @@ import {
   updateObservableFlags,
 } from '#/components/Observables/observablesQueries'
 import { CreateObservableDialog } from '#/components/Observables/CreateObservableDialog'
+import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
+import {
+  analyzerRunTargets,
+  dispatchAnalyzerRuns,
+  notifyAnalyzerRuns,
+} from '#/components/Plugins/runAnalyzers'
 import type {
   ObservableListFilters,
   ObservableSort,
@@ -48,6 +54,7 @@ export function ObservablesPage() {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [tokens, setTokens] = useState<Token[]>([])
   const [addingObservable, setAddingObservable] = useState(false)
+  const [runningAnalyzers, setRunningAnalyzers] = useState(false)
   const pageSize = pagination.pageSize
   const queryClient = useQueryClient()
 
@@ -214,7 +221,33 @@ export function ObservablesPage() {
     [sourceOptions],
   )
 
-  const selectedCount = table.getSelectedRowModel().rows.length
+  const selectedRows = table.getSelectedRowModel().rows
+  const selectedCount = selectedRows.length
+
+  const runBulkAnalyzers = useMutation({
+    mutationFn: ({
+      pluginIds,
+      force,
+    }: {
+      pluginIds: string[]
+      force: boolean
+    }) => {
+      const observableIds = selectedRows.map((row) => row.original.id)
+      return dispatchAnalyzerRuns(
+        analyzerRunTargets(observableIds, pluginIds),
+        force,
+      )
+    },
+    onSuccess: (results) => {
+      // Intentionally does NOT invalidate plugin-result queries: the dispatched
+      // runs are asynchronous (nothing lands synchronously to refetch), so the
+      // toast's link to /plugin-runs is the affordance. Don't "fix" this.
+      notifyAnalyzerRuns(results)
+    },
+    // Close the picker once the fan-out settles (the dialog stays open with a
+    // spinner while pending; the caller owns closing).
+    onSettled: () => setRunningAnalyzers(false),
+  })
 
   const toggleSelectMode = () => {
     setSelectMode((current) => {
@@ -242,7 +275,12 @@ export function ObservablesPage() {
         selectMode={selectMode}
         onToggleSelectMode={toggleSelectMode}
         selectActions={
-          <Button variant="default" size="xs" disabled={selectedCount === 0}>
+          <Button
+            variant="default"
+            size="xs"
+            disabled={selectedCount === 0 || runBulkAnalyzers.isPending}
+            onClick={() => setRunningAnalyzers(true)}
+          >
             Run analyzers on selected
           </Button>
         }
@@ -289,6 +327,14 @@ export function ObservablesPage() {
         onCreated={() =>
           queryClient.invalidateQueries({ queryKey: observableKeys.all })
         }
+      />
+
+      <PluginPickerDialog
+        opened={runningAnalyzers}
+        onClose={() => setRunningAnalyzers(false)}
+        isRunning={runBulkAnalyzers.isPending}
+        contextLabel={`Run on ${selectedCount} selected observable${selectedCount === 1 ? '' : 's'}`}
+        onRun={(selection) => runBulkAnalyzers.mutate(selection)}
       />
     </Box>
   )

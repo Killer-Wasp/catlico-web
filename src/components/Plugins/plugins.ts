@@ -10,6 +10,7 @@ import type {
   ConfigResponse,
   ConfigTestResponse,
   RunPluginRequest,
+  RunnablePlugin,
   AutoApplyRequest,
   StatsWindow,
   PluginStats,
@@ -24,6 +25,8 @@ export const pluginKeys = {
   configStatus: (id: string) => [...pluginKeys.all, 'config-status', id] as const,
   stats: (id: string, window: StatsWindow) =>
     [...pluginKeys.all, 'stats', id, window] as const,
+  runnable: (capability?: string) =>
+    [...pluginKeys.all, 'runnable', capability ?? null] as const,
 }
 
 // ── DTO to view mapping ─────────────────────────────────────────────────────
@@ -78,6 +81,20 @@ export async function fetchPlugins(): Promise<Plugin[]> {
 export async function fetchPlugin(id: string): Promise<Plugin> {
   const dto = await api.get(`plugins/${id}`).json<PluginPublic>()
   return toPlugin(dto)
+}
+
+/**
+ * Plugins that will actually enrich right now (org-enabled, config-complete,
+ * active version installed on a healthy runner). Optional `capability` narrows
+ * to plugins advertising that capability (e.g. `enrichment`).
+ */
+export async function fetchRunnablePlugins(
+  capability?: string,
+): Promise<RunnablePlugin[]> {
+  const params = new URLSearchParams()
+  if (capability) params.set('capability', capability)
+  const qs = params.toString()
+  return api.get(`plugins/runnable${qs ? `?${qs}` : ''}`).json<RunnablePlugin[]>()
 }
 
 export async function fetchConfigStatus(
@@ -190,4 +207,11 @@ export const pluginDetailQueryOptions = (id: string) =>
   queryOptions({
     queryKey: pluginKeys.detail(id),
     queryFn: () => fetchPlugin(id),
+  })
+
+export const runnablePluginsQueryOptions = (capability?: string) =>
+  queryOptions({
+    queryKey: pluginKeys.runnable(capability),
+    queryFn: () => fetchRunnablePlugins(capability),
+    staleTime: 30_000,
   })

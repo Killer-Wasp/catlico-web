@@ -281,6 +281,24 @@ export type RunPluginRequest = {
   entity_id: string
 }
 
+/**
+ * A plugin that will actually enrich right now — server-filtered to org-enabled,
+ * config-complete, active-version plugins installed on a healthy runner.
+ * Returned by `GET /plugins/runnable`; populates the analyzer picker.
+ */
+export type RunnablePlugin = {
+  id: string
+  name: string
+  description: string
+  capabilities: string[]
+}
+
+/** Body for `POST /observables/{id}/plugin-runs`. */
+export type QueueObservablePluginRunRequest = {
+  plugin_id: string
+  force?: boolean
+}
+
 export type AutoApplyRequest = {
   actions: string[]
 }

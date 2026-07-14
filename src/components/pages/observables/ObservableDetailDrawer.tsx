@@ -10,7 +10,17 @@ import {
 } from '@mantine/core'
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
+import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
+import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDialog'
+import {
+  analyzerRunTargets,
+  dispatchAnalyzerRuns,
+  notifyAnalyzerRuns,
+} from '#/components/Plugins/runAnalyzers'
+import { pluginResultKeys } from '#/components/PluginResults/pluginResults'
 import styles from './styles.module.css'
 
 function sourceLabel(source: string): string {
@@ -89,6 +99,25 @@ function ObservableDetailContent({
 }) {
   const ioc = observable.flags.includes('ioc')
   const sighted = observable.flags.includes('sighted')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const queryClient = useQueryClient()
+
+  const runAnalyzers = useMutation({
+    mutationFn: ({ pluginIds, force }: PluginPickerSelection) =>
+      dispatchAnalyzerRuns(
+        analyzerRunTargets([observable.id], pluginIds),
+        force,
+      ),
+    onSuccess: (results) => {
+      notifyAnalyzerRuns(results)
+      queryClient.invalidateQueries({
+        queryKey: pluginResultKeys.list('observable', observable.id),
+      })
+    },
+    // Close the picker once the fan-out settles (kept open with a spinner while
+    // pending, so the caller — not the dialog — owns closing).
+    onSettled: () => setPickerOpen(false),
+  })
 
   return (
     <Stack h="100%" gap={0}>
@@ -135,27 +164,42 @@ function ObservableDetailContent({
         </Stack>
       </Box>
 
-      <Group
+      <Stack
         p="lg"
         gap="sm"
-        grow
         style={{ borderTop: '1px solid var(--line-soft)' }}
       >
-        {onToggleIoc ? (
-          <Button variant="default" onClick={() => onToggleIoc(observable)}>
-            Toggle IOC
-          </Button>
-        ) : null}
-        {onMarkSighted ? (
-          <Button
-            variant="default"
-            disabled={sighted}
-            onClick={() => onMarkSighted(observable)}
-          >
-            Mark sighted
-          </Button>
-        ) : null}
-      </Group>
+        <Button
+          onClick={() => setPickerOpen(true)}
+          disabled={runAnalyzers.isPending}
+        >
+          Run analyzers
+        </Button>
+        <Group gap="sm" grow>
+          {onToggleIoc ? (
+            <Button variant="default" onClick={() => onToggleIoc(observable)}>
+              Toggle IOC
+            </Button>
+          ) : null}
+          {onMarkSighted ? (
+            <Button
+              variant="default"
+              disabled={sighted}
+              onClick={() => onMarkSighted(observable)}
+            >
+              Mark sighted
+            </Button>
+          ) : null}
+        </Group>
+      </Stack>
+
+      <PluginPickerDialog
+        opened={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        isRunning={runAnalyzers.isPending}
+        contextLabel={`Run on observable ${observable.value}`}
+        onRun={(selection) => runAnalyzers.mutate(selection)}
+      />
     </Stack>
   )
 }

@@ -8,6 +8,10 @@ import type {
   ObservableFlag,
   ObservableType,
 } from './observables.types'
+import type {
+  PluginRunPublic,
+  QueueObservablePluginRunRequest,
+} from '#/components/Plugins/plugins.types'
 
 type Page<T> = { items: T[]; total: number; skip: number; limit: number }
 
@@ -148,4 +152,18 @@ export async function updateObservableFlags(
   await api.patch(`observables/${id}`, {
     json: flags,
   })
+}
+
+/**
+ * Queue one plugin run for one observable. `force: true` bypasses the dedup
+ * no-op so a genuine re-run dispatches. Returns the server's synthetic
+ * queued-run view.
+ */
+export async function queueObservablePluginRun(
+  observableId: string,
+  body: QueueObservablePluginRunRequest,
+): Promise<PluginRunPublic> {
+  return api
+    .post(`observables/${observableId}/plugin-runs`, { json: body })
+    .json<PluginRunPublic>()
 }
