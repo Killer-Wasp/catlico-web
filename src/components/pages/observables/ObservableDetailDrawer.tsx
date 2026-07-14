@@ -12,6 +12,7 @@ import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ObservableFileChip } from './ObservableFileChip'
 import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
 import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
 import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDialog'
@@ -159,6 +160,16 @@ function ObservableDetailContent({
               {sourceLabel(observable.source)}
             </DetailRow>
           </Stack>
+
+          {observable.attachment ? (
+            <Stack gap="xs">
+              <Text className={styles.columnHeader}>File</Text>
+              <ObservableFileChip
+                observableId={observable.id}
+                attachment={observable.attachment}
+              />
+            </Stack>
+          ) : null}
 
           <PluginResultsPanel entityType="observable" entityId={observable.id} />
         </Stack>

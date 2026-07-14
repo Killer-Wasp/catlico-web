@@ -59,6 +59,7 @@ const OBSERVABLE: Observable = {
   source: 'feed',
   added: '10:00',
   addedAt: new Date().toISOString(),
+  attachment: null,
 }
 
 function renderDrawer() {

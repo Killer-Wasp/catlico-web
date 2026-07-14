@@ -91,6 +91,7 @@ const OBSERVABLES: CaseDetailObservable[] = [
     analysis: '-',
     added: '10:00',
     addedAt: new Date().toISOString(),
+    attachment: null,
   },
   {
     id: 'obs-2',
@@ -101,6 +102,7 @@ const OBSERVABLES: CaseDetailObservable[] = [
     analysis: '-',
     added: '10:01',
     addedAt: new Date().toISOString(),
+    attachment: null,
   },
 ]
 

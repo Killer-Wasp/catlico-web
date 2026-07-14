@@ -110,6 +110,7 @@ function renderNavbar({
         source: 'feed',
         added: '10:00',
         addedAt: '2026-07-07T10:00:00Z',
+        attachment: null,
       },
       {
         id: 'observable-2',
@@ -120,6 +121,7 @@ function renderNavbar({
         source: '#1842',
         added: '10:05',
         addedAt: '2026-07-07T10:05:00Z',
+        attachment: null,
       },
     ],
   } satisfies ObservablesResult)

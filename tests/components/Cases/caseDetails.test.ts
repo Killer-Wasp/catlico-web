@@ -99,6 +99,7 @@ const OBSERVABLES: ObservablePublic[] = [
     organisation_id: 'org-1',
     created_at: '2026-06-12T09:21:00Z',
     updated_at: null,
+    attachment: null,
   },
 ]
 

@@ -5,6 +5,7 @@ import type { FilterClause } from '#/lib/filters'
 import type { Tlp } from '#/lib/domain'
 import type {
   Observable,
+  ObservableAttachment,
   ObservableFlag,
   ObservableType,
 } from './observables.types'
@@ -29,6 +30,7 @@ export type ObservablePublic = {
   organisation_id: string
   created_at: string
   updated_at: string | null
+  attachment: ObservableAttachment | null
 }
 
 /** Column the observable list is sorted by, server-side. */
@@ -106,6 +108,7 @@ function toObservable(dto: ObservablePublic): Observable {
     ...(dto.message.trim()
       ? { analysis: { analyzer: 'Note', verdict: dto.message } }
       : {}),
+    attachment: dto.attachment,
     added: compactTime(dto.created_at),
     addedAt: dto.created_at,
   }
@@ -166,4 +169,14 @@ export async function queueObservablePluginRun(
   return api
     .post(`observables/${observableId}/plugin-runs`, { json: body })
     .json<PluginRunPublic>()
+}
+
+/**
+ * Fetch the raw bytes of a file observable's attachment *through the api client*
+ * so the bearer + org headers attach (the endpoint is visibility-checked). The
+ * caller wraps the blob and triggers the download — keeping the token out of any
+ * URL, unlike a plain `<a href>`.
+ */
+export async function fetchObservableFile(observableId: string): Promise<Blob> {
+  return api.get(`observables/${observableId}/file`).blob()
 }

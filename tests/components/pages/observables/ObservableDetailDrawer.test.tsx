@@ -23,6 +23,7 @@ const observable: Observable = {
   source: '#1842',
   added: '09:21',
   addedAt: '2026-07-10T09:21:00Z',
+  attachment: null,
 }
 
 function renderDrawer() {

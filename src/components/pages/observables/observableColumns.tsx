@@ -4,11 +4,12 @@ import type {
 } from '#/components/Observables/observables.types'
 import { RelativeTime } from '#/components/Time/RelativeTime'
 import { TableTlpBadge } from '#/components/Tlp/TableTlpBadge'
-import { ActionIcon, Badge, Checkbox, Menu, Text } from '@mantine/core'
+import { ActionIcon, Badge, Checkbox, Group, Menu, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Play, Settings } from 'lucide-react'
 import { AnalysisPill, TypePill } from './Pills'
+import { ObservableFileIndicator } from './ObservableFileIndicator'
 import {
   includesAnySubstring,
   includesOne as includesOneString,
@@ -56,10 +57,20 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       accessorFn: (row) => row.value,
       filterFn: includesAnySubstring,
       enableSorting: true,
-      cell: (info) => (
-        <Text ff="monospace" fz={13} fw={600} style={{ whiteSpace: 'nowrap' }}>
-          {info.getValue<string>()}
-        </Text>
+      cell: ({ row }) => (
+        <Group gap={6} wrap="nowrap">
+          <Text
+            ff="monospace"
+            fz={13}
+            fw={600}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {row.original.value}
+          </Text>
+          {row.original.attachment ? (
+            <ObservableFileIndicator attachment={row.original.attachment} />
+          ) : null}
+        </Group>
       ),
     },
     {

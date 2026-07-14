@@ -152,6 +152,7 @@ const observablesFixture: CaseDetailObservable[] = [
     analysis: 'URLscan complete',
     added: '09:21',
     addedAt: '2026-06-12T09:21:00Z',
+    attachment: null,
   },
 ]
 

@@ -18,7 +18,8 @@ import { addFlag, toggleFlag } from '#/components/pages/observables/tableFns'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
 import type { TableColumnMeta } from '#/components/Table/columnMeta'
-import { Badge, Button, Stack, Text } from '@mantine/core'
+import { Badge, Button, Group, Stack, Text } from '@mantine/core'
+import { ObservableFileIndicator } from '#/components/pages/observables/ObservableFileIndicator'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -57,6 +58,7 @@ function toObservable(
     ...(observable.analysis.trim() && observable.analysis !== '—'
       ? { analysis: { analyzer: 'Note', verdict: observable.analysis } }
       : {}),
+    attachment: observable.attachment,
     added: observable.added,
     addedAt: observable.addedAt,
   }
@@ -77,7 +79,14 @@ const COLUMNS: ColumnDef<CaseDetailObservable>[] = [
     id: 'value',
     header: 'Value',
     meta: { grow: true } satisfies TableColumnMeta,
-    cell: ({ row }) => <Text ff="monospace">{row.original.value}</Text>,
+    cell: ({ row }) => (
+      <Group gap={6} wrap="nowrap">
+        <Text ff="monospace">{row.original.value}</Text>
+        {row.original.attachment ? (
+          <ObservableFileIndicator attachment={row.original.attachment} />
+        ) : null}
+      </Group>
+    ),
   },
   {
     id: 'added',

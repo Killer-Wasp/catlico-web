@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
 import { TLP } from '#/lib/domain'
+import type { ObservableAttachment } from '#/components/Observables/observables.types'
 import type { MemberPublic } from './caseUsers'
 import { memberDisplayNameById } from './caseUsers'
 import type { AttachmentPublic } from './casesQueries'
@@ -94,6 +95,7 @@ export type ObservablePublic = {
   organisation_id: string
   created_at: string
   updated_at: string | null
+  attachment: ObservableAttachment | null
 }
 
 export type CommentPublic = {
@@ -342,6 +344,7 @@ export function toCaseDetailObservables(
     ioc: observable.ioc,
     sighted: observable.sighted,
     analysis: observable.message || '-',
+    attachment: observable.attachment,
     added: compactTime(observable.created_at),
     addedAt: observable.created_at,
   }))

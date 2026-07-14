@@ -1,4 +1,5 @@
 import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
+import type { ObservableAttachment } from '#/components/Observables/observables.types'
 import type { SlaState } from './cases.types'
 
 export type CaseDetailTaskStatus =
@@ -57,6 +58,7 @@ export type CaseDetailObservable = {
   ioc: boolean
   sighted: boolean
   analysis: string
+  attachment: ObservableAttachment | null
   added: string
   addedAt: string
 }

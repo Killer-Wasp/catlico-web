@@ -11,6 +11,17 @@ export type ObservableType =
 
 export type ObservableFlag = 'ioc' | 'sighted'
 
+/**
+ * A downloadable file backing a file observable. A non-null `attachment` is the
+ * sole signal that the observable has a file (fetched from
+ * `GET /observables/{id}/file`); string observables carry `null`.
+ */
+export type ObservableAttachment = {
+  filename: string
+  size: number
+  content_type: string
+}
+
 export type ObservableAnalysis = {
   analyzer: string
   verdict: string
@@ -24,6 +35,7 @@ export type Observable = {
   tlp: Tlp
   source: string
   analysis?: ObservableAnalysis
+  attachment: ObservableAttachment | null
   added: string
   addedAt: string
 }
