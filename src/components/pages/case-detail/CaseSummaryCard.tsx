@@ -8,6 +8,7 @@ import {
   setCaseTags,
   updateCaseAssignee,
 } from '#/components/Cases/casesQueries'
+import { CaseReportExportDialog } from './CaseReportExportDialog'
 import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
 import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDialog'
 import {
@@ -63,6 +64,7 @@ export function CaseSummaryCard({
   const [editingTags, setEditingTags] = useState(false)
   const [draftTags, setDraftTags] = useState(caseDetail.tags)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   // The case's observables, sourced from the same query the Observables tab
   // uses. "Run analyzers" fans a picker selection out across all of them.
@@ -242,6 +244,7 @@ export function CaseSummaryCard({
           closePending={closeCaseMutation.isPending}
           onCloseCase={() => closeCaseMutation.mutate()}
           onRunAnalyzers={handleRunAnalyzers}
+          onExportReport={() => setExportOpen(true)}
         />
       </Group>
 
@@ -288,6 +291,13 @@ export function CaseSummaryCard({
           caseObservables.length === 1 ? '' : 's'
         } in case ${caseDetail.id}`}
         onRun={(selection) => runCaseAnalyzers.mutate(selection)}
+      />
+
+      <CaseReportExportDialog
+        caseId={caseId}
+        caseNumber={caseDetail.id}
+        opened={exportOpen}
+        onClose={() => setExportOpen(false)}
       />
     </Paper>
   )
@@ -379,11 +389,13 @@ function CaseActionsMenu({
   closePending,
   onCloseCase,
   onRunAnalyzers,
+  onExportReport,
 }: {
   closeDisabled: boolean
   closePending: boolean
   onCloseCase: () => void
   onRunAnalyzers: () => void
+  onExportReport: () => void
 }) {
   return (
     <Menu shadow="md" width={280} position="bottom-end" withinPortal>
@@ -395,7 +407,7 @@ function CaseActionsMenu({
       <Menu.Dropdown>
         <Menu.Item
           leftSection={<Download size={16} />}
-          onClick={() => actionNotice('Report export queued')}
+          onClick={onExportReport}
         >
           Export report
         </Menu.Item>

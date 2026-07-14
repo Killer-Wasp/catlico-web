@@ -246,6 +246,16 @@ describe('CaseSummaryCard — Run analyzers', () => {
     )
   })
 
+  it('opens the report export template picker from the "Export report" menu item', async () => {
+    renderCard()
+    fireEvent.click(screen.getByRole('button', { name: 'Case actions' }))
+    fireEvent.click(await screen.findByText('Export report'))
+
+    // The export dialog opened (its title references the case number).
+    await screen.findByText(/Export report — case #42/i)
+    expect(queueMock).not.toHaveBeenCalled()
+  })
+
   it('shows a friendly notice and does not open an empty fan-out when the case has no observables', async () => {
     setObservables([])
     renderCard()

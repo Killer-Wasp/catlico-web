@@ -12,6 +12,7 @@ import { NotificationsPanel } from './settings/panels/NotificationsPanel'
 import { ObservableTypesPanel } from './settings/panels/ObservableTypesPanel'
 import { OrgProfilePanel } from './settings/panels/OrgProfilePanel'
 import { ProfilesPanel } from './settings/panels/ProfilesPanel'
+import { ReportTemplatesPanel } from './settings/panels/ReportTemplatesPanel'
 import { SlaPanel } from './settings/panels/SlaPanel'
 import { TaxonomiesPanel } from './settings/panels/TaxonomiesPanel'
 import { UsersPanel } from './settings/panels/UsersPanel'
@@ -35,6 +36,7 @@ const SECTION_READ_PERMISSION: Partial<Record<SettingsSection, string>> = {
   'SLA policies': 'read:organisation',
   'API keys': 'write:organisation',
   Integrations: 'read:organisation',
+  'Report templates': 'write:organisation',
 }
 
 function SectionPanel({ section }: { section: SettingsSection }) {
@@ -49,6 +51,7 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'SLA policies') return <SlaPanel />
   if (section === 'API keys') return <ApiKeysPanel />
   if (section === 'Integrations') return <IntegrationsPanel />
+  if (section === 'Report templates') return <ReportTemplatesPanel />
   if (section === 'Audit log') return <AuditLogPanel />
   return <OrgProfilePanel />
 }

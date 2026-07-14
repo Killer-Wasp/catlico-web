@@ -137,6 +137,8 @@ export const settingsKeys = {
     [...settingsKeys.all, 'notifiers', orgId] as const,
   notificationRules: (orgId: string) =>
     [...settingsKeys.all, 'notification-rules', orgId] as const,
+  reportTemplates: (orgId: string) =>
+    [...settingsKeys.all, 'report-templates', orgId] as const,
 }
 
 function activeOrgId(): string {
@@ -652,4 +654,80 @@ export const notificationRulesQueryOptions = (orgId = activeOrgId()) =>
   queryOptions({
     queryKey: settingsKeys.notificationRules(orgId),
     queryFn: fetchNotificationRules,
+  })
+
+// --- Report Templates -------------------------------------------------------
+
+export type ReportTemplatePublic = {
+  id: string
+  name: string
+  description: string
+  content_md: string
+  config: Record<string, unknown>
+  organisation_id: string
+  created_at: string
+  updated_at: string | null
+}
+
+export type ReportTemplateCreateInput = {
+  name: string
+  description?: string
+  content_md?: string
+  config?: Record<string, unknown>
+}
+
+export type ReportTemplateUpdateInput = Partial<ReportTemplateCreateInput>
+
+export async function fetchReportTemplates(): Promise<ReportTemplatePublic[]> {
+  return api.get('report-templates').json<ReportTemplatePublic[]>()
+}
+
+export async function createReportTemplate(
+  input: ReportTemplateCreateInput,
+): Promise<ReportTemplatePublic> {
+  return api
+    .post('report-templates', { json: input })
+    .json<ReportTemplatePublic>()
+}
+
+export async function updateReportTemplate(
+  id: string,
+  patch: ReportTemplateUpdateInput,
+): Promise<ReportTemplatePublic> {
+  return api
+    .patch(`report-templates/${id}`, { json: patch })
+    .json<ReportTemplatePublic>()
+}
+
+export async function deleteReportTemplate(id: string): Promise<void> {
+  await api.delete(`report-templates/${id}`)
+}
+
+/**
+ * Render a case report to HTML *through the api client*, so the Authorization
+ * and X-Organisation-Id headers are attached (the render route is auth-guarded).
+ * Returns the raw HTML as text — the caller wraps it in a Blob and opens that in
+ * a new tab, which keeps the bearer token out of the URL while still giving the
+ * user a print-friendly page.
+ */
+export async function renderReportTemplateHtml(
+  id: string,
+  caseId: string | number,
+): Promise<string> {
+  return api
+    .get(`report-templates/${id}/render`, {
+      searchParams: { case_id: String(caseId), fmt: 'html' },
+    })
+    .text()
+}
+
+// Defensive default (like organisationMembersQueryOptions): read the active org
+// without throwing, so a component that mounts this query before an org is
+// selected — e.g. the case export dialog, which is always rendered but disabled
+// until opened — simply stays disabled instead of crashing at render time.
+export const reportTemplatesQueryOptions = (orgId = getActiveOrgId()) =>
+  queryOptions({
+    queryKey: settingsKeys.reportTemplates(orgId ?? ''),
+    queryFn: fetchReportTemplates,
+    enabled: Boolean(orgId),
   })
