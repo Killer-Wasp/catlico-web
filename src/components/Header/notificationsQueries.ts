@@ -25,6 +25,7 @@ export type NotificationPreferenceItem = {
 export const notificationKeys = {
   all: ['notifications'] as const,
   list: () => [...notificationKeys.all, 'list'] as const,
+  unreadCount: () => [...notificationKeys.all, 'unread-count'] as const,
   preferences: () => [...notificationKeys.all, 'preferences'] as const,
 }
 
@@ -34,6 +35,19 @@ export async function fetchNotifications(): Promise<UserNotification[]> {
     .get('notifications/', { searchParams: { limit: 50 } })
     .json<Page<UserNotification>>()
   return page.items
+}
+
+/**
+ * Exact unread count for the bell badge. The server applies the unread
+ * anti-join plus the user's mutes, so `Page.total` is the authoritative count
+ * — a `limit=1` page yields it cheaply without pulling any rows. This replaces
+ * counting unread items in the first-50 list fetch, which undercounts past 50.
+ */
+export async function fetchUnreadCount(): Promise<number> {
+  const page = await api
+    .get('notifications/', { searchParams: { unread: true, limit: 1 } })
+    .json<Page<UserNotification>>()
+  return page.total
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
@@ -77,5 +91,14 @@ export const notificationsQueryOptions = () =>
     // `useNotificationSocket` invalidates this on live activity events, so the
     // bell updates instantly in the common case; this poll is just the
     // fallback for when the socket is down (or briefly reconnecting).
+    refetchInterval: 60_000,
+  })
+
+export const unreadCountQueryOptions = () =>
+  queryOptions({
+    queryKey: notificationKeys.unreadCount(),
+    queryFn: fetchUnreadCount,
+    // Invalidated alongside the list on socket events (both live under
+    // `notificationKeys.all`); the poll is the same socket-down fallback.
     refetchInterval: 60_000,
   })

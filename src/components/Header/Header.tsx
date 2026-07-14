@@ -4,11 +4,13 @@ import {
   markNotificationRead,
   notificationKeys,
   notificationsQueryOptions,
+  unreadCountQueryOptions,
 } from '#/components/Header/notificationsQueries'
 import { useNotificationSocket } from '#/components/Header/useNotificationSocket'
 import { UserAvatar } from '#/components/Users/UserAvatar'
 import { userDisplayName } from '#/components/Users/usersQueries'
 import { logout } from '#/lib/auth/session'
+import { activateNotification } from '#/components/Header/notificationActions'
 import { currentUserQueryOptions } from '#/lib/auth/userQueries'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -33,6 +35,7 @@ import {
 } from '@mantine/core'
 import { useHotkeys } from '@mantine/hooks'
 import { Bell, Building2, LogOut, Moon, Search, Sun, UserCog } from 'lucide-react'
+import { useState } from 'react'
 import classes from './Header.module.css'
 
 dayjs.extend(relativeTime)
@@ -60,9 +63,13 @@ function ThemeToggle() {
 export function Header() {
   const queryClient = useQueryClient()
   const { data: notifications = [] } = useQuery(notificationsQueryOptions())
-  const unreadCount = notifications.filter((item) => item.read_at === null).length
+  // Exact unread count from the server (`unread=true&limit=1` → `Page.total`),
+  // which honours the anti-join + mutes and doesn't undercount past the first
+  // 50 fetched for the dropdown.
+  const { data: unreadCount = 0 } = useQuery(unreadCountQueryOptions())
   const { data: currentUser } = useQuery(currentUserQueryOptions())
   const navigate = useNavigate()
+  const [notifOpen, setNotifOpen] = useState(false)
 
   // Instant bell updates: invalidate the notifications query the moment an
   // activity event lands on the socket, instead of waiting on the 60s poll.
@@ -113,7 +120,14 @@ export function Header() {
 
       <div className={classes.actions}>
 
-        <Popover width={380} position="bottom-end" offset={10} shadow="xl">
+        <Popover
+          width={380}
+          position="bottom-end"
+          offset={10}
+          shadow="xl"
+          opened={notifOpen}
+          onChange={setNotifOpen}
+        >
           <Popover.Target>
             <Indicator
               label={unreadCount || undefined}
@@ -127,6 +141,19 @@ export function Header() {
                 size="lg"
                 radius="md"
                 aria-label="Notifications"
+                onClick={() => {
+                  // Opening: reconcile the badge with the server. The optimistic
+                  // socket `+1` gives instant feedback but can transiently
+                  // over-count (e.g. a re-send after the list cache was GC'd, or
+                  // a muted type the server total excludes) — refetch so the
+                  // count is exact exactly when the user looks at it.
+                  if (!notifOpen) {
+                    queryClient.invalidateQueries({
+                      queryKey: notificationKeys.unreadCount(),
+                    })
+                  }
+                  setNotifOpen((open) => !open)
+                }}
               >
                 <Bell size={18} />
               </ActionIcon>
@@ -162,9 +189,13 @@ export function Header() {
                     <UnstyledButton
                       key={item.id}
                       className={classes.notificationItem}
-                      onClick={() => {
-                        if (unread) markRead.mutate(item.id)
-                      }}
+                      onClick={() =>
+                        activateNotification(item, {
+                          markRead: markRead.mutate,
+                          navigate,
+                          close: () => setNotifOpen(false),
+                        })
+                      }
                       px="md"
                       py="sm"
                       style={(theme) => ({

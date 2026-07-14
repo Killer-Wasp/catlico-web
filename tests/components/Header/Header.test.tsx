@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { Header } from '#/components/Header/Header'
+import { notificationKeys } from '#/components/Header/notificationsQueries'
 import { api } from '#/lib/api/client'
+import type * as ReactRouter from '@tanstack/react-router'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
@@ -28,6 +30,12 @@ vi.mock('#/lib/api/client', () => ({
     patch: vi.fn(() => Promise.resolve()),
   },
 }))
+
+const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }))
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof ReactRouter>()
+  return { ...actual, useNavigate: () => navigate }
+})
 
 type JsonResponse = { json: () => Promise<unknown> }
 
@@ -83,6 +91,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.mocked(api.get).mockReset()
   vi.mocked(api.patch).mockClear()
+  navigate.mockClear()
   mockGet({})
 })
 
@@ -152,6 +161,118 @@ describe('Header notifications', () => {
           json: expect.objectContaining({ read_at: expect.any(String) }),
         }),
       ),
+    )
+  })
+
+  test('badge shows the server-side unread total, not the fetched list length', async () => {
+    // 73 unread server-side (from the `unread=true&limit=1` count query's
+    // `total`), even though the dropdown only fetched a couple of rows — the old
+    // "count unread in the first 50" logic would undercount this to 2.
+    mockGet({
+      feed: {
+        items: [
+          {
+            id: 'n1',
+            event_type: 'case.created',
+            title: 'New case assigned',
+            body: '',
+            payload: {},
+            read_at: null,
+            created_at: '2026-06-12T09:12:00Z',
+          },
+          {
+            id: 'n2',
+            event_type: 'case.created',
+            title: 'Another case',
+            body: '',
+            payload: {},
+            read_at: null,
+            created_at: '2026-06-12T09:13:00Z',
+          },
+        ],
+        total: 73,
+        skip: 0,
+        limit: 50,
+      },
+    })
+
+    render(<Harness />)
+
+    expect(await screen.findByText('73')).toBeDefined()
+    expect(screen.queryByText('2')).toBeNull()
+  })
+
+  test('opening the popover reconciles the badge (invalidates the count query)', async () => {
+    // The optimistic socket `+1` can transiently over-count; refetch on open so
+    // the badge is exact exactly when the user looks at it.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MantineProvider>
+          <Header />
+        </MantineProvider>
+      </QueryClientProvider>,
+    )
+
+    // Ignore any mount-time bookkeeping; assert on the open interaction only.
+    invalidateSpy.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }))
+
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: notificationKeys.unreadCount(),
+      }),
+    )
+  })
+
+  test('deep-links to the referenced case and closes the dropdown on click', async () => {
+    mockGet({
+      feed: {
+        items: [
+          {
+            id: 'n1',
+            event_type: 'case.created',
+            title: 'New case assigned',
+            body: 'CASE-42',
+            payload: {
+              object: { type: 'case', id: '42' },
+              context: { type: 'unknown', id: '' },
+            },
+            read_at: null,
+            created_at: '2026-06-12T09:12:00Z',
+          },
+        ],
+        total: 1,
+        skip: 0,
+        limit: 50,
+      },
+    })
+
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }))
+    const panel = await screen.findByRole('dialog', { name: 'Notifications' })
+    fireEvent.click(within(panel).getByText('New case assigned'))
+
+    // Marks read (PATCH) and navigates to the case's Details tab.
+    await waitFor(() =>
+      expect(vi.mocked(api.patch)).toHaveBeenCalledWith(
+        'notifications/n1',
+        expect.anything(),
+      ),
+    )
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/cases/$caseId/$tab',
+      params: { caseId: '42', tab: 'details' },
+    })
+    // Navigating closes the popover.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Notifications' }),
+      ).toBeNull(),
     )
   })
 })

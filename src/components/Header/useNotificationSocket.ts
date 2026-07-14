@@ -214,14 +214,26 @@ function connect(queryClient: QueryClient, refs: SocketRefs): void {
         // Prepend (newest-first, matching the server's `created_at desc`) and
         // dedup by id so a re-sent drain retry is a no-op.
         const incoming = message.notification
-        queryClient.setQueryData<UserNotification[]>(
-          notificationKeys.list(),
-          (prev) => {
-            const list = prev ?? []
-            if (list.some((n) => n.id === incoming.id)) return list
-            return [incoming, ...list]
-          },
-        )
+        const list =
+          queryClient.getQueryData<UserNotification[]>(
+            notificationKeys.list(),
+          ) ?? []
+        // Dedup by id so a re-sent drain retry is a no-op.
+        if (!list.some((n) => n.id === incoming.id)) {
+          // Prepend (newest-first, matching the server's `created_at desc`).
+          queryClient.setQueryData<UserNotification[]>(notificationKeys.list(), [
+            incoming,
+            ...list,
+          ])
+          // The badge count comes from a separate `unread=true&limit=1` query,
+          // so mirror the optimistic prepend on it: a live push is a new unread,
+          // so bump the count directly (no refetch). Only when the count has
+          // already loaded — an unloaded count refetches the fresh total itself.
+          queryClient.setQueryData<number>(
+            notificationKeys.unreadCount(),
+            (prev) => (typeof prev === 'number' ? prev + 1 : prev),
+          )
+        }
       } else if (isActivityEvent(message)) {
         queryClient.invalidateQueries({ queryKey: notificationKeys.all })
       }

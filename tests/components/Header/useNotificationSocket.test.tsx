@@ -199,10 +199,13 @@ describe('useNotificationSocket', () => {
     expect(list.map((n) => n.id)).toEqual(['n1'])
   })
 
-  test('applying an unread notification raises the derived unread count', () => {
+  test('a pushed notification optimistically bumps the loaded unread count', () => {
     loggedIn('tok-123', 'org-456')
 
     const queryClient = new QueryClient()
+    // The badge reads this `unread=true&limit=1` count query's `total`.
+    queryClient.setQueryData(notificationKeys.unreadCount(), 72)
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     renderSocket(queryClient)
 
     const ws = MockWebSocket.instances[0]
@@ -223,13 +226,70 @@ describe('useNotificationSocket', () => {
       })
     })
 
-    const list =
-      queryClient.getQueryData<Array<{ read_at: string | null }>>(
-        notificationKeys.list(),
-      ) ?? []
-    // Header derives the badge as `list.filter(n => n.read_at === null).length`.
-    const unread = list.filter((n) => n.read_at === null).length
-    expect(unread).toBe(1)
+    // Incremented in place (no refetch), mirroring the optimistic list prepend.
+    expect(queryClient.getQueryData(notificationKeys.unreadCount())).toBe(73)
+    expect(invalidateSpy).not.toHaveBeenCalled()
+  })
+
+  test('a deduped re-send does not double-count the unread badge', () => {
+    loggedIn('tok-123', 'org-456')
+
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(notificationKeys.unreadCount(), 5)
+    renderSocket(queryClient)
+
+    const ws = MockWebSocket.instances[0]
+    const frame = {
+      data: JSON.stringify({
+        type: 'notification',
+        notification: {
+          id: 'n1',
+          event_type: 'case.assigned',
+          title: 'Assigned to you',
+          body: '',
+          payload: {},
+          read_at: null,
+          created_at: '2026-07-13T01:00:00Z',
+        },
+      }),
+    }
+    act(() => {
+      ws.onmessage?.(frame)
+      ws.onmessage?.(frame)
+    })
+
+    // Two identical frames, one new unread: +1, not +2.
+    expect(queryClient.getQueryData(notificationKeys.unreadCount())).toBe(6)
+  })
+
+  test('a pushed notification leaves an unloaded count query untouched', () => {
+    loggedIn('tok-123', 'org-456')
+
+    const queryClient = new QueryClient()
+    renderSocket(queryClient)
+
+    const ws = MockWebSocket.instances[0]
+    act(() => {
+      ws.onmessage?.({
+        data: JSON.stringify({
+          type: 'notification',
+          notification: {
+            id: 'n1',
+            event_type: 'case.assigned',
+            title: 'Assigned to you',
+            body: '',
+            payload: {},
+            read_at: null,
+            created_at: '2026-07-13T01:00:00Z',
+          },
+        }),
+      })
+    })
+
+    // No optimistic value invented — the pending fetch will supply the total.
+    expect(
+      queryClient.getQueryData(notificationKeys.unreadCount()),
+    ).toBeUndefined()
   })
 
   test('ignores a notification message with no valid id, and does not invalidate', () => {
