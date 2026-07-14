@@ -3,7 +3,7 @@
 **The web interface for [Catlico](https://github.com/jimmyruann/catlico-backend) — an
 open-source security incident response platform.**
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
 [![TanStack Start](https://img.shields.io/badge/TanStack-Start-EF4444.svg)](https://tanstack.com/start)
 [![Mantine v9](https://img.shields.io/badge/Mantine-v9-339AF0.svg?logo=mantine&logoColor=white)](https://mantine.dev/)
@@ -113,4 +113,4 @@ Note that the test suite currently has **9 known pre-existing failures** (282 of
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE).
+[MIT License](LICENSE).
