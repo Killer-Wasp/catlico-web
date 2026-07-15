@@ -17,7 +17,7 @@
  *   - `knowledge_base_page` → the KB page. `object.id` is the page id.
  *   - `task` / `log` → the parent CASE. `object.id` is a human public_id
  *     (e.g. `T-1234-1`), NOT a route param, so we navigate via `context.id`
- *     (the numeric case id): tasks → Tasks tab, logs → Timeline tab.
+ *     (the numeric case id): tasks → Tasks tab, logs → Tasks tab.
  *   - `comment` → the parent entity via `context` (a case's Comments tab —
  *     deep-linked to the comment — or the parent alert).
  *
