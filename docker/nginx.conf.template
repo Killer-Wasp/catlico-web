@@ -1,0 +1,46 @@
+# nginx site config for catlico-web.
+#
+# Processed by the stock nginx image entrypoint: it runs `envsubst` over this
+# file (only ${VARS} matching real environment variable names are substituted,
+# so nginx's own $host/$uri/etc. are left intact) into
+# /etc/nginx/conf.d/default.conf at container start.
+#
+# ${API_UPSTREAM} defaults to http://catlico-api:8000 (set in the Dockerfile /
+# Helm values). It must NOT include a trailing /api — we proxy the /api/ prefix
+# through verbatim so the backend still sees /api/v1/...
+
+server {
+    listen       8080;
+    server_name  _;
+
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    # Long-cache fingerprinted assets; never cache the HTML shell.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # Reverse-proxy the API. Example config for the same-origin deployment where
+    # the SPA is built with VITE_API_BASE_URL=/api/v1.
+    location /api/ {
+        proxy_pass         ${API_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+
+        # WebSocket upgrade (live case feed / notifications hub).
+        proxy_set_header   Upgrade    $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_read_timeout 3600s;
+    }
+
+    # SPA fallback: unknown paths resolve to the client router.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
