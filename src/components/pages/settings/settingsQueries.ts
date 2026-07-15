@@ -863,15 +863,17 @@ export type UserPublic = {
   is_active: boolean
   is_superadmin: boolean
   has_avatar: boolean
+  // When true, the user's next password login is intercepted until they set a
+  // new password (admin force-reset lever).
+  must_change_password: boolean
   created_at: string
   last_login_at: string | null
 }
 
 export type UserCreateInput = {
+  // No password: admin-created accounts are always password-less and receive a
+  // set-password invite email from the backend (nothing to send from here).
   email: string
-  // Optional: a password-less account can't sign in until it goes through the
-  // forgot-password flow. The wizard offers "set now" or "send a reset link".
-  password?: string
   first_name: string
   last_name: string
   is_superadmin: boolean
@@ -882,8 +884,8 @@ export type UserUpdateInput = Partial<{
   last_name: string
   is_active: boolean
   is_superadmin: boolean
-  // An admin-set password revokes that user's refresh sessions (backend).
-  password: string
+  // Admins can't set passwords; they can force the user to reset on next login.
+  must_change_password: boolean
 }>
 
 export async function fetchUsers(): Promise<UserPublic[]> {

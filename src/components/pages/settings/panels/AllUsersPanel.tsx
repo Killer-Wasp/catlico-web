@@ -5,7 +5,6 @@ import {
   Group,
   Modal,
   NativeSelect,
-  Radio,
   Stack,
   Switch,
   Text,
@@ -47,8 +46,6 @@ function userName(user: UserPublic) {
   )
 }
 
-type PasswordMode = 'set' | 'reset'
-
 /**
  * Two-step account wizard. Step 1 creates the GLOBAL account (attached to no
  * org). Step 2 optionally attaches it to an organisation with a role — a
@@ -68,8 +65,6 @@ function CreateUserWizard({
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [isSuperadmin, setIsSuperadmin] = useState(false)
-  const [passwordMode, setPasswordMode] = useState<PasswordMode>('set')
-  const [password, setPassword] = useState('')
   const [orgId, setOrgId] = useState('')
   const [roleId, setRoleId] = useState('')
 
@@ -80,8 +75,6 @@ function CreateUserWizard({
     setFirstName('')
     setLastName('')
     setIsSuperadmin(false)
-    setPasswordMode('set')
-    setPassword('')
     setOrgId('')
     setRoleId('')
   }, [opened])
@@ -99,51 +92,29 @@ function CreateUserWizard({
   // `attach` decides whether step 2's org membership call runs.
   const mutation = useMutation({
     mutationFn: async (attach: boolean) => {
-      const trimmedEmail = email.trim()
-      const first = firstName.trim()
-      const last = lastName.trim()
-      const base = {
-        email: trimmedEmail,
-        first_name: first,
-        last_name: last,
+      // Always password-less: the backend emails the new user a set-password
+      // invite on create (no client-side forgot-password call — that would
+      // double-send / hit the throttle).
+      const user = await createUser({
+        email: email.trim(),
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
         is_superadmin: isSuperadmin,
-      }
-      // A "set now" password is sent inline; "reset link" creates a
-      // password-less account that we then push through forgot-password.
-      const user = await createUser(
-        passwordMode === 'set' && password
-          ? { ...base, password }
-          : base,
-      )
-      let resetSent = false
-      if (passwordMode === 'reset') {
-        // Non-fatal: the account exists regardless of the email delivery, so we
-        // don't let a failed send roll back creation — but we do report whether
-        // it actually went out so the success toast can't over-promise.
-        try {
-          await requestPasswordReset(trimmedEmail)
-          resetSent = true
-        } catch {
-          /* swallow — reflected in `resetSent` for the toast copy */
-        }
-      }
+      })
       if (attach && orgId && roleId) {
         // Use the definitive id from the freshly-created account rather than the
         // email, so the membership can't hit an email-normalisation mismatch.
         await createOrganisationMember({ user_id: user.id, role_id: roleId }, orgId)
       }
-      return { resetSent }
     },
-    onSuccess: ({ resetSent }, attach) => {
+    onSuccess: (_data, attach) => {
       queryClient.invalidateQueries({ queryKey: usersKeyPrefix })
       if (attach) {
         queryClient.invalidateQueries({
           queryKey: [...settingsKeys.all, 'members'],
         })
       }
-      notifySuccess(
-        resetSent ? 'Account created — reset link sent' : 'Account created',
-      )
+      notifySuccess('Account created — set-password invite sent')
       onClose()
     },
     onError: (error) => notifyError(error, 'Unable to create account'),
@@ -152,8 +123,7 @@ function CreateUserWizard({
   const step1Valid =
     Boolean(email.trim()) &&
     Boolean(firstName.trim()) &&
-    Boolean(lastName.trim()) &&
-    (passwordMode === 'reset' || Boolean(password))
+    Boolean(lastName.trim())
 
   const orgData = [
     { value: '', label: 'Select an organisation…' },
@@ -207,30 +177,10 @@ function CreateUserWizard({
             checked={isSuperadmin}
             onChange={(e) => setIsSuperadmin(e.currentTarget.checked)}
           />
-          <Radio.Group
-            label="Initial sign-in"
-            value={passwordMode}
-            onChange={(value) => setPasswordMode(value)}
-          >
-            <Stack gap="xs" mt="xs">
-              <Radio value="set" label="Set a password now" />
-              <Radio value="reset" label="Send a reset link" />
-            </Stack>
-          </Radio.Group>
-          {passwordMode === 'set' ? (
-            <TextInput
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.currentTarget.value)}
-              required
-            />
-          ) : (
-            <Text size="xs" c="dimmed">
-              The account is created without a password; the user sets one via
-              the emailed reset link (or the login page's “Forgot password”).
-            </Text>
-          )}
+          <Text size="xs" c="dimmed">
+            The account is created without a password. Catlico emails the user a
+            secure link to set their own password (valid for 1 hour).
+          </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               Cancel
@@ -307,7 +257,7 @@ function EditUserModal({
   const [lastName, setLastName] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [isSuperadmin, setIsSuperadmin] = useState(false)
-  const [newPassword, setNewPassword] = useState('')
+  const [mustChangePassword, setMustChangePassword] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -315,22 +265,18 @@ function EditUserModal({
     setLastName(user.last_name ?? '')
     setIsActive(user.is_active)
     setIsSuperadmin(user.is_superadmin)
-    setNewPassword('')
+    setMustChangePassword(user.must_change_password)
   }, [user])
 
   const saveMutation = useMutation({
-    mutationFn: () => {
-      const patch: Parameters<typeof updateUser>[1] = {
+    mutationFn: () =>
+      updateUser(user!.id, {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         is_active: isActive,
         is_superadmin: isSuperadmin,
-      }
-      // Only send a password when the admin actually typed one (it revokes the
-      // target's sessions server-side).
-      if (newPassword) patch.password = newPassword
-      return updateUser(user!.id, patch)
-    },
+        must_change_password: mustChangePassword,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: usersKeyPrefix })
       notifySuccess('Account updated')
@@ -376,17 +322,20 @@ function EditUserModal({
           checked={isSuperadmin}
           onChange={(e) => setIsSuperadmin(e.currentTarget.checked)}
         />
+        <Switch
+          label="Require password reset on next login"
+          description="The user must choose a fresh password before their next sign-in completes."
+          checked={mustChangePassword}
+          onChange={(e) => setMustChangePassword(e.currentTarget.checked)}
+        />
         <Stack gap={6}>
           <Text size="sm" fw={600}>
-            Reset password
+            Password
           </Text>
-          <TextInput
-            label="New password"
-            type="password"
-            placeholder="Leave blank to keep unchanged"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.currentTarget.value)}
-          />
+          <Text size="xs" c="dimmed">
+            Admins can't set a user's password. Send the user a secure link to
+            set or reset it themselves.
+          </Text>
           <Group>
             <Button
               size="xs"
@@ -394,7 +343,7 @@ function EditUserModal({
               loading={resetLinkMutation.isPending}
               onClick={() => resetLinkMutation.mutate()}
             >
-              Send reset link instead
+              Send reset link
             </Button>
           </Group>
         </Stack>

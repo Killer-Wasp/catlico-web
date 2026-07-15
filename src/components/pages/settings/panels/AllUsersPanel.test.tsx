@@ -5,11 +5,11 @@
  * (accounts across all orgs), distinct from the org-members UsersPanel. It:
  *  - lists accounts with active / superadmin badges,
  *  - gates the whole section to superadmins (mirrors the Audit-log gate),
- *  - creates an account via a two-step wizard: step 1 POSTs `/users/`, step 2
+ *  - creates a password-less account via a two-step wizard: step 1 POSTs
+ *    `/users/` (no password — the backend emails a set-password invite), step 2
  *    optionally chains `POST /organisations/{orgId}/members`,
- *  - offers a "send a reset link" password mode (triggers forgot-password),
  *  - hides Delete on the current user's own row,
- *  - edits an account via PATCH `/users/{id}`.
+ *  - edits an account via PATCH `/users/{id}`, including the force-reset switch.
  *
  * Mocks the api client, notifications, permissions, and the auth-session helpers
  * (getActiveOrgId + requestPasswordReset), matching ReportTemplatesPanel.test.tsx.
@@ -86,6 +86,7 @@ const ME: UserPublic = {
   is_active: true,
   is_superadmin: true,
   has_avatar: false,
+  must_change_password: false,
   created_at: '2026-07-01T00:00:00Z',
   last_login_at: '2026-07-13T00:00:00Z',
 }
@@ -98,6 +99,7 @@ const OTHER: UserPublic = {
   is_active: false,
   is_superadmin: false,
   has_avatar: false,
+  must_change_password: false,
   created_at: '2026-07-05T00:00:00Z',
   last_login_at: null,
 }
@@ -257,9 +259,6 @@ describe('AllUsersPanel', () => {
     fireEvent.change(within(dialog).getByLabelText(/last name/i), {
       target: { value: 'Bie' },
     })
-    fireEvent.change(within(dialog).getByLabelText(/^password/i), {
-      target: { value: 'sup3rSecret!' },
-    })
 
     fireEvent.click(within(dialog).getByRole('button', { name: /continue/i }))
     // Step 2: skip the org attachment and create the account only.
@@ -267,6 +266,8 @@ describe('AllUsersPanel', () => {
       await within(dialog).findByRole('button', { name: /skip & create/i }),
     )
 
+    // Always password-less: the POST body carries no password (the backend emails
+    // a set-password invite).
     await waitFor(() =>
       expect(postMock).toHaveBeenCalledWith('users/', {
         json: {
@@ -274,7 +275,6 @@ describe('AllUsersPanel', () => {
           first_name: 'New',
           last_name: 'Bie',
           is_superadmin: false,
-          password: 'sup3rSecret!',
         },
       }),
     )
@@ -305,9 +305,6 @@ describe('AllUsersPanel', () => {
     fireEvent.change(within(dialog).getByLabelText(/last name/i), {
       target: { value: 'Bie' },
     })
-    fireEvent.change(within(dialog).getByLabelText(/^password/i), {
-      target: { value: 'sup3rSecret!' },
-    })
     fireEvent.click(within(dialog).getByRole('button', { name: /continue/i }))
 
     // Step 2: pick an org (loads its roles), then a role. The role options are
@@ -335,12 +332,16 @@ describe('AllUsersPanel', () => {
     )
   })
 
-  it('the "send a reset link" mode creates a password-less account then triggers forgot-password', async () => {
+  it('creates a password-less account (no password field, no client-side reset call) and toasts the invite', async () => {
     renderPanel()
     await screen.findByText('admin@example.com')
 
     fireEvent.click(screen.getByRole('button', { name: /new user account/i }))
     const dialog = await screen.findByRole('dialog')
+
+    // There is no password field or password-mode radio anymore.
+    expect(within(dialog).queryByLabelText(/^password/i)).toBeNull()
+    expect(within(dialog).queryByLabelText(/send a reset link/i)).toBeNull()
 
     fireEvent.change(within(dialog).getByLabelText(/email/i), {
       target: { value: 'newbie@example.com' },
@@ -351,9 +352,6 @@ describe('AllUsersPanel', () => {
     fireEvent.change(within(dialog).getByLabelText(/last name/i), {
       target: { value: 'Bie' },
     })
-    // Switch to reset-link mode: no password field is submitted.
-    fireEvent.click(within(dialog).getByLabelText(/send a reset link/i))
-
     fireEvent.click(within(dialog).getByRole('button', { name: /continue/i }))
     fireEvent.click(
       await within(dialog).findByRole('button', { name: /skip & create/i }),
@@ -369,56 +367,14 @@ describe('AllUsersPanel', () => {
         },
       }),
     )
-    await waitFor(() =>
-      expect(resetMock).toHaveBeenCalledWith('newbie@example.com'),
-    )
-    // Send succeeded, so the toast promises the link went out.
+    // The backend owns the invite email: the client never calls forgot-password.
+    expect(resetMock).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(showMock).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'Account created — reset link sent' }),
+        expect.objectContaining({
+          message: 'Account created — set-password invite sent',
+        }),
       ),
-    )
-  })
-
-  it('when the reset-link send fails, still creates the account but the toast does not claim a link was sent', async () => {
-    // The account must not roll back, but the copy must not over-promise.
-    resetMock.mockRejectedValue(new Error('smtp down'))
-    renderPanel()
-    await screen.findByText('admin@example.com')
-
-    fireEvent.click(screen.getByRole('button', { name: /new user account/i }))
-    const dialog = await screen.findByRole('dialog')
-
-    fireEvent.change(within(dialog).getByLabelText(/email/i), {
-      target: { value: 'newbie@example.com' },
-    })
-    fireEvent.change(within(dialog).getByLabelText(/first name/i), {
-      target: { value: 'New' },
-    })
-    fireEvent.change(within(dialog).getByLabelText(/last name/i), {
-      target: { value: 'Bie' },
-    })
-    fireEvent.click(within(dialog).getByLabelText(/send a reset link/i))
-    fireEvent.click(within(dialog).getByRole('button', { name: /continue/i }))
-    fireEvent.click(
-      await within(dialog).findByRole('button', { name: /skip & create/i }),
-    )
-
-    // Account creation still happened, and forgot-password was attempted.
-    await waitFor(() =>
-      expect(postMock).toHaveBeenCalledWith('users/', expect.anything()),
-    )
-    await waitFor(() =>
-      expect(resetMock).toHaveBeenCalledWith('newbie@example.com'),
-    )
-    // The toast reports plain success — it must not claim a link was sent.
-    await waitFor(() =>
-      expect(showMock).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'Account created' }),
-      ),
-    )
-    expect(showMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Account created — reset link sent' }),
     )
   })
 
@@ -430,6 +386,8 @@ describe('AllUsersPanel', () => {
       screen.getByRole('button', { name: /edit analyst@example\.com/i }),
     )
     const dialog = await screen.findByRole('dialog')
+    // No admin password field on the edit modal either.
+    expect(within(dialog).queryByLabelText(/new password/i)).toBeNull()
     fireEvent.change(within(dialog).getByLabelText(/first name/i), {
       target: { value: 'Anastasia' },
     })
@@ -442,6 +400,44 @@ describe('AllUsersPanel', () => {
           json: expect.objectContaining({ first_name: 'Anastasia' }),
         }),
       ),
+    )
+  })
+
+  it('toggles "Require password reset on next login", PATCHing must_change_password', async () => {
+    renderPanel()
+    await screen.findByText('analyst@example.com')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /edit analyst@example\.com/i }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByLabelText(/require password reset on next login/i),
+    )
+    fireEvent.click(within(dialog).getByRole('button', { name: /save/i }))
+
+    await waitFor(() =>
+      expect(patchMock).toHaveBeenCalledWith(
+        'users/u-2',
+        expect.objectContaining({
+          json: expect.objectContaining({ must_change_password: true }),
+        }),
+      ),
+    )
+  })
+
+  it('sends a reset link from the edit modal via forgot-password', async () => {
+    renderPanel()
+    await screen.findByText('analyst@example.com')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /edit analyst@example\.com/i }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /send reset link/i }))
+
+    await waitFor(() =>
+      expect(resetMock).toHaveBeenCalledWith('analyst@example.com'),
     )
   })
 })
