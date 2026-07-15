@@ -179,6 +179,86 @@ it('verifyPasskey throws PasskeyCancelledError when the user dismisses the promp
   expect(fetchMock).toHaveBeenCalledTimes(1)
 })
 
+it('mfaPendingKind decodes an mfa_enrollment token', async () => {
+  const session = await import('#/lib/auth/session')
+  expect(session.mfaPendingKind(jwtWith({ type: 'mfa_enrollment' }))).toBe(
+    'mfa_enrollment',
+  )
+})
+
+it('mfaPendingKind decodes an mfa_pending token', async () => {
+  const session = await import('#/lib/auth/session')
+  expect(session.mfaPendingKind(jwtWith({ type: 'mfa_pending' }))).toBe(
+    'mfa_pending',
+  )
+})
+
+it('mfaPendingKind falls back to the verify path on a missing/unknown type', async () => {
+  const session = await import('#/lib/auth/session')
+  // Missing type, unknown type, and a malformed (non-JWT) token all route to
+  // the verify path — only an explicit mfa_enrollment takes the new branch.
+  expect(session.mfaPendingKind(jwtWith({ sub: 'user-1' }))).toBe('mfa_pending')
+  expect(session.mfaPendingKind(jwtWith({ type: 'something_else' }))).toBe(
+    'mfa_pending',
+  )
+  expect(session.mfaPendingKind('not-a-jwt')).toBe('mfa_pending')
+  expect(session.mfaPendingKind('')).toBe('mfa_pending')
+})
+
+it('startMfaEnrollment posts the pending token and returns the secret + otpauth URI', async () => {
+  let sentUrl = ''
+  let sentMethod = ''
+  let sentBody: unknown
+  fetchMock.mockImplementationOnce(async (req: Request) => {
+    sentUrl = req.url
+    sentMethod = req.method
+    sentBody = await req.json()
+    return json({ secret: 'S3CR3T', provisioning_uri: 'otpauth://totp/x' })
+  })
+  const session = await import('#/lib/auth/session')
+
+  const result = await session.startMfaEnrollment('pending-enroll')
+
+  expect(sentUrl).toContain('auth/mfa/enrollment/enroll')
+  expect(sentMethod).toBe('POST')
+  expect(sentBody).toEqual({ pending_token: 'pending-enroll' })
+  expect(result).toEqual({
+    secret: 'S3CR3T',
+    provisioning_uri: 'otpauth://totp/x',
+  })
+  // Unauthenticated: no session established by enroll.
+  expect(session.getAccessToken()).toBeNull()
+})
+
+it('confirmMfaEnrollment posts token + code, completes the session, and returns the recovery codes', async () => {
+  const access = jwtWith({ organisations: ['org-7'] })
+  let sentUrl = ''
+  let sentMethod = ''
+  let sentBody: unknown
+  fetchMock.mockImplementationOnce(async (req: Request) => {
+    sentUrl = req.url
+    sentMethod = req.method
+    sentBody = await req.json()
+    return json({
+      access_token: access,
+      token_type: 'bearer',
+      recovery_codes: ['aaa-111', 'bbb-222'],
+    })
+  })
+  const session = await import('#/lib/auth/session')
+
+  const result = await session.confirmMfaEnrollment('pending-enroll', '123456')
+
+  expect(sentUrl).toContain('auth/mfa/enrollment/confirm')
+  expect(sentMethod).toBe('POST')
+  expect(sentBody).toEqual({ pending_token: 'pending-enroll', code: '123456' })
+  // Recovery codes surfaced for the one-time display.
+  expect(result).toEqual({ recoveryCodes: ['aaa-111', 'bbb-222'] })
+  // Completed exactly like a normal login: token in memory, org resolved.
+  expect(session.getAccessToken()).toBe(access)
+  expect(localStorage.getItem('catlico.orgId')).toBe('org-7')
+})
+
 it('ensureSession silently refreshes when memory is empty', async () => {
   fetchMock.mockResolvedValueOnce(
     json({ access_token: 'fresh-token', token_type: 'bearer' }),

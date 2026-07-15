@@ -8,7 +8,11 @@
  * never a trust boundary.
  */
 import { api, refreshAccessToken } from '#/lib/api/client'
-import { decodeRequestOptions, serializeAssertion } from '#/lib/auth/webauthn'
+import {
+  base64urlToBytes,
+  decodeRequestOptions,
+  serializeAssertion,
+} from '#/lib/auth/webauthn'
 import type { PublicKeyRequestOptionsJSON } from '#/lib/auth/webauthn'
 
 const ORG_KEY = 'catlico.orgId'
@@ -157,6 +161,77 @@ export async function verifyMfaCode(
     .json<TokenResponse>()
 
   await completeSession(token.access_token)
+}
+
+/**
+ * Which second step a pending MFA token demands. When org-wide MFA enforcement
+ * is on, a user without a second factor is handed an *enrollment* pending token
+ * (forced to set one up before login completes) instead of the ordinary
+ * *verify* pending token. The two login responses are shape-identical; the only
+ * discriminator is the token's `type` claim.
+ */
+export type MfaPendingKind = 'mfa_enrollment' | 'mfa_pending'
+
+/**
+ * Decode a pending MFA token's `type` claim to route the second step. This is a
+ * client-side hint only (the server re-validates every second-step call), so
+ * robustness beats precision: any decode failure, or a missing/unknown type,
+ * falls back to the verify path — ONLY an explicit `mfa_enrollment` takes the
+ * forced-enrollment branch.
+ */
+export function mfaPendingKind(pendingToken: string): MfaPendingKind {
+  try {
+    const payload = pendingToken.split('.')[1]
+    const json = new TextDecoder().decode(base64urlToBytes(payload))
+    const type = (JSON.parse(json) as { type?: unknown }).type
+    return type === 'mfa_enrollment' ? 'mfa_enrollment' : 'mfa_pending'
+  } catch {
+    return 'mfa_pending'
+  }
+}
+
+/** The secret + otpauth URI the API returns to begin forced enrolment. */
+export type MfaEnrollment = { secret: string; provisioning_uri: string }
+
+/**
+ * Begin forced MFA enrolment, driven by an `mfa_enrollment` pending token from
+ * `login()`. Unauthenticated (the pending token in the body is the credential):
+ * returns the shared `secret` and an `otpauth://` `provisioning_uri` for the
+ * authenticator app. Throws HTTPError 401 on a bad/expired/wrong-type token, or
+ * 409 if enrolment was already confirmed.
+ */
+export async function startMfaEnrollment(
+  pendingToken: string,
+): Promise<MfaEnrollment> {
+  return api
+    .post('auth/mfa/enrollment/enroll', {
+      json: { pending_token: pendingToken },
+      credentials: 'include',
+    })
+    .json<MfaEnrollment>()
+}
+
+/**
+ * Confirm forced MFA enrolment with a TOTP code. On success the API issues
+ * tokens + the refresh cookie exactly like a normal login AND returns the
+ * one-time recovery codes, so we finish with the same bootstrap
+ * (`completeSession`) and hand the recovery codes back for the caller to show
+ * once. Throws HTTPError 400 on a wrong code (401 on a bad pending token).
+ * `credentials: 'include'` so the refresh cookie lands.
+ */
+export async function confirmMfaEnrollment(
+  pendingToken: string,
+  code: string,
+): Promise<{ recoveryCodes: string[] }> {
+  const result = await api
+    .post('auth/mfa/enrollment/confirm', {
+      json: { pending_token: pendingToken, code },
+      credentials: 'include',
+    })
+    .json<TokenResponse & { recovery_codes: string[] }>()
+
+  await completeSession(result.access_token)
+  return { recoveryCodes: result.recovery_codes }
 }
 
 /** Thrown when the browser's passkey prompt is dismissed or unavailable. */
