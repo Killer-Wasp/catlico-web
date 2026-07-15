@@ -40,6 +40,7 @@ function AppLayout() {
   return (
     <>
       <AppShell
+        header={{ height: 64 }}
         navbar={{ width: collapsed ? 80 : 275, breakpoint: 'sm' }}
         padding={0}
       >
@@ -50,13 +51,18 @@ function AppLayout() {
           />
         </AppShell.Navbar>
 
+        {/* Header lives in AppShell's dedicated header slot so it stays fixed on
+            scroll and the main content is offset automatically. */}
+        <AppShell.Header>
+          <Header />
+        </AppShell.Header>
+
         <AppShell.Main
           style={{
             backgroundColor:
               'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))',
           }}
         >
-          <Header />
           <Outlet />
         </AppShell.Main>
       </AppShell>

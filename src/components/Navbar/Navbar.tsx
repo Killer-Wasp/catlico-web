@@ -47,6 +47,7 @@ import {
 import { accessibleOrganisationsQueryOptions } from '#/components/pages/settings/settingsQueries'
 import { getActiveOrgId } from '#/lib/auth/session'
 import { usePermissions } from '#/lib/auth/usePermissions'
+import { systemCapabilitiesQueryOptions } from '#/lib/system/capabilities'
 import { useState } from 'react'
 
 type NavItem = {
@@ -77,13 +78,18 @@ type NavbarCounts = {
 function sectionsForCounts(
   counts: NavbarCounts,
   showAdmin: boolean,
+  showDashboards: boolean,
 ): NavSection[] {
   return [
     {
       title: 'Operate',
       items: [
         { icon: LayoutDashboard, label: 'Overview', to: '/' },
-        { icon: Gauge, label: 'Dashboards', to: '/dashboards' },
+        // Dashboards (custom saved views) is enterprise-only; hidden unless the
+        // build reports the `dashboard` capability. Overview at `/` always shows.
+        ...(showDashboards
+          ? [{ icon: Gauge, label: 'Dashboards', to: '/dashboards' }]
+          : []),
         {
           icon: AlertTriangle,
           label: 'Alerts',
@@ -360,7 +366,9 @@ export function Navbar({
     accessibleOrganisationsQueryOptions(),
   )
   const { can, isSuperadmin } = usePermissions()
+  const { data: capabilities } = useQuery(systemCapabilitiesQueryOptions())
   const showAdmin = isSuperadmin || can('manage:users')
+  const showDashboards = capabilities?.dashboard === true
   const sections = sectionsForCounts(
     {
       tasks: openTasks?.total,
@@ -373,6 +381,7 @@ export function Navbar({
       caseTemplates: caseTemplates?.total ?? 0,
     },
     showAdmin,
+    showDashboards,
   )
   const organisationOptions = (organisations ?? []).map((organisation) => ({
     value: organisation.id,
