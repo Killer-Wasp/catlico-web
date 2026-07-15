@@ -19,7 +19,6 @@ import type { CaseStatus, Severity, Tlp } from '#/lib/domain'
 import type { MemberPublic } from './caseUsers'
 import type {
   AlertPublic,
-  AuditPublic,
   CasePublic,
   CommentPublic,
   ObservablePublic,
@@ -34,7 +33,6 @@ import {
   toCaseDetailTaskLog,
   toCaseDetailTaskLogs,
   toCaseDetailTasks,
-  toCaseDetailTimeline,
 } from './caseDetails'
 import type {
   CaseDetail,
@@ -43,7 +41,6 @@ import type {
   CaseDetailObservable,
   CaseDetailTask,
   CaseDetailTaskLog,
-  CaseDetailTimelineEvent,
 } from './caseDetails.types'
 import type { Case } from './cases.types'
 import type { SimilarCaseRow } from './SimilarCaseTable'
@@ -146,7 +143,6 @@ export const caseKeys = {
     [...caseKeys.detail(id), 'tasks', taskId, 'logs'] as const,
   observables: (id: string) => [...caseKeys.detail(id), 'observables'] as const,
   attachments: (id: string) => [...caseKeys.detail(id), 'attachments'] as const,
-  timeline: (id: string) => [...caseKeys.detail(id), 'timeline'] as const,
   similar: (id: string) => [...caseKeys.detail(id), 'similar'] as const,
   customFieldValues: (id: string) =>
     [...caseKeys.detail(id), 'custom-field-values'] as const,
@@ -160,31 +156,28 @@ export const caseKeys = {
 
 // --- Cache invalidation ------------------------------------------------------
 // Each per-panel section is its own query, so mutations must invalidate the
-// affected section plus the badge counts (and the timeline, which aggregates
-// tasks/comments). These helpers keep those fan-outs in one place.
+// affected section plus the badge counts. These helpers keep those fan-outs in
+// one place.
 
-/** Tasks changed: refresh the tasks list, badge counts, timeline. */
+/** Tasks changed: refresh the tasks list and badge counts. */
 export function invalidateTaskQueries(qc: QueryClient, caseId: string) {
   qc.invalidateQueries({ queryKey: caseKeys.tasks(caseId) })
   qc.invalidateQueries({ queryKey: caseKeys.counts(caseId) })
-  qc.invalidateQueries({ queryKey: caseKeys.timeline(caseId) })
 }
 
 /**
  * A work-log changed: refresh the task's logs and the tasks list (its
- * `log_count` hint), plus the timeline. `caseKeys.tasks` is a prefix of
- * `caseKeys.taskLogs`, so invalidating it also clears the open task's logs.
+ * `log_count` hint). `caseKeys.tasks` is a prefix of `caseKeys.taskLogs`, so
+ * invalidating it also clears the open task's logs.
  */
 export function invalidateWorkLogQueries(qc: QueryClient, caseId: string) {
   qc.invalidateQueries({ queryKey: caseKeys.tasks(caseId) })
-  qc.invalidateQueries({ queryKey: caseKeys.timeline(caseId) })
 }
 
-/** Comments changed: refresh the comments list, badge counts, timeline. */
+/** Comments changed: refresh the comments list and badge counts. */
 export function invalidateCommentQueries(qc: QueryClient, caseId: string) {
   qc.invalidateQueries({ queryKey: caseKeys.comments(caseId) })
   qc.invalidateQueries({ queryKey: caseKeys.counts(caseId) })
-  qc.invalidateQueries({ queryKey: caseKeys.timeline(caseId) })
 }
 
 /** Observables changed: refresh the observables list and badge counts. */
@@ -824,27 +817,6 @@ async function fetchCaseObservables(
   return toCaseDetailObservables(page.items)
 }
 
-/** Audit activity + comments, merged into the Timeline panel's event stream. */
-async function fetchCaseTimeline(
-  id: string,
-): Promise<CaseDetailTimelineEvent[]> {
-  const numeric = id.replace(/^#/, '')
-  const orgId = getActiveOrgId()
-  const [activity, comments, members] = await Promise.all([
-    api.get(`cases/${numeric}/activity`).json<Page<AuditPublic>>(),
-    api.get(`cases/${numeric}/comments`).json<Page<CommentPublic>>(),
-    orgId
-      ? api.get(`organisations/${orgId}/members`).json<MemberPublic[]>()
-      : Promise.resolve([]),
-  ])
-  return toCaseDetailTimeline(
-    activity.items,
-    comments.items,
-    Number(numeric),
-    members,
-  )
-}
-
 // --- query options ---------------------------------------------------------
 
 export const casesQueryOptions = (
@@ -898,12 +870,6 @@ export const caseObservablesQueryOptions = (id: string) =>
   queryOptions({
     queryKey: caseKeys.observables(id),
     queryFn: () => fetchCaseObservables(id),
-  })
-
-export const caseTimelineQueryOptions = (id: string) =>
-  queryOptions({
-    queryKey: caseKeys.timeline(id),
-    queryFn: () => fetchCaseTimeline(id),
   })
 
 export const caseSimilarQueryOptions = (id: string) =>

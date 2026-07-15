@@ -132,8 +132,6 @@ export const settingsKeys = {
   users: () => [...settingsKeys.all, 'users'] as const,
   customFields: (filters: SettingsListFilters = DEFAULT_SETTINGS_FILTERS) =>
     [...settingsKeys.all, 'custom-fields', filters] as const,
-  audits: (filters: SettingsListFilters = DEFAULT_SETTINGS_FILTERS) =>
-    [...settingsKeys.all, 'audits', filters] as const,
   observableTypes: () => [...settingsKeys.all, 'observable-types'] as const,
   tags: (namespace: string | undefined) =>
     [...settingsKeys.all, 'tags', namespace] as const,
@@ -342,43 +340,6 @@ export async function deleteRole(roleId: string): Promise<void> {
   }
 }
 
-export type AuditPublic = {
-  id: number
-  request_id: string
-  action: string
-  main_action: boolean
-  object_type: string
-  object_id: string
-  context_type: string | null
-  context_id: string | null
-  actor: string
-  details: Record<string, unknown> | null
-  created_at: string
-}
-
-export type AuditListResult = {
-  items: AuditPublic[]
-  total: number
-}
-
-export async function fetchAudits(
-  filters: SettingsListFilters = DEFAULT_SETTINGS_FILTERS,
-): Promise<AuditListResult> {
-  const searchParams = {
-    limit: String(filters.limit ?? DEFAULT_SETTINGS_FILTERS.limit),
-    skip: String(filters.skip ?? DEFAULT_SETTINGS_FILTERS.skip),
-  }
-  return api.get('audit/', { searchParams }).json<AuditListResult>()
-}
-
-export const auditsQueryOptions = (
-  filters: SettingsListFilters = DEFAULT_SETTINGS_FILTERS,
-) =>
-  queryOptions({
-    queryKey: settingsKeys.audits(filters),
-    queryFn: () => fetchAudits(filters),
-  })
-
 export const organisationProfileQueryOptions = (orgId = activeOrgId()) =>
   queryOptions({
     queryKey: settingsKeys.organisation(orgId),
@@ -556,7 +517,6 @@ export type ApiKeyPublic = {
   name: string
   prefix: string
   last_four: string
-  scopes: string[]
   last_used_at: string | null
   expires_at: string | null
   organisation_id: string
@@ -567,7 +527,6 @@ export type ApiKeyCreated = ApiKeyPublic & { key: string }
 
 export type ApiKeyCreateInput = {
   name: string
-  scopes?: string[]
   expires_at?: string | null
 }
 

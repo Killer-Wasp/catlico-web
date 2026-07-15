@@ -4,16 +4,12 @@ import {
   toCaseDetail,
   toCaseDetailObservables,
   toCaseDetailTasks,
-  toCaseDetailTimeline,
 } from '#/components/Cases/caseDetails'
 import type {
-  AuditPublic,
   CasePublic,
-  CommentPublic,
   ObservablePublic,
   TaskPublic,
 } from '#/components/Cases/caseDetails'
-import type { MemberPublic } from '#/components/Cases/caseUsers'
 import { describe, expect, test } from 'vitest'
 
 const CASE: CasePublic = {
@@ -103,43 +99,6 @@ const OBSERVABLES: ObservablePublic[] = [
   },
 ]
 
-const COMMENTS: CommentPublic[] = [
-  {
-    id: '753481c8-887c-4b8f-9433-7b361e55ba2d',
-    entity_type: 'case',
-    entity_id: '1842',
-    message: '@J. Tanaka audit log pulled.',
-    organisation_id: 'org-1',
-    created_at: '2026-06-12T10:21:00Z',
-    created_by: '3713abbf-4e3c-401c-bd0b-e8a2f5597554',
-    updated_at: null,
-    author_name: 'P. Nguyen',
-  },
-]
-
-const ACTIVITY: AuditPublic[] = [
-  {
-    id: 21,
-    request_id: 'req-1',
-    action: 'update',
-    main_action: true,
-    object_type: 'case',
-    object_id: '1842',
-    context_type: 'case',
-    context_id: '1842',
-    actor: 'J. Tanaka',
-    details: { status: 'Open' },
-    created_at: '2026-06-12T10:05:00Z',
-  },
-]
-
-const MEMBERS: MemberPublic[] = [
-  {
-    user_id: '3713abbf-4e3c-401c-bd0b-e8a2f5597554',
-    email: 'p.nguyen@catlico.test',
-  },
-]
-
 describe('case detail data helpers', () => {
   test('normalizes route ids to case ids', () => {
     expect(normalizeCaseId('1842')).toBe('#1842')
@@ -204,26 +163,6 @@ describe('case detail data helpers', () => {
       ioc: true,
       sighted: false,
       analysis: 'URLscan complete',
-    })
-  })
-
-  test('merges activity and comments into the timeline, newest first', () => {
-    const timeline = toCaseDetailTimeline(ACTIVITY, COMMENTS, 1842, MEMBERS)
-
-    expect(timeline[0]).toMatchObject({
-      text: '@J. Tanaka audit log pulled.',
-      who: 'P. Nguyen',
-      kind: 'comment',
-    })
-    // Audit rows now carry the structured action/objectType the timeline uses to
-    // render its verb phrase ("Update case"); `text` holds only a detail label
-    // (title/name) when the backend provides one, else it's empty.
-    expect(timeline[1]).toMatchObject({
-      text: '',
-      who: 'J. Tanaka',
-      kind: 'audit',
-      action: 'update',
-      objectType: 'case',
     })
   })
 })

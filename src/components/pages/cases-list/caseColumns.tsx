@@ -95,6 +95,9 @@ export function buildCaseColumns({
       filterFn: includesOne,
       enableSorting: false,
       meta: { minWidth: 112, nowrap: true } satisfies TableColumnMeta,
+      // The table status is intentionally read-only: it renders a presentational
+      // StatusBadge, not an editable control. Status is changed only from the case
+      // detail view; the row click merely navigates there.
       cell: (info) => (
         <StatusBadge
           status={info.getValue<CaseStatus>()}

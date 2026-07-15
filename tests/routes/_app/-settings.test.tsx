@@ -333,26 +333,15 @@ describe('SettingsPage', () => {
     )
   })
 
-  test('renders backend-backed members, roles, and custom fields', async () => {
+  test('renders backend-backed custom fields', async () => {
     render(<Harness />)
 
-    fireEvent.click(await screen.findByRole('tab', { name: 'Users & roles' }))
-    expect(await screen.findByText('analyst@example.test')).toBeDefined()
-    expect(screen.getByText('Ada Lovelace')).toBeDefined()
-    expect(screen.getByText('ANALYST')).toBeDefined()
-    expect(screen.getByRole('button', { name: 'Add User' })).toBeDefined()
-    expect(
-      screen.getByRole('button', { name: /member actions for ada lovelace/i }),
-    ).toBeDefined()
+    // Users and Roles moved off the Settings page onto the Admin page; the
+    // Settings page carries only app/org configuration now.
+    expect(screen.queryByRole('tab', { name: 'Users' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Roles' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Profiles & permissions' }))
-    expect(await screen.findByRole('button', { name: 'analyst' })).toBeDefined()
-    expect(screen.getByText(/3 permissions granted/i)).toBeDefined()
-    // The grant matrix carries a standalone delete column (delete grants are now
-    // split from write).
-    expect(screen.getByRole('columnheader', { name: 'delete' })).toBeDefined()
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Custom fields' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Custom fields' }))
     expect(await screen.findByText('Backend case reference')).toBeDefined()
     expect(screen.getByText('backend_case_reference')).toBeDefined()
 
@@ -467,7 +456,6 @@ describe('SettingsPage', () => {
       expect(api.post).toHaveBeenCalledWith('api-keys/', {
         json: {
           name: 'expiring-key',
-          scopes: [],
           expires_at: '2026-08-01T23:59:59Z',
         },
       }),

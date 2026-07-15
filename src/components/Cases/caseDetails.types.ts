@@ -95,20 +95,6 @@ export type CaseDetailAttachment = {
   time: string
 }
 
-export type CaseDetailTimelineEvent = {
-  when: string
-  text: string
-  who: string
-  tone?: 'warn' | 'ok'
-  kind: 'audit' | 'comment'
-  createdAt: string
-  link?: string
-  /** Audit action (e.g. `create` / `update` / `delete`); absent on comments. */
-  action?: string
-  /** Audit object type (e.g. `task` / `observable` / `alert`); absent on comments. */
-  objectType?: string
-}
-
 export type CaseDetail = {
   id: string
   sev: Severity

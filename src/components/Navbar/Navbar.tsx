@@ -13,9 +13,9 @@ import {
   PanelLeftOpen,
   Play,
   Puzzle,
-  ScrollText,
   Server,
   Settings,
+  ShieldCheck,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -46,6 +46,8 @@ import {
 } from '#/components/Tasks/tasksQueries'
 import { accessibleOrganisationsQueryOptions } from '#/components/pages/settings/settingsQueries'
 import { getActiveOrgId } from '#/lib/auth/session'
+import { usePermissions } from '#/lib/auth/usePermissions'
+import { systemCapabilitiesQueryOptions } from '#/lib/system/capabilities'
 import { useState } from 'react'
 
 type NavItem = {
@@ -73,13 +75,21 @@ type NavbarCounts = {
   caseTemplates: number
 }
 
-function sectionsForCounts(counts: NavbarCounts): NavSection[] {
+function sectionsForCounts(
+  counts: NavbarCounts,
+  showAdmin: boolean,
+  showDashboards: boolean,
+): NavSection[] {
   return [
     {
       title: 'Operate',
       items: [
         { icon: LayoutDashboard, label: 'Overview', to: '/' },
-        { icon: Gauge, label: 'Dashboards', to: '/dashboards' },
+        // Dashboards (custom saved views) is enterprise-only; hidden unless the
+        // build reports the `dashboard` capability. Overview at `/` always shows.
+        ...(showDashboards
+          ? [{ icon: Gauge, label: 'Dashboards', to: '/dashboards' }]
+          : []),
         {
           icon: AlertTriangle,
           label: 'Alerts',
@@ -136,8 +146,12 @@ function sectionsForCounts(counts: NavbarCounts): NavSection[] {
           to: '/case-templates',
           badge: counts.caseTemplates,
         },
-        { icon: ScrollText, label: 'Audit trail' },
         { icon: Settings, label: 'Settings', to: '/settings' },
+        // Admin (Users/Roles/Identity providers) is privileged — the route also
+        // enforces this, and every underlying API is server-side gated.
+        ...(showAdmin
+          ? [{ icon: ShieldCheck, label: 'Admin', to: '/admin' }]
+          : []),
       ],
     },
   ]
@@ -351,16 +365,24 @@ export function Navbar({
   const { data: organisations } = useQuery(
     accessibleOrganisationsQueryOptions(),
   )
-  const sections = sectionsForCounts({
-    tasks: openTasks?.total,
-    alerts: alerts?.total,
-    cases: cases?.total,
-    observables: observables?.total,
-    plugins: plugins?.length,
-    pluginRuns: pluginRunsData?.total,
-    pluginRunners: pluginRunners?.length,
-    caseTemplates: caseTemplates?.total ?? 0,
-  })
+  const { can, isSuperadmin } = usePermissions()
+  const { data: capabilities } = useQuery(systemCapabilitiesQueryOptions())
+  const showAdmin = isSuperadmin || can('manage:users')
+  const showDashboards = capabilities?.dashboard === true
+  const sections = sectionsForCounts(
+    {
+      tasks: openTasks?.total,
+      alerts: alerts?.total,
+      cases: cases?.total,
+      observables: observables?.total,
+      plugins: plugins?.length,
+      pluginRuns: pluginRunsData?.total,
+      pluginRunners: pluginRunners?.length,
+      caseTemplates: caseTemplates?.total ?? 0,
+    },
+    showAdmin,
+    showDashboards,
+  )
   const organisationOptions = (organisations ?? []).map((organisation) => ({
     value: organisation.id,
     label: organisation.name,

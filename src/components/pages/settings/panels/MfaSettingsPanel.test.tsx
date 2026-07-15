@@ -28,7 +28,7 @@ import { MantineProvider } from '@mantine/core'
 import { ModalsProvider } from '@mantine/modals'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MfaSettingsPanel } from './MfaSettingsPanel'
-import { SettingsLayout } from '#/components/pages/SettingsPage'
+import { AdminLayout } from '#/components/pages/SettingsPage'
 import { api } from '#/lib/api/client'
 import type { SystemCapabilities } from '#/lib/system/capabilities'
 import type { MfaSettings } from '#/lib/system/mfaSettings'
@@ -101,10 +101,12 @@ function renderPanel() {
 }
 
 function renderLayout() {
+  // MFA policy lives on the Admin page's section list, so exercise the nav gating
+  // through AdminLayout (superadmin-gated, same as Identity providers).
   render(
     <QueryClientProvider client={makeClient()}>
       <MantineProvider>
-        <SettingsLayout />
+        <AdminLayout />
       </MantineProvider>
     </QueryClientProvider>,
   )

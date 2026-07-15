@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'vitest'
-import { csvField } from '#/components/pages/settings/panels/AuditLogPanel'
 import {
   parseDuration,
   secondsToCompact,
@@ -34,21 +33,5 @@ describe('SLA duration conversion', () => {
     expect(parseDuration('1.5h')).toBeNull()
     expect(parseDuration('abc')).toBeNull()
     expect(parseDuration('1h5')).toBeNull()
-  })
-})
-
-describe('audit CSV escaping', () => {
-  test('quotes fields and escapes embedded quotes', () => {
-    expect(csvField('plain')).toBe('"plain"')
-    expect(csvField('a,b')).toBe('"a,b"')
-    expect(csvField('say "hi"')).toBe('"say ""hi"""')
-    expect(csvField(null)).toBe('""')
-  })
-
-  test('neutralises spreadsheet formula-injection prefixes', () => {
-    expect(csvField('=1+1')).toBe(`"'=1+1"`)
-    expect(csvField('+cmd')).toBe(`"'+cmd"`)
-    expect(csvField('-2')).toBe(`"'-2"`)
-    expect(csvField('@x')).toBe(`"'@x"`)
   })
 })

@@ -27,16 +27,22 @@ import { Route as AppKnowledgeBaseRouteImport } from './routes/_app/knowledge-ba
 import { Route as AppDashboardsRouteImport } from './routes/_app/dashboards'
 import { Route as AppAttackMatrixRouteImport } from './routes/_app/attack-matrix'
 import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
+import { Route as AppAdminRouteImport } from './routes/_app/admin'
+import { Route as AppAccountRouteImport } from './routes/_app/account'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
 import { Route as AppCasesIndexRouteImport } from './routes/_app/cases/index'
 import { Route as AppCaseTemplatesIndexRouteImport } from './routes/_app/case-templates/index'
 import { Route as AppAlertsIndexRouteImport } from './routes/_app/alerts.index'
+import { Route as AppAdminIndexRouteImport } from './routes/_app/admin.index'
+import { Route as AppAccountIndexRouteImport } from './routes/_app/account.index'
 import { Route as AppSettingsSectionRouteImport } from './routes/_app/settings.$section'
 import { Route as AppKnowledgeBasePageIdRouteImport } from './routes/_app/knowledge-base/$pageId'
 import { Route as AppCasesCreateRouteImport } from './routes/_app/cases/create'
 import { Route as AppCasesCaseIdRouteImport } from './routes/_app/cases/$caseId'
 import { Route as AppCaseTemplatesTemplateIdRouteImport } from './routes/_app/case-templates/$templateId'
 import { Route as AppAlertsAlertIdRouteImport } from './routes/_app/alerts.$alertId'
+import { Route as AppAdminSectionRouteImport } from './routes/_app/admin.$section'
+import { Route as AppAccountSectionRouteImport } from './routes/_app/account.$section'
 import { Route as AppCasesCaseIdIndexRouteImport } from './routes/_app/cases/$caseId/index'
 import { Route as AppCasesCaseIdTabRouteImport } from './routes/_app/cases/$caseId/$tab'
 
@@ -129,6 +135,16 @@ const AppAlertsRoute = AppAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminRoute = AppAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountRoute = AppAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -148,6 +164,16 @@ const AppAlertsIndexRoute = AppAlertsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppAlertsRoute,
+} as any)
+const AppAdminIndexRoute = AppAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAdminRoute,
+} as any)
+const AppAccountIndexRoute = AppAccountIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAccountRoute,
 } as any)
 const AppSettingsSectionRoute = AppSettingsSectionRouteImport.update({
   id: '/$section',
@@ -180,6 +206,16 @@ const AppAlertsAlertIdRoute = AppAlertsAlertIdRouteImport.update({
   path: '/$alertId',
   getParentRoute: () => AppAlertsRoute,
 } as any)
+const AppAdminSectionRoute = AppAdminSectionRouteImport.update({
+  id: '/$section',
+  path: '/$section',
+  getParentRoute: () => AppAdminRoute,
+} as any)
+const AppAccountSectionRoute = AppAccountSectionRouteImport.update({
+  id: '/$section',
+  path: '/$section',
+  getParentRoute: () => AppAccountRoute,
+} as any)
 const AppCasesCaseIdIndexRoute = AppCasesCaseIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -196,6 +232,8 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/account': typeof AppAccountRouteWithChildren
+  '/admin': typeof AppAdminRouteWithChildren
   '/alerts': typeof AppAlertsRouteWithChildren
   '/attack-matrix': typeof AppAttackMatrixRoute
   '/dashboards': typeof AppDashboardsRoute
@@ -209,12 +247,16 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRoute
   '/d/$token': typeof DTokenRoute
+  '/account/$section': typeof AppAccountSectionRoute
+  '/admin/$section': typeof AppAdminSectionRoute
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/cases/create': typeof AppCasesCreateRoute
   '/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/settings/$section': typeof AppSettingsSectionRoute
+  '/account/': typeof AppAccountIndexRoute
+  '/admin/': typeof AppAdminIndexRoute
   '/alerts/': typeof AppAlertsIndexRoute
   '/case-templates/': typeof AppCaseTemplatesIndexRoute
   '/cases/': typeof AppCasesIndexRoute
@@ -238,11 +280,15 @@ export interface FileRoutesByTo {
   '/tasks': typeof AppTasksRoute
   '/d/$token': typeof DTokenRoute
   '/': typeof AppIndexRoute
+  '/account/$section': typeof AppAccountSectionRoute
+  '/admin/$section': typeof AppAdminSectionRoute
   '/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/cases/create': typeof AppCasesCreateRoute
   '/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/settings/$section': typeof AppSettingsSectionRoute
+  '/account': typeof AppAccountIndexRoute
+  '/admin': typeof AppAdminIndexRoute
   '/alerts': typeof AppAlertsIndexRoute
   '/case-templates': typeof AppCaseTemplatesIndexRoute
   '/cases': typeof AppCasesIndexRoute
@@ -256,6 +302,8 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_app/account': typeof AppAccountRouteWithChildren
+  '/_app/admin': typeof AppAdminRouteWithChildren
   '/_app/alerts': typeof AppAlertsRouteWithChildren
   '/_app/attack-matrix': typeof AppAttackMatrixRoute
   '/_app/dashboards': typeof AppDashboardsRoute
@@ -270,12 +318,16 @@ export interface FileRoutesById {
   '/_app/tasks': typeof AppTasksRoute
   '/d/$token': typeof DTokenRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/account/$section': typeof AppAccountSectionRoute
+  '/_app/admin/$section': typeof AppAdminSectionRoute
   '/_app/alerts/$alertId': typeof AppAlertsAlertIdRoute
   '/_app/case-templates/$templateId': typeof AppCaseTemplatesTemplateIdRoute
   '/_app/cases/$caseId': typeof AppCasesCaseIdRouteWithChildren
   '/_app/cases/create': typeof AppCasesCreateRoute
   '/_app/knowledge-base/$pageId': typeof AppKnowledgeBasePageIdRoute
   '/_app/settings/$section': typeof AppSettingsSectionRoute
+  '/_app/account/': typeof AppAccountIndexRoute
+  '/_app/admin/': typeof AppAdminIndexRoute
   '/_app/alerts/': typeof AppAlertsIndexRoute
   '/_app/case-templates/': typeof AppCaseTemplatesIndexRoute
   '/_app/cases/': typeof AppCasesIndexRoute
@@ -290,6 +342,8 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset-password'
+    | '/account'
+    | '/admin'
     | '/alerts'
     | '/attack-matrix'
     | '/dashboards'
@@ -303,12 +357,16 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/d/$token'
+    | '/account/$section'
+    | '/admin/$section'
     | '/alerts/$alertId'
     | '/case-templates/$templateId'
     | '/cases/$caseId'
     | '/cases/create'
     | '/knowledge-base/$pageId'
     | '/settings/$section'
+    | '/account/'
+    | '/admin/'
     | '/alerts/'
     | '/case-templates/'
     | '/cases/'
@@ -332,11 +390,15 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/d/$token'
     | '/'
+    | '/account/$section'
+    | '/admin/$section'
     | '/alerts/$alertId'
     | '/case-templates/$templateId'
     | '/cases/create'
     | '/knowledge-base/$pageId'
     | '/settings/$section'
+    | '/account'
+    | '/admin'
     | '/alerts'
     | '/case-templates'
     | '/cases'
@@ -349,6 +411,8 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset-password'
+    | '/_app/account'
+    | '/_app/admin'
     | '/_app/alerts'
     | '/_app/attack-matrix'
     | '/_app/dashboards'
@@ -363,12 +427,16 @@ export interface FileRouteTypes {
     | '/_app/tasks'
     | '/d/$token'
     | '/_app/'
+    | '/_app/account/$section'
+    | '/_app/admin/$section'
     | '/_app/alerts/$alertId'
     | '/_app/case-templates/$templateId'
     | '/_app/cases/$caseId'
     | '/_app/cases/create'
     | '/_app/knowledge-base/$pageId'
     | '/_app/settings/$section'
+    | '/_app/account/'
+    | '/_app/admin/'
     | '/_app/alerts/'
     | '/_app/case-templates/'
     | '/_app/cases/'
@@ -513,6 +581,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAlertsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin': {
+      id: '/_app/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AppAdminRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/account': {
+      id: '/_app/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AppAccountRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/': {
       id: '/_app/settings/'
       path: '/'
@@ -540,6 +622,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/alerts/'
       preLoaderRoute: typeof AppAlertsIndexRouteImport
       parentRoute: typeof AppAlertsRoute
+    }
+    '/_app/admin/': {
+      id: '/_app/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AppAdminIndexRouteImport
+      parentRoute: typeof AppAdminRoute
+    }
+    '/_app/account/': {
+      id: '/_app/account/'
+      path: '/'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AppAccountIndexRouteImport
+      parentRoute: typeof AppAccountRoute
     }
     '/_app/settings/$section': {
       id: '/_app/settings/$section'
@@ -583,6 +679,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAlertsAlertIdRouteImport
       parentRoute: typeof AppAlertsRoute
     }
+    '/_app/admin/$section': {
+      id: '/_app/admin/$section'
+      path: '/$section'
+      fullPath: '/admin/$section'
+      preLoaderRoute: typeof AppAdminSectionRouteImport
+      parentRoute: typeof AppAdminRoute
+    }
+    '/_app/account/$section': {
+      id: '/_app/account/$section'
+      path: '/$section'
+      fullPath: '/account/$section'
+      preLoaderRoute: typeof AppAccountSectionRouteImport
+      parentRoute: typeof AppAccountRoute
+    }
     '/_app/cases/$caseId/': {
       id: '/_app/cases/$caseId/'
       path: '/'
@@ -599,6 +709,34 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AppAccountRouteChildren {
+  AppAccountSectionRoute: typeof AppAccountSectionRoute
+  AppAccountIndexRoute: typeof AppAccountIndexRoute
+}
+
+const AppAccountRouteChildren: AppAccountRouteChildren = {
+  AppAccountSectionRoute: AppAccountSectionRoute,
+  AppAccountIndexRoute: AppAccountIndexRoute,
+}
+
+const AppAccountRouteWithChildren = AppAccountRoute._addFileChildren(
+  AppAccountRouteChildren,
+)
+
+interface AppAdminRouteChildren {
+  AppAdminSectionRoute: typeof AppAdminSectionRoute
+  AppAdminIndexRoute: typeof AppAdminIndexRoute
+}
+
+const AppAdminRouteChildren: AppAdminRouteChildren = {
+  AppAdminSectionRoute: AppAdminSectionRoute,
+  AppAdminIndexRoute: AppAdminIndexRoute,
+}
+
+const AppAdminRouteWithChildren = AppAdminRoute._addFileChildren(
+  AppAdminRouteChildren,
+)
 
 interface AppAlertsRouteChildren {
   AppAlertsAlertIdRoute: typeof AppAlertsAlertIdRoute
@@ -654,6 +792,8 @@ const AppCasesCaseIdRouteWithChildren = AppCasesCaseIdRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
+  AppAccountRoute: typeof AppAccountRouteWithChildren
+  AppAdminRoute: typeof AppAdminRouteWithChildren
   AppAlertsRoute: typeof AppAlertsRouteWithChildren
   AppAttackMatrixRoute: typeof AppAttackMatrixRoute
   AppDashboardsRoute: typeof AppDashboardsRoute
@@ -675,6 +815,8 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccountRoute: AppAccountRouteWithChildren,
+  AppAdminRoute: AppAdminRouteWithChildren,
   AppAlertsRoute: AppAlertsRouteWithChildren,
   AppAttackMatrixRoute: AppAttackMatrixRoute,
   AppDashboardsRoute: AppDashboardsRoute,
@@ -707,12 +849,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

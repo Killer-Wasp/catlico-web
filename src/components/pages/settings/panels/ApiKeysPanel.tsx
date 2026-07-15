@@ -1,7 +1,6 @@
 import {
   ActionIcon,
   Button,
-  Checkbox,
   Code,
   Modal,
   Stack,
@@ -13,13 +12,11 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import { Copy } from 'lucide-react'
-import { usePermissions } from '#/lib/auth/usePermissions'
 import { DataTable } from '#/components/Table/DataTable'
 import type { ApiKeyPublic } from '#/components/pages/settings/settingsQueries'
 import {
   apiKeysQueryOptions,
   createApiKey,
-  permissionCatalogQueryOptions,
   revokeApiKey,
   settingsKeys,
 } from '#/components/pages/settings/settingsQueries'
@@ -46,20 +43,15 @@ export function ApiKeysPanel() {
     refetch,
     isFetching,
   } = useQuery(apiKeysQueryOptions())
-  const { data: catalog = [] } = useQuery(permissionCatalogQueryOptions())
-  const { groups: grantableGroups, isSuperadmin } = usePermissions()
-  const grantable = new Set(grantableGroups)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newKey, setNewKey] = useState('')
   const [newExpiresAt, setNewExpiresAt] = useState('')
-  const [scopes, setScopes] = useState<Set<string>>(new Set())
 
   const createMutation = useMutation({
     mutationFn: () =>
       createApiKey({
         name: newName,
-        scopes: [...scopes],
         // Native date input yields YYYY-MM-DD; treat it as end-of-day UTC so the
         // key stays valid through the chosen day. Omitted → non-expiring key.
         expires_at: newExpiresAt ? `${newExpiresAt}T23:59:59Z` : null,
@@ -69,7 +61,6 @@ export function ApiKeysPanel() {
       setNewKey(created.key)
       setNewName('')
       setNewExpiresAt('')
-      setScopes(new Set())
       notifySuccess('API key generated - save it now')
     },
     onError: (error) => notifyError(error, 'Failed to create API key'),
@@ -94,15 +85,6 @@ export function ApiKeysPanel() {
           <Code>
             {row.original.prefix}...{row.original.last_four}
           </Code>
-        ),
-      },
-      {
-        id: 'scope',
-        header: 'Scope',
-        cell: ({ row }) => (
-          <Text ff="monospace" fz={11}>
-            {row.original.scopes.join(', ') || '-'}
-          </Text>
         ),
       },
       {
@@ -176,7 +158,6 @@ export function ApiKeysPanel() {
               setNewName('')
               setNewKey('')
               setNewExpiresAt('')
-              setScopes(new Set())
               setShowCreate(true)
             }}
           >
@@ -239,34 +220,9 @@ export function ApiKeysPanel() {
               value={newExpiresAt}
               onChange={(e) => setNewExpiresAt(e.currentTarget.value)}
             />
-            <Stack gap={6}>
-              <Text size="sm" fw={600}>
-                Scopes
-              </Text>
-              <Text size="xs" c="dimmed">
-                A key can only be granted permissions you hold.
-              </Text>
-              {catalog.map((info) => {
-                const allowed = isSuperadmin || grantable.has(info.key)
-                return (
-                  <Checkbox
-                    key={info.key}
-                    label={`${info.label}`}
-                    description={info.key}
-                    disabled={!allowed}
-                    checked={scopes.has(info.key)}
-                    onChange={(e) =>
-                      setScopes((prev) => {
-                        const next = new Set(prev)
-                        if (e.currentTarget.checked) next.add(info.key)
-                        else next.delete(info.key)
-                        return next
-                      })
-                    }
-                  />
-                )
-              })}
-            </Stack>
+            <Text size="xs" c="dimmed">
+              API keys carry full permission for the organisation.
+            </Text>
             <Button
               color="orange"
               loading={createMutation.isPending}

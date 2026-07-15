@@ -15,7 +15,6 @@ import type {
   CaseDetailTask,
   CaseDetailTaskLog,
   CaseDetailTaskStatus,
-  CaseDetailTimelineEvent,
 } from './caseDetails.types'
 
 dayjs.extend(relativeTime)
@@ -112,20 +111,6 @@ export type CommentPublic = {
   created_by: string
   updated_at: string | null
   author_name: string
-}
-
-export type AuditPublic = {
-  id: number
-  request_id: string
-  action: string
-  main_action: boolean
-  object_type: string
-  object_id: string
-  context_type: string | null
-  context_id: string | null
-  actor: string
-  details: Record<string, unknown> | null
-  created_at: string
 }
 
 export type WorkLogAttachmentPublic = {
@@ -263,48 +248,6 @@ function taskStatus(status: string) {
   return TASK_STATUS_MAP[status] ?? TASK_STATUS_MAP.Waiting
 }
 
-function resolvedActor(
-  actor: string,
-  displayNameByUserId: Map<string, string>,
-): string {
-  if (actor === 'system' || actor === 'analyzer') return actor
-  return displayNameByUserId.get(actor) ?? actor
-}
-
-/**
- * The human-readable label for an audited object — its title/name when the audit
- * captured one, otherwise nothing. We deliberately return `''` rather than the raw
- * `object_id` so the timeline can show a clean "Created observable" instead of
- * "Created observable 8f3a-…" for objects that carry no title (uuids, bare ids).
- */
-function auditLabel(event: AuditPublic): string {
-  const title = event.details?.title
-  if (title && typeof title === 'string') return title
-  const name = event.details?.name
-  if (name && typeof name === 'string') return name
-  return ''
-}
-
-function timelineLink(event: AuditPublic, caseId: number): string | undefined {
-  const entityId = event.object_id
-  switch (event.object_type) {
-    case 'case':
-      return `/cases/${entityId}`
-    case 'task':
-      return `/cases/${caseId}/tasks`
-    case 'comment':
-      return `/cases/${caseId}/comments`
-    case 'log':
-      return `/cases/${caseId}/tasks`
-    case 'observable':
-      return `/cases/${caseId}/observables`
-    case 'alert':
-      return `/alerts`
-    default:
-      return undefined
-  }
-}
-
 /**
  * Map the `tasks` panel's rows, fetched on demand. Work-logs are NOT loaded
  * here — the list shows only the server's `log_count` hint; a task's logs load
@@ -353,46 +296,6 @@ export function toCaseDetailObservables(
     added: compactTime(observable.created_at),
     addedAt: observable.created_at,
   }))
-}
-
-/**
- * Merge audit activity and comments into the `timeline` panel's newest-first
- * event stream, fetched on demand.
- */
-export function toCaseDetailTimeline(
-  activity: AuditPublic[],
-  comments: CommentPublic[],
-  caseNumericId: number,
-  members?: MemberPublic[],
-): CaseDetailTimelineEvent[] {
-  const displayNameByUserId = memberDisplayNameById(members)
-  return [
-    ...activity
-      // Comment audit rows are redundant with the comment bodies merged in
-      // below (which show the actual message), so drop them to avoid two
-      // timeline entries per comment.
-      .filter((event) => event.object_type !== 'comment')
-      .map((event) => ({
-        when: compactTime(event.created_at),
-        text: auditLabel(event),
-        who: resolvedActor(event.actor, displayNameByUserId),
-        tone: event.action === 'delete' ? ('warn' as const) : undefined,
-        kind: 'audit' as const,
-        createdAt: event.created_at,
-        link: timelineLink(event, caseNumericId),
-        action: event.action,
-        objectType: event.object_type,
-      })),
-    ...comments.map((comment) => ({
-      when: compactTime(comment.created_at),
-      text: comment.message,
-      who: comment.author_name,
-      kind: 'comment' as const,
-      createdAt: comment.created_at,
-    })),
-  ].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )
 }
 
 /** Map a promoted alert to the side-rail's linked-alert row shape. */

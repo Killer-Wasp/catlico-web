@@ -15,7 +15,6 @@ import { DetailsPanel } from './DetailsPanel'
 import { ObservablesPanel } from './ObservablesPanel'
 import { SimilarCasesPanel } from './SimilarCasesPanel'
 import { TasksPanel } from './TasksPanel'
-import { TimelinePanel } from './TimelinePanel'
 
 export function CaseBody({
   caseDetail,
@@ -55,7 +54,6 @@ export function CaseBody({
       count: counts?.attachments,
     },
     { value: 'similar', label: 'Similar', count: counts?.similar },
-    { value: 'timeline', label: 'Timeline' },
     { value: 'sharing', label: 'Sharing', count: caseDetail.shares },
   ]
 
@@ -122,8 +120,6 @@ export function CaseTabPanel({
       return <AttachmentsPanel caseId={caseId} />
     case 'similar':
       return <SimilarCasesPanel caseId={caseId} />
-    case 'timeline':
-      return <TimelinePanel caseId={caseId} />
     case 'sharing':
       return (
         <EmptyTab

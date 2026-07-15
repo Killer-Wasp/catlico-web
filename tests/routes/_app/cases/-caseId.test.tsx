@@ -6,7 +6,6 @@ import type {
   CaseDetailObservable,
   CaseDetailTask,
   CaseDetailTaskLog,
-  CaseDetailTimelineEvent,
 } from '#/components/Cases/caseDetails.types'
 import { caseKeys } from '#/components/Cases/casesQueries'
 import {
@@ -249,8 +248,6 @@ const attachmentsFixture: CaseDetailAttachment[] = [
   },
 ]
 
-const timelineFixture: CaseDetailTimelineEvent[] = []
-
 // Backend-shaped observable for the one query that gets refetched: updating a
 // flag invalidates the observables list. Mirrors observablesFixture's obs-2.
 const observablePageItem = {
@@ -324,7 +321,6 @@ function seededClient() {
   queryClient.setQueryData(caseKeys.observables('1842'), observablesFixture)
   queryClient.setQueryData(caseKeys.comments('1842', 'desc'), commentsFixture)
   queryClient.setQueryData(caseKeys.attachments('1842'), attachmentsFixture)
-  queryClient.setQueryData(caseKeys.timeline('1842'), timelineFixture)
   queryClient.setQueryData(caseKeys.customFieldValues('1842'), {
     ...customFieldValuesFixture,
   })
@@ -349,7 +345,6 @@ function CaseTabHarness({
     | 'sharing'
     | 'similar'
     | 'tasks'
-    | 'timeline'
 }) {
   return (
     <QueryClientProvider client={seededClient()}>
@@ -659,7 +654,6 @@ describe('case tab panel headers', () => {
     ['observables', 'Observables'],
     ['comments', 'Comments'],
     ['attachments', 'Attachments'],
-    ['timeline', 'Timeline'],
     ['sharing', 'Sharing'],
   ] as const)('renders a %s panel header', (tab, label) => {
     render(<CaseTabHarness tab={tab} />)
@@ -818,17 +812,6 @@ describe('case comments tab', () => {
 
     expect(sortSelect).toBeDefined()
     expect(screen.queryByRole('button', { name: /newest first/i })).toBeNull()
-  })
-})
-
-describe('case timeline tab', () => {
-  test('does not render the old case log input form', () => {
-    render(<CaseTabHarness tab="timeline" />)
-
-    expect(
-      screen.queryByPlaceholderText(/add a note to the case log/i),
-    ).toBeNull()
-    expect(screen.queryByRole('button', { name: /^post$/i })).toBeNull()
   })
 })
 

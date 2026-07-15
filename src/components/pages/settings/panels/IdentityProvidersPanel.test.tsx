@@ -29,7 +29,7 @@ import { ModalsProvider } from '@mantine/modals'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HTTPError } from 'ky'
 import { IdentityProvidersPanel } from './IdentityProvidersPanel'
-import { SettingsLayout } from '#/components/pages/SettingsPage'
+import { AdminLayout } from '#/components/pages/SettingsPage'
 import { api } from '#/lib/api/client'
 import type { OidcProviderPublic } from '#/components/pages/settings/settingsQueries'
 
@@ -141,10 +141,11 @@ function renderPanel() {
 }
 
 function renderLayout() {
+  // Identity providers lives on the Admin page's section list now.
   render(
     <QueryClientProvider client={makeClient()}>
       <MantineProvider>
-        <SettingsLayout />
+        <AdminLayout />
       </MantineProvider>
     </QueryClientProvider>,
   )

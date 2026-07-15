@@ -10,6 +10,9 @@ import { api } from '#/lib/api/client'
 export type SystemCapabilities = {
   sso: boolean
   mfa: boolean
+  // Custom saved-views "Dashboards" feature. Enterprise-only: false on the OSS
+  // build, which gates the /dashboards route + nav (Overview at / stays).
+  dashboard: boolean
 } & Record<string, unknown>
 
 /** Authenticated GET — read once per visit and cached (config, not data). */
