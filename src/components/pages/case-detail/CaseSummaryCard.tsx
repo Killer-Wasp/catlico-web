@@ -18,6 +18,8 @@ import {
   notifyAnalyzerRuns,
 } from '#/components/Plugins/runAnalyzers'
 import { mentionableUsersQueryOptions } from './mentionSuggestion'
+import { ManageAssigneesPopover } from '#/components/Assign/ManageAssigneesPopover'
+import { setCaseAssignees } from '#/components/Assign/assignees'
 import { SEV } from '#/lib/domain'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
 import { Tag } from '#/components/Tag/Tag'
@@ -153,6 +155,21 @@ export function CaseSummaryCard({
     },
   })
 
+  const collaboratorsMutation = useMutation({
+    mutationFn: (collaboratorIds: string[]) =>
+      setCaseAssignees(caseId, collaboratorIds),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: caseKeys.fullDetail(caseId),
+      })
+      void queryClient.invalidateQueries({ queryKey: caseKeys.lists() })
+      notifications.show({ color: 'green', message: 'Assignees updated' })
+    },
+    onError: () => {
+      notifications.show({ color: 'red', message: 'Failed to update assignees' })
+    },
+  })
+
   const closeCaseMutation = useMutation({
     mutationFn: () => closeCase(caseId),
     onSuccess: () => {
@@ -274,6 +291,16 @@ export function CaseSummaryCard({
           assignPending={assignMutation.isPending}
           onAssign={(assigneeId) => assignMutation.mutate(assigneeId)}
         />
+
+        <Divider orientation="vertical" visibleFrom="xs" />
+
+        <SummaryField label="Assignees">
+          <ManageAssigneesPopover
+            assignees={caseDetail.assignees ?? []}
+            pending={collaboratorsMutation.isPending}
+            onChange={(ids) => collaboratorsMutation.mutate(ids)}
+          />
+        </SummaryField>
 
         <Divider orientation="vertical" visibleFrom="xs" />
 

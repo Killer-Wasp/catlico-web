@@ -1,5 +1,6 @@
 import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
 import type { ObservableAttachment } from '#/components/Observables/observables.types'
+import type { AssigneeRef } from '#/components/Assign/assignees'
 import type { SlaState } from './cases.types'
 
 export type CaseDetailTaskStatus =
@@ -19,6 +20,8 @@ export type CaseDetailTask = {
   group: string
   status: CaseDetailTaskStatus
   assignee: string
+  /** Full assignee set (primary flagged + collaborators). */
+  assignees?: AssigneeRef[]
   flagged: boolean
   due: string | null
   start: string | null
@@ -115,6 +118,8 @@ export type CaseDetail = {
   statusName: string
   title: string
   assignee: string
+  /** Full assignee set (primary flagged + collaborators). */
+  assignees?: AssigneeRef[]
   tags: string[]
   opened: string
   openedAgo: string

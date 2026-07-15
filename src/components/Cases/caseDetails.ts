@@ -3,6 +3,8 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
 import { TLP } from '#/lib/domain'
 import type { ObservableAttachment } from '#/components/Observables/observables.types'
+import type { AssigneeRefDTO } from '#/components/Assign/assignees'
+import { toAssigneeRefs } from '#/components/Assign/assignees'
 import type { MemberPublic } from './caseUsers'
 import { memberDisplayNameById } from './caseUsers'
 import type { AttachmentPublic } from './casesQueries'
@@ -35,6 +37,7 @@ export type CasePublic = {
   flagged: boolean
   assignee_id: string | null
   assignee_email: string | null
+  assignees?: AssigneeRefDTO[]
   tags: string[]
   tasks: CaseTaskSummary[]
   start_date: string | null
@@ -62,6 +65,7 @@ export type TaskPublic = {
   description: string
   status: string
   assignee_id: string | null
+  assignees?: AssigneeRefDTO[]
   order: number
   flagged: boolean
   /** Live work-log count from the list endpoint (for the "N logs" hint). */
@@ -315,6 +319,7 @@ export function toCaseDetailTasks(tasks: TaskPublic[]): CaseDetailTask[] {
     group: task.group || 'General',
     status: taskStatus(task.status),
     assignee: task.assignee_id ?? 'Unassigned',
+    assignees: toAssigneeRefs(task.assignees),
     flagged: task.flagged,
     due: task.due_date,
     start: task.start_date,
@@ -428,6 +433,7 @@ export function toCaseDetail(
     statusName: status.name,
     title: caseItem.title,
     assignee: caseItem.assignee_email ?? 'Unassigned',
+    assignees: toAssigneeRefs(caseItem.assignees),
     tags: caseItem.tags,
     opened: compactDateTime(openedIso),
     openedAgo: dayjs(openedIso).fromNow(),

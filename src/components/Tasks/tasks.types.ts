@@ -1,3 +1,5 @@
+import type { AssigneeRef } from '#/components/Assign/assignees'
+
 export type TaskStatus = 'waiting' | 'inprogress' | 'completed' | 'cancelled'
 
 export type TaskStatusFilter = TaskStatus | 'open' | 'all'
@@ -15,6 +17,8 @@ export type Task = {
   caseId: string
   caseSeverity: 'critical' | 'high'
   assignee?: string
+  /** Full assignee set (primary flagged + collaborators). */
+  assignees?: AssigneeRef[]
   due: string
   dueAt?: string
   overdue?: boolean

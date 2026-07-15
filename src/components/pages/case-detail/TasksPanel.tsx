@@ -7,6 +7,7 @@ import {
   createCaseTask,
   invalidateTaskQueries,
 } from '#/components/Cases/casesQueries'
+import { AssigneeStack } from '#/components/Assign/AssigneeStack'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
 import type { TableColumnMeta } from '#/components/Table/columnMeta'
@@ -74,6 +75,14 @@ const COLUMNS: ColumnDef<CaseDetailTask>[] = [
       >
         {TASK_STATUS[row.original.status].label}
       </Badge>
+    ),
+  },
+  {
+    id: 'assignees',
+    header: 'Assignees',
+    meta: { ta: 'center', nowrap: true } satisfies TableColumnMeta,
+    cell: ({ row }) => (
+      <AssigneeStack assignees={row.original.assignees ?? []} />
     ),
   },
   {

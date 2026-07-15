@@ -12,6 +12,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table'
 import { Check, EllipsisVertical, ExternalLink, Play } from 'lucide-react'
 import { Assignee, DuePill, TaskStatusBadge } from './Components'
+import { AssigneeStack } from '#/components/Assign/AssigneeStack'
 import type { TableColumnMeta } from '#/components/Table/columnMeta'
 import { markdownPreview } from '#/lib/markdownPreview'
 import {
@@ -144,7 +145,14 @@ export function buildTaskColumns({
         ta: 'center',
         nowrap: true,
       } satisfies TableColumnMeta,
-      cell: ({ row }) => <Assignee name={row.original.assignee} />,
+      cell: ({ row }) => {
+        const assignees = row.original.assignees
+        return assignees && assignees.length > 0 ? (
+          <AssigneeStack assignees={assignees} />
+        ) : (
+          <Assignee name={row.original.assignee} />
+        )
+      },
     },
     {
       id: 'due',

@@ -1,5 +1,6 @@
 import type { Case } from '#/components/Cases/cases.types'
 import { avatarFor } from '#/components/Cases/cases'
+import { AssigneeStack } from '#/components/Assign/AssigneeStack'
 import type { CaseStatus } from '#/lib/domain'
 import { Severity } from '#/components/Severity/Severity'
 import { SlaChip } from '#/components/Cases/SlaChip'
@@ -180,7 +181,16 @@ export function buildCaseColumns({
         compact: true,
         nowrap: true,
       } satisfies TableColumnMeta,
-      cell: (info) => <AssigneeAvatar name={info.getValue<string>()} />,
+      cell: (info) => {
+        const assignees = info.row.original.assignees
+        // Prefer the full stack; fall back to the single resolved email while a
+        // cached row predates the multi-assignee field.
+        return assignees && assignees.length > 0 ? (
+          <AssigneeStack assignees={assignees} />
+        ) : (
+          <AssigneeAvatar name={info.getValue<string>()} />
+        )
+      },
     },
     {
       id: 'tags',

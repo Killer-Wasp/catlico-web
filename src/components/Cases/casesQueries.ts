@@ -11,6 +11,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { isHTTPError } from 'ky'
 import type { HTTPError } from 'ky'
 import { api, API_BASE } from '#/lib/api/client'
+import { toAssigneeRefs } from '#/components/Assign/assignees'
 import { getActiveOrgId } from '#/lib/auth/session'
 import { appendClauses } from '#/lib/filters'
 import type { FilterClause, FilterOp } from '#/lib/filters'
@@ -254,6 +255,7 @@ function toCase(c: CasePublic): Case {
     statusName: status.name,
     title: c.title,
     assignee: c.assignee_email ?? 'Unassigned',
+    assignees: toAssigneeRefs(c.assignees),
     tags: c.tags,
     tasksDone: activeTasks.filter((t) => t.status === 'Completed').length,
     tasksTotal: activeTasks.length,
