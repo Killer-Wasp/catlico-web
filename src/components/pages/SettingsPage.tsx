@@ -9,6 +9,7 @@ import { AuditLogPanel } from './settings/panels/AuditLogPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
 import { IdentityProvidersPanel } from './settings/panels/IdentityProvidersPanel'
 import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
+import { MfaSettingsPanel } from './settings/panels/MfaSettingsPanel'
 import { MyAccountPanel } from './settings/panels/MyAccountPanel'
 import { NotificationsPanel } from './settings/panels/NotificationsPanel'
 import { ObservableTypesPanel } from './settings/panels/ObservableTypesPanel'
@@ -27,6 +28,8 @@ import {
 import type { SettingsSection } from './settings/settingsData'
 import { useStamp } from './settings/settingsUi'
 import { usePermissions } from '#/lib/auth/usePermissions'
+import { useQuery } from '@tanstack/react-query'
+import { systemCapabilitiesQueryOptions } from '#/lib/system/capabilities'
 
 // Read capability required to see a section in the nav. Sections not listed are
 // always shown (every built-in role can view them). Server-side enforcement still
@@ -58,6 +61,7 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'Report templates') return <ReportTemplatesPanel />
   if (section === 'All users') return <AllUsersPanel />
   if (section === 'Identity providers') return <IdentityProvidersPanel />
+  if (section === 'MFA policy') return <MfaSettingsPanel />
   if (section === 'Audit log') return <AuditLogPanel />
   return <OrgProfilePanel />
 }
@@ -79,6 +83,7 @@ export function SettingsLayout() {
   const navigate = useNavigate()
   const stamp = useStamp()
   const { can, isSuperadmin, isLoaded } = usePermissions()
+  const { data: capabilities } = useQuery(systemCapabilitiesQueryOptions())
 
   // Until effective permissions load, show every section (avoids a flash of an
   // empty nav for admins). Once known, hide sections the user can't read.
@@ -88,6 +93,10 @@ export function SettingsLayout() {
     // platform-admin surfaces.
     if (s === 'All users') return isSuperadmin
     if (s === 'Identity providers') return isSuperadmin
+    // The org-wide MFA policy is a superadmin surface AND only exists on builds
+    // that report the MFA capability (hidden on the OSS default).
+    if (s === 'MFA policy')
+      return isSuperadmin && capabilities?.mfa === true
     if (s === 'Audit log') return isSuperadmin
     const needed = SECTION_READ_PERMISSION[s]
     return needed ? can(needed) : true
