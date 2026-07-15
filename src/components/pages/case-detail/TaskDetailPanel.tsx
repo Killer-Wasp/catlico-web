@@ -23,8 +23,10 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAssigneeStringOptions } from '#/components/Assign/assigneeOptions'
+import { ManageAssigneesPopover } from '#/components/Assign/ManageAssigneesPopover'
+import { setTaskAssignees } from '#/components/Assign/assignees'
 import { ArrowLeft, Flag, Paperclip, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { CaseDrawerSection } from './CaseDrawerSection'
@@ -56,6 +58,15 @@ export function TaskDetailPanel({
 }) {
   const queryClient = useQueryClient()
   const assigneeOptions = useAssigneeStringOptions(task.assignee)
+  const collaboratorsMutation = useMutation({
+    mutationFn: (collaboratorIds: string[]) =>
+      setTaskAssignees(task.caseId, task.apiId, collaboratorIds),
+    onSuccess: () => {
+      invalidateTaskQueries(queryClient, caseId)
+      actionNotice('Assignees updated')
+    },
+    onError: () => actionNotice('Failed to update assignees'),
+  })
   const [editingDescription, setEditingDescription] = useState(false)
   const [savingDescription, setSavingDescription] = useState(false)
 
@@ -171,6 +182,16 @@ export function TaskDetailPanel({
               value={task.assignee}
               onChange={() => actionNotice('Assignee changed')}
               allowDeselect={false}
+            />
+          </Box>
+          <Box>
+            <Text className={styles.fieldLabel} mb={6}>
+              Assignees
+            </Text>
+            <ManageAssigneesPopover
+              assignees={task.assignees ?? []}
+              pending={collaboratorsMutation.isPending}
+              onChange={(ids) => collaboratorsMutation.mutate(ids)}
             />
           </Box>
           <Box style={{ gridColumn: '1 / -1' }}>

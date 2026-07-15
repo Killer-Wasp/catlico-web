@@ -1,5 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
+import type { AssigneeRefDTO } from '#/components/Assign/assignees'
+import { toAssigneeRefs } from '#/components/Assign/assignees'
 import { appendClauses } from '#/lib/filters'
 import type { FilterClause } from '#/lib/filters'
 import type { Task, TaskStatus } from './tasks.types'
@@ -25,6 +27,7 @@ export type TaskPublic = {
   description: string
   status: BackendTaskStatus
   assignee_id: string | null
+  assignees?: AssigneeRefDTO[]
   order: number
   flagged: boolean
   start_date: string | null
@@ -130,6 +133,7 @@ function toTask(dto: TaskPublic | TaskQueuePublic): Task {
     caseId: `#${dto.case_id}`,
     caseSeverity: (queueContext?.case_severity ?? 3) >= 4 ? 'critical' : 'high',
     assignee: queueContext?.assignee_email ?? undefined,
+    assignees: toAssigneeRefs(dto.assignees),
     due: formatDueDate(dto.due_date),
     dueAt: dto.due_date ?? undefined,
     overdue: overdue || undefined,

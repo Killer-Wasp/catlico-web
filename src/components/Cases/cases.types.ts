@@ -1,4 +1,5 @@
 import type { CaseStatus, Severity, Tlp } from '#/lib/domain'
+import type { AssigneeRef } from '#/components/Assign/assignees'
 
 /** Resolve-SLA state for an open case, from the API. `null` ⇒ no policy / not open. */
 export type SlaState = 'ok' | 'at-risk' | 'breached' | null
@@ -14,6 +15,8 @@ export type Case = {
   statusName: string
   title: string
   assignee: string
+  /** Full assignee set (primary flagged + collaborators). */
+  assignees?: AssigneeRef[]
   tags: string[]
   tasksDone: number
   tasksTotal: number
