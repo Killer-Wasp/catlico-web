@@ -517,7 +517,6 @@ export type ApiKeyPublic = {
   name: string
   prefix: string
   last_four: string
-  scopes: string[]
   last_used_at: string | null
   expires_at: string | null
   organisation_id: string
@@ -528,7 +527,6 @@ export type ApiKeyCreated = ApiKeyPublic & { key: string }
 
 export type ApiKeyCreateInput = {
   name: string
-  scopes?: string[]
   expires_at?: string | null
 }
 
