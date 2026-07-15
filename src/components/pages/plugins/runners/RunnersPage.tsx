@@ -1,38 +1,33 @@
 /**
  * RunnersPage — super-admin page for managing plugin runners.
  *
- * Table: name, status chip (healthy/unhealthy/offline), enrollment state,
- * version, isolation mode, plugin count, last heartbeat.
+ * Table: name, status chip (healthy/unhealthy/offline), version, isolation
+ * mode, last heartbeat, with per-row health-check / sync actions.
  *
- * Add-runner flow shows the one-time enrollment token once with copy + TTL
- * countdown via an EnrollTokenModal.
+ * Runners self-register with the shared secret on startup and appear here once
+ * they do — there is no admin add/enroll flow.
  */
 
 import {
   Badge,
   Box,
   Button,
-  CopyButton,
   Group,
-  Modal,
   Stack,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { useForm } from '@mantine/form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { Check, Copy, Plus, RefreshCw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
+import { useMemo } from 'react'
 import dayjs from 'dayjs'
 
-import type { PluginRunner, CreateRunnerResponse } from '#/components/Plugins/plugins.types'
+import type { PluginRunner } from '#/components/Plugins/plugins.types'
 import {
   pluginRunnersQueryOptions,
-  createPluginRunner,
   triggerHealthCheck,
   triggerSync,
   runnerKeys,
@@ -49,91 +44,6 @@ function HealthDot({ status }: { status: string }) {
   return <Badge variant="dot" color={color}>{status}</Badge>
 }
 
-// ── TTL countdown hook ──────────────────────────────────────────────────────
-
-function useCountdown(expiresAt: string | null) {
-  const [remaining, setRemaining] = useState<number | null>(null)
-  useEffect(() => {
-    if (!expiresAt) return
-    const tick = () => {
-      const diff = dayjs(expiresAt).diff(dayjs(), 'second')
-      if (diff <= 0) { setRemaining(0); return }
-      setRemaining(diff)
-    }
-    tick()
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
-  }, [expiresAt])
-  return remaining
-}
-
-// ── Enroll token modal ─────────────────────────────────────────────────────
-
-function EnrollTokenModal({
-  token,
-  open,
-  onClose,
-}: {
-  token: CreateRunnerResponse | null
-  open: boolean
-  onClose: () => void
-}) {
-  const remaining = useCountdown(token?.enrollment_token_expires_at ?? null)
-
-  if (!token) return null
-
-  return (
-    <Modal opened={open} onClose={onClose} title="Enrollment token" size="lg">
-      <Stack gap="md">
-        <Text fz={14}>
-          Save this token — it will not be shown again. The runner uses this
-          token to enroll with the Catlico API.
-        </Text>
-
-        <Box
-          p="md"
-          style={{
-            background: 'var(--mantine-color-dark-8)',
-            borderRadius: 'var(--mantine-radius-md)',
-            fontFamily: 'monospace',
-            fontSize: 14,
-            wordBreak: 'break-all',
-            color: 'var(--mantine-color-gray-2)',
-          }}
-        >
-          {token.enrollment_token}
-        </Box>
-
-        <Group justify="space-between">
-          <CopyButton value={token.enrollment_token}>
-            {({ copied, copy }) => (
-              <Button
-                variant={copied ? 'light' : 'default'}
-                color={copied ? 'green' : undefined}
-                leftSection={copied ? <Check size={16} /> : <Copy size={16} />}
-                onClick={copy}
-                size="sm"
-              >
-                {copied ? 'Copied' : 'Copy token'}
-              </Button>
-            )}
-          </CopyButton>
-          {remaining !== null && remaining > 0 && (
-            <Text fz={12} c="dimmed" ff="monospace">
-              Expires in {remaining}s
-            </Text>
-          )}
-          {remaining === 0 && (
-            <Text fz={12} c="red" ff="monospace">
-              Token expired
-            </Text>
-          )}
-        </Group>
-      </Stack>
-    </Modal>
-  )
-}
-
 // ── RunnersPage component ───────────────────────────────────────────────────
 
 export function RunnersPage() {
@@ -142,30 +52,7 @@ export function RunnersPage() {
 
   const { data: runners = [], isPending, isError, refetch } = useQuery(pluginRunnersQueryOptions())
 
-  const [addOpen, setAddOpen] = useState(false)
-  const [enrollToken, setEnrollToken] = useState<CreateRunnerResponse | null>(null)
-
-  const addForm = useForm({
-    initialValues: { id: '', name: '', base_url: '' },
-  })
-
   // ── Mutations ────────────────────────────────────────────────────────────
-
-  const createMutation = useMutation({
-    mutationFn: (values: typeof addForm.values) =>
-      createPluginRunner(values),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: runnerKeys.list() })
-      setAddOpen(false)
-      setEnrollToken(result)
-      addForm.reset()
-    },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message: `Failed to create runner: ${errorMessage(error)}`,
-      }),
-  })
 
   const healthCheckMutation = useMutation({
     mutationFn: (id: string) => triggerHealthCheck(id),
@@ -319,70 +206,17 @@ export function RunnersPage() {
           >
             Refresh
           </Button>
-          <Button leftSection={<Plus size={16} />} onClick={() => setAddOpen(true)}>
-            Add runner
-          </Button>
         </Group>
       </Group>
 
       <DataTable
         table={table}
         minWidth={900}
-        emptyMessage="No plugin runners registered."
+        emptyMessage="No plugin runners registered. Runners appear here once they self-register with the shared secret."
         isPending={isPending}
         isError={isError}
         onRetry={() => refetch()}
         loadingMessage="Loading runners…"
-      />
-
-      {/* Add runner modal */}
-      <Modal
-        opened={addOpen}
-        onClose={() => {
-          setAddOpen(false)
-          addForm.reset()
-        }}
-        title="Register a plugin runner"
-        size="md"
-      >
-        <form
-          onSubmit={addForm.onSubmit((values) => createMutation.mutate(values))}
-        >
-          <Stack gap="md">
-            <TextInput
-              label="Runner ID"
-              description="Unique identifier for this runner"
-              required
-              {...addForm.getInputProps('id')}
-            />
-            <TextInput
-              label="Name"
-              description="Human-readable label"
-              {...addForm.getInputProps('name')}
-            />
-            <TextInput
-              label="Base URL"
-              description="Runner's gRPC endpoint (optional)"
-              placeholder="https://runner.example.com"
-              {...addForm.getInputProps('base_url')}
-            />
-            <Group justify="flex-end">
-              <Button
-                type="submit"
-                loading={createMutation.isPending}
-              >
-                Register runner
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
-
-      {/* Enrollment token modal */}
-      <EnrollTokenModal
-        token={enrollToken}
-        open={enrollToken !== null}
-        onClose={() => setEnrollToken(null)}
       />
     </Box>
   )
