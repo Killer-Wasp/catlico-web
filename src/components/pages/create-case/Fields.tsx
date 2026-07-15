@@ -1,13 +1,4 @@
-import type { CustomFieldType } from '#/components/Cases/caseTemplates.types'
-import {
-  Button,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from '@mantine/core'
+import { Button, Group, Stack, Text } from '@mantine/core'
 import styles from './styles.module.css'
 
 export function RequiredMark() {
@@ -91,60 +82,5 @@ export function SegmentedButtons<T extends number>({
         })}
       </Group>
     </Stack>
-  )
-}
-
-export function CustomFieldInput({
-  type,
-  label,
-  value,
-  error,
-  onChange,
-  mandatory,
-}: {
-  type: CustomFieldType
-  label: string
-  value: string
-  error: boolean
-  onChange: (value: string) => void
-  mandatory: boolean
-}) {
-  const inputProps = {
-    label: <FieldLabel required={mandatory}>{label}</FieldLabel>,
-    error: error ? 'Required' : undefined,
-  }
-
-  if (type === 'integer' || type === 'float') {
-    return (
-      <NumberInput
-        {...inputProps}
-        placeholder={type}
-        value={value === '' ? undefined : Number(value)}
-        allowDecimal={type === 'float'}
-        onChange={(next) => onChange(next === '' ? '' : String(next))}
-      />
-    )
-  }
-
-  if (type === 'boolean') {
-    return (
-      <Select
-        {...inputProps}
-        placeholder="—"
-        data={['yes', 'no']}
-        value={value || null}
-        onChange={(next) => onChange(next ?? '')}
-      />
-    )
-  }
-
-  return (
-    <TextInput
-      {...inputProps}
-      type={type === 'date' ? 'date' : 'text'}
-      placeholder={type}
-      value={value}
-      onChange={(event) => onChange(event.currentTarget.value)}
-    />
   )
 }

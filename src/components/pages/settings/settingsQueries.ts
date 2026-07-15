@@ -54,7 +54,7 @@ export type CustomFieldPublic = {
   name: string
   display_name: string
   description: string
-  field_type: 'string' | 'integer' | 'float' | 'boolean' | 'date'
+  field_type: 'string' | 'integer' | 'float' | 'boolean' | 'date' | 'url'
   options: string[]
   mandatory: boolean
   organisation_id: string

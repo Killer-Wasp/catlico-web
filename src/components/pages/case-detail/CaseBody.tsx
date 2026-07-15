@@ -13,6 +13,7 @@ import { CommentsPanel } from './CommentsPanel'
 import { CustomFieldsPanel } from './CustomFieldsPanel'
 import { DetailsPanel } from './DetailsPanel'
 import { ObservablesPanel } from './ObservablesPanel'
+import { SimilarCasesPanel } from './SimilarCasesPanel'
 import { TasksPanel } from './TasksPanel'
 import { TimelinePanel } from './TimelinePanel'
 
@@ -53,6 +54,7 @@ export function CaseBody({
       label: 'Attachments',
       count: counts?.attachments,
     },
+    { value: 'similar', label: 'Similar', count: counts?.similar },
     { value: 'timeline', label: 'Timeline' },
     { value: 'sharing', label: 'Sharing', count: caseDetail.shares },
   ]
@@ -107,7 +109,7 @@ export function CaseTabPanel({
 }) {
   switch (tab) {
     case 'custom-fields':
-      return <CustomFieldsPanel customFields={caseDetail.customFields} />
+      return <CustomFieldsPanel caseId={caseId} />
     case 'tasks':
       return <TasksPanel caseDetail={caseDetail} caseId={caseId} />
     case 'observables':
@@ -118,6 +120,8 @@ export function CaseTabPanel({
       )
     case 'attachments':
       return <AttachmentsPanel caseId={caseId} />
+    case 'similar':
+      return <SimilarCasesPanel caseId={caseId} />
     case 'timeline':
       return <TimelinePanel caseId={caseId} />
     case 'sharing':

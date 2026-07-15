@@ -43,6 +43,7 @@ const FIELD_TYPES = [
   { value: 'float', label: 'float' },
   { value: 'boolean', label: 'boolean' },
   { value: 'date', label: 'date' },
+  { value: 'url', label: 'url' },
 ] as const
 
 function AddFieldModal({

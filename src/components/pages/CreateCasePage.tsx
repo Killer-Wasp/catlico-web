@@ -34,8 +34,8 @@ import {
 } from './create-case/constants'
 import type { SeverityChoice, TrafficLight } from './create-case/constants'
 import styles from './create-case/styles.module.css'
+import { CustomFieldInput } from '#/components/CustomFields/CustomFieldInput'
 import {
-  CustomFieldInput,
   FieldLabel,
   RequiredMark,
   SegmentedButtons,

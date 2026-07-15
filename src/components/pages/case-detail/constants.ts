@@ -7,6 +7,7 @@ export const CASE_TABS = [
   'observables',
   'comments',
   'attachments',
+  'similar',
   'timeline',
   'sharing',
 ] as const
