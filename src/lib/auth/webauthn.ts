@@ -93,3 +93,86 @@ export function serializeAssertion(
     },
   }
 }
+
+/**
+ * The JSON form of `PublicKeyCredentialCreationOptions` the API returns from
+ * `POST /auth/mfa/passkey/register/options` (registration, as opposed to the
+ * request options used for sign-in): `challenge`, `user.id` and each
+ * `excludeCredentials[].id` are base64url strings; everything else passes
+ * straight through to `navigator.credentials.create`.
+ */
+export type PublicKeyCreationOptionsJSON = {
+  challenge: string
+  rp: { id?: string; name: string }
+  user: { id: string; name: string; displayName: string }
+  pubKeyCredParams: PublicKeyCredentialParameters[]
+  timeout?: number
+  excludeCredentials?: Array<{
+    id: string
+    type: 'public-key'
+    transports?: AuthenticatorTransport[]
+  }>
+  authenticatorSelection?: AuthenticatorSelectionCriteria
+  attestation?: AttestationConveyancePreference
+}
+
+/**
+ * Turn the API's base64url registration options JSON into the browser's
+ * `BufferSource` form for `navigator.credentials.create`. Mirrors
+ * `decodeRequestOptions`, but the creation ceremony also carries a `user.id`
+ * (the account handle) that must be decoded alongside the challenge.
+ */
+export function decodeCreationOptions(
+  json: PublicKeyCreationOptionsJSON,
+): PublicKeyCredentialCreationOptions {
+  return {
+    ...json,
+    challenge: base64urlToBytes(json.challenge) as BufferSource,
+    user: {
+      ...json.user,
+      id: base64urlToBytes(json.user.id) as BufferSource,
+    },
+    excludeCredentials: json.excludeCredentials?.map((cred) => ({
+      ...cred,
+      id: base64urlToBytes(cred.id) as BufferSource,
+    })),
+  }
+}
+
+/** The attestation serialized the standard WebAuthn-JSON way for the verify POST. */
+export type SerializedAttestation = {
+  id: string
+  rawId: string
+  type: string
+  response: {
+    attestationObject: string
+    clientDataJSON: string
+    transports: AuthenticatorTransport[]
+  }
+}
+
+/**
+ * Serialize a `navigator.credentials.create` result to base64url WebAuthn-JSON
+ * for the register/verify POST. `getTransports()` is only present on modern
+ * `AuthenticatorAttestationResponse`s, so guard it and fall back to an empty
+ * list (the server treats transports as an optional hint).
+ */
+export function serializeAttestation(
+  credential: PublicKeyCredential,
+): SerializedAttestation {
+  const response = credential.response as AuthenticatorAttestationResponse
+  const transports =
+    typeof response.getTransports === 'function'
+      ? (response.getTransports() as AuthenticatorTransport[])
+      : []
+  return {
+    id: credential.id,
+    rawId: bytesToBase64url(credential.rawId),
+    type: credential.type,
+    response: {
+      attestationObject: bytesToBase64url(response.attestationObject),
+      clientDataJSON: bytesToBase64url(response.clientDataJSON),
+      transports,
+    },
+  }
+}

@@ -1,5 +1,6 @@
 import { Badge, Button, Group, Stack, Text } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MfaSection } from '#/components/pages/settings/panels/MfaSection'
 import {
   revokeSession,
   sessionsQueryOptions,
@@ -143,41 +144,42 @@ export function SecurityPanel() {
     })
   }
 
-  if (isPending) return <LoadingPanel label="Loading active sessions..." />
-
-  if (isError) {
-    return (
-      <ErrorPanel
-        label="Couldn't load active sessions."
-        onRetry={() => refetch()}
-        retrying={isFetching}
-      />
-    )
-  }
-
-  const sessions = sortSessions(data)
+  const sessions = data ? sortSessions(data) : []
 
   return (
-    <Panel title="Active sessions" count={sessions.length}>
-      <Stack gap={0} px={18} py={4}>
-        {sessions.length === 0 ? (
-          <Text c="dimmed" py="md">
-            No active sessions.
-          </Text>
-        ) : (
-          sessions.map((session) => (
-            <SessionRow
-              key={session.id}
-              session={session}
-              revoking={
-                revokeMutation.isPending &&
-                revokeMutation.variables.id === session.id
-              }
-              onRevoke={askRevoke}
-            />
-          ))
-        )}
-      </Stack>
-    </Panel>
+    <Stack gap="lg">
+      <MfaSection />
+      {isPending ? (
+        <LoadingPanel label="Loading active sessions..." />
+      ) : isError ? (
+        <ErrorPanel
+          label="Couldn't load active sessions."
+          onRetry={() => refetch()}
+          retrying={isFetching}
+        />
+      ) : (
+        <Panel title="Active sessions" count={sessions.length}>
+          <Stack gap={0} px={18} py={4}>
+            {sessions.length === 0 ? (
+              <Text c="dimmed" py="md">
+                No active sessions.
+              </Text>
+            ) : (
+              sessions.map((session) => (
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  revoking={
+                    revokeMutation.isPending &&
+                    revokeMutation.variables.id === session.id
+                  }
+                  onRevoke={askRevoke}
+                />
+              ))
+            )}
+          </Stack>
+        </Panel>
+      )}
+    </Stack>
   )
 }

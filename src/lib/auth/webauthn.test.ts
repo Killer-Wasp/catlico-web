@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   base64urlToBytes,
   bytesToBase64url,
+  decodeCreationOptions,
   decodeRequestOptions,
   serializeAssertion,
+  serializeAttestation,
 } from './webauthn'
 
 describe('base64url helpers', () => {
@@ -107,5 +109,105 @@ describe('serializeAssertion', () => {
     } as unknown as PublicKeyCredential
 
     expect(serializeAssertion(credential).response.userHandle).toBeNull()
+  })
+})
+
+describe('decodeCreationOptions', () => {
+  it('decodes challenge, user.id and excludeCredentials ids into byte buffers', () => {
+    const challengeBytes = new Uint8Array([1, 2, 3, 4])
+    const userIdBytes = new Uint8Array([200, 100, 50])
+    const excludeBytes = new Uint8Array([7, 7])
+
+    const options = decodeCreationOptions({
+      challenge: bytesToBase64url(challengeBytes.buffer),
+      rp: { id: 'example.com', name: 'Catlico' },
+      user: {
+        id: bytesToBase64url(userIdBytes.buffer),
+        name: 'admin@example.com',
+        displayName: 'Admin',
+      },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+      timeout: 60000,
+      excludeCredentials: [
+        {
+          id: bytesToBase64url(excludeBytes.buffer),
+          type: 'public-key',
+          transports: ['internal'],
+        },
+      ],
+      authenticatorSelection: { userVerification: 'preferred' },
+      attestation: 'none',
+    })
+
+    expect(new Uint8Array(options.challenge as ArrayBuffer)).toEqual(
+      challengeBytes,
+    )
+    expect(new Uint8Array(options.user.id as ArrayBuffer)).toEqual(userIdBytes)
+    expect(options.user.name).toBe('admin@example.com')
+    expect(options.rp.name).toBe('Catlico')
+    expect(options.timeout).toBe(60000)
+    expect(
+      new Uint8Array(options.excludeCredentials![0].id as ArrayBuffer),
+    ).toEqual(excludeBytes)
+    expect(options.excludeCredentials![0].transports).toEqual(['internal'])
+    expect(options.attestation).toBe('none')
+  })
+
+  it('tolerates missing excludeCredentials', () => {
+    const options = decodeCreationOptions({
+      challenge: bytesToBase64url(new Uint8Array([1]).buffer),
+      rp: { name: 'Catlico' },
+      user: {
+        id: bytesToBase64url(new Uint8Array([2]).buffer),
+        name: 'a@b.com',
+        displayName: 'A',
+      },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+    })
+    expect(options.excludeCredentials).toBeUndefined()
+  })
+})
+
+describe('serializeAttestation', () => {
+  it('serializes a creation credential to the WebAuthn-JSON registration shape', () => {
+    const rawId = new Uint8Array([1, 2, 3, 4])
+    const attestationObject = new Uint8Array([11, 22, 33])
+    const clientData = new Uint8Array([44, 55])
+
+    const credential = {
+      id: 'new-cred-id',
+      rawId: rawId.buffer,
+      type: 'public-key',
+      response: {
+        attestationObject: attestationObject.buffer,
+        clientDataJSON: clientData.buffer,
+        getTransports: () => ['internal', 'hybrid'],
+      },
+    } as unknown as PublicKeyCredential
+
+    expect(serializeAttestation(credential)).toEqual({
+      id: 'new-cred-id',
+      rawId: bytesToBase64url(rawId.buffer),
+      type: 'public-key',
+      response: {
+        attestationObject: bytesToBase64url(attestationObject.buffer),
+        clientDataJSON: bytesToBase64url(clientData.buffer),
+        transports: ['internal', 'hybrid'],
+      },
+    })
+  })
+
+  it('defaults transports to an empty array when getTransports is unavailable', () => {
+    const credential = {
+      id: 'x',
+      rawId: new Uint8Array([1]).buffer,
+      type: 'public-key',
+      response: {
+        attestationObject: new Uint8Array([1]).buffer,
+        clientDataJSON: new Uint8Array([1]).buffer,
+      },
+    } as unknown as PublicKeyCredential
+
+    expect(serializeAttestation(credential).response.transports).toEqual([])
   })
 })
