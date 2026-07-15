@@ -30,8 +30,6 @@ export type ProposedActionType =
   | 'change_severity_status'
   | 'patch_case_description'
 
-export type RunnerEnrollmentState = 'pending' | 'enrolled'
-
 export type PluginVersionStatus = 'installed' | 'active' | 'failed'
 
 export type PluginEventDeliveryStatus = 'pending' | 'delivered' | 'failed' | 'expired'
@@ -139,15 +137,6 @@ export type PluginRunnerPublic = {
   last_health_at: string | null
   last_heartbeat_at: string | null
   created_at: string | null
-}
-
-export type CreateRunnerResponse = {
-  id: string
-  name: string
-  status: string
-  enrollment_state: string
-  enrollment_token: string
-  enrollment_token_expires_at: string
 }
 
 export type PluginStats = {
@@ -357,12 +346,6 @@ export type QueuePluginRunRequest = {
 
 export type AutoApplyRequest = {
   actions: string[]
-}
-
-export type CreateRunnerRequest = {
-  id: string
-  name?: string
-  base_url?: string
 }
 
 export type PluginRunFilter = {

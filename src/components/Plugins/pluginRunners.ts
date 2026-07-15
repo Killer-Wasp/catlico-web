@@ -4,8 +4,6 @@ import type {
   PluginRunner,
   PluginRunnerPublic,
   PluginRunnerStatus,
-  CreateRunnerResponse,
-  CreateRunnerRequest,
   RunnerStats,
   StatsWindow,
 } from './plugins.types'
@@ -72,14 +70,8 @@ export async function fetchRunnerStats(
 }
 
 // ── Mutations ───────────────────────────────────────────────────────────────
-
-export async function createPluginRunner(
-  request: CreateRunnerRequest,
-): Promise<CreateRunnerResponse> {
-  return api
-    .post('plugin-runners', { json: request })
-    .json<CreateRunnerResponse>()
-}
+// Runners self-register with the shared secret on startup; there is no admin
+// create/enroll flow. They appear in the list once they register.
 
 export async function triggerHealthCheck(id: string): Promise<void> {
   await api.post(`plugin-runners/${id}/health-check`)
@@ -87,12 +79,6 @@ export async function triggerHealthCheck(id: string): Promise<void> {
 
 export async function triggerSync(id: string): Promise<void> {
   await api.post(`plugin-runners/${id}/sync`)
-}
-
-export async function reEnrollRunner(id: string): Promise<CreateRunnerResponse> {
-  return api
-    .post(`plugin-runners/${id}/re-enroll`)
-    .json<CreateRunnerResponse>()
 }
 
 // ── queryOptions units ──────────────────────────────────────────────────────

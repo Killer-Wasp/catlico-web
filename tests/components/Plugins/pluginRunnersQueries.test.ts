@@ -1,4 +1,4 @@
-import { fetchPluginRunners, fetchPluginRunner, createPluginRunner, triggerHealthCheck, triggerSync, runnerKeys, pluginRunnersQueryOptions } from '#/components/Plugins/pluginRunners'
+import { fetchPluginRunners, fetchPluginRunner, triggerHealthCheck, triggerSync, runnerKeys, pluginRunnersQueryOptions } from '#/components/Plugins/pluginRunners'
 import { api } from '#/lib/api/client'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -84,27 +84,6 @@ describe('plugin runners queries', () => {
 
     const runner = await fetchPluginRunner('runner-1')
     expect(runner.id).toBe('runner-1')
-  })
-
-  test('creates a runner and returns enrollment token', async () => {
-    const tokenResponse = {
-      id: 'runner-new',
-      name: 'runner-new',
-      status: 'healthy',
-      enrollment_state: 'pending',
-      enrollment_token: 'cat_enr_abc123',
-      enrollment_token_expires_at: '2026-07-10T11:00:00Z',
-    }
-    let calledWith: unknown
-    vi.mocked(api.post).mockImplementation((_input, opts) => {
-      calledWith = (opts as { json: unknown }).json
-      return { json: async () => tokenResponse } as JsonResponse as ReturnType<typeof api.post>
-    })
-
-    const result = await createPluginRunner({ id: 'runner-new' })
-    expect(result.enrollment_token).toBe('cat_enr_abc123')
-    expect(result.enrollment_state).toBe('pending')
-    expect(calledWith).toEqual({ id: 'runner-new' })
   })
 
   test('health-check POST hits the correct endpoint', async () => {
