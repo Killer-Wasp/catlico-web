@@ -16,7 +16,6 @@ export type SettingsSection =
   | 'All users'
   | 'Identity providers'
   | 'MFA policy'
-  | 'Audit log'
 
 export type Role = 'admin' | 'analyst' | 'readonly'
 
@@ -38,7 +37,6 @@ export const settingsSections: SettingsSection[] = [
   'All users',
   'Identity providers',
   'MFA policy',
-  'Audit log',
 ]
 
 // URL-friendly slugs so the active tab can live in the `?tab=` search param.

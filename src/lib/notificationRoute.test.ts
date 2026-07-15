@@ -52,14 +52,14 @@ describe('notificationRoute', () => {
     })
   })
 
-  test('log → parent case Timeline tab via context.id', () => {
+  test('log → parent case Tasks tab via context.id', () => {
     expect(
       notificationRoute(
         envelope({ type: 'log', id: 'L-5-2' }, { type: 'case', id: '5' }),
       ),
     ).toEqual({
       to: '/cases/$caseId/$tab',
-      params: { caseId: '5', tab: 'timeline' },
+      params: { caseId: '5', tab: 'tasks' },
     })
   })
 

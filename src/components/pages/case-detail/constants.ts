@@ -8,7 +8,6 @@ export const CASE_TABS = [
   'comments',
   'attachments',
   'similar',
-  'timeline',
   'sharing',
 ] as const
 export type CaseTab = (typeof CASE_TABS)[number]

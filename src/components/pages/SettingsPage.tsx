@@ -5,7 +5,6 @@ import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import { AllUsersPanel } from './settings/panels/AllUsersPanel'
 import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
 import { AttackCatalogPanel } from './settings/panels/AttackCatalogPanel'
-import { AuditLogPanel } from './settings/panels/AuditLogPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
 import { IdentityProvidersPanel } from './settings/panels/IdentityProvidersPanel'
 import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
@@ -62,7 +61,6 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'All users') return <AllUsersPanel />
   if (section === 'Identity providers') return <IdentityProvidersPanel />
   if (section === 'MFA policy') return <MfaSettingsPanel />
-  if (section === 'Audit log') return <AuditLogPanel />
   return <OrgProfilePanel />
 }
 
@@ -97,7 +95,6 @@ export function SettingsLayout() {
     // that report the MFA capability (hidden on the OSS default).
     if (s === 'MFA policy')
       return isSuperadmin && capabilities?.mfa === true
-    if (s === 'Audit log') return isSuperadmin
     const needed = SECTION_READ_PERMISSION[s]
     return needed ? can(needed) : true
   })

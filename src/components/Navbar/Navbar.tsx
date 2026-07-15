@@ -13,7 +13,6 @@ import {
   PanelLeftOpen,
   Play,
   Puzzle,
-  ScrollText,
   Server,
   Settings,
 } from 'lucide-react'
@@ -136,7 +135,6 @@ function sectionsForCounts(counts: NavbarCounts): NavSection[] {
           to: '/case-templates',
           badge: counts.caseTemplates,
         },
-        { icon: ScrollText, label: 'Audit trail' },
         { icon: Settings, label: 'Settings', to: '/settings' },
       ],
     },

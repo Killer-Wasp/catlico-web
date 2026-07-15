@@ -111,9 +111,11 @@ export function notificationRoute(payload: unknown): NotificationRoute | null {
       return context?.type === 'case' && context.id
         ? caseTab(context.id, 'tasks')
         : null
+    // A work-log belongs to a task; the case has no standalone activity tab, so
+    // deep-link to the parent case's Tasks tab.
     case 'log':
       return context?.type === 'case' && context.id
-        ? caseTab(context.id, 'timeline')
+        ? caseTab(context.id, 'tasks')
         : null
     case 'comment':
       return commentRoute(object, context)
