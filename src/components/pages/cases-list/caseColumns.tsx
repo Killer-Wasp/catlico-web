@@ -182,11 +182,11 @@ export function buildCaseColumns({
         nowrap: true,
       } satisfies TableColumnMeta,
       cell: (info) => {
-        const assignees = info.row.original.assignees
+        const rowAssignees = info.row.original.assignees
         // Prefer the full stack; fall back to the single resolved email while a
         // cached row predates the multi-assignee field.
-        return assignees && assignees.length > 0 ? (
-          <AssigneeStack assignees={assignees} />
+        return rowAssignees && rowAssignees.length > 0 ? (
+          <AssigneeStack assignees={rowAssignees} />
         ) : (
           <AssigneeAvatar name={info.getValue<string>()} />
         )

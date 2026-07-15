@@ -35,9 +35,7 @@ export function useAssigneeSelectOptions(
   current?: string,
 ): { value: string; label: string }[] {
   const assignees = useAssignees()
-  const values = [
-    ...new Set([...assignees, ...(current ? [current] : [])]),
-  ]
+  const values = [...new Set([...assignees, ...(current ? [current] : [])])]
   return [
     { value: '', label: 'Unassigned' },
     ...values.map((value) => ({ value, label: value })),

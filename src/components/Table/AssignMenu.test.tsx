@@ -7,7 +7,13 @@
  * search query is mocked so the menu's rows are deterministic.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  cleanup,
+  waitFor,
+} from '@testing-library/react'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AssignMenu } from './AssignMenu'
@@ -100,7 +106,7 @@ describe('AssignMenu', () => {
     renderMenu()
     openMenu()
     await screen.findByText('ada@example.com')
-    const input = screen.getByPlaceholderText('Search people') as HTMLInputElement
+    const input = screen.getByPlaceholderText<HTMLInputElement>('Search people')
     fireEvent.change(input, { target: { value: 'grace' } })
     expect(input.value).toBe('grace')
   })
@@ -114,9 +120,7 @@ describe('AssignMenu', () => {
 
   it('honours the custom trigger label', () => {
     renderMenu()
-    expect(
-      screen.queryByRole('button', { name: 'Assign to' }),
-    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Assign to' })).toBeTruthy()
   })
 
   it('does not fetch until the menu is opened', () => {

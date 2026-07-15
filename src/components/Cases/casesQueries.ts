@@ -754,7 +754,9 @@ async function fetchCaseCustomFieldValues(
   id: string,
 ): Promise<Record<string, unknown>> {
   const numeric = id.replace(/^#/, '')
-  return api.get(`cases/${numeric}/custom-fields`).json<Record<string, unknown>>()
+  return api
+    .get(`cases/${numeric}/custom-fields`)
+    .json<Record<string, unknown>>()
 }
 
 /**

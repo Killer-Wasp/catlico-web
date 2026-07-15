@@ -80,9 +80,19 @@ export function ManageAssigneesPopover({
               const label = a.email ? displayName(a.email) : a.id
               const [initials, color] = avatarFor(a.email || a.id)
               return (
-                <Group key={a.id} justify="space-between" wrap="nowrap" gap="xs">
+                <Group
+                  key={a.id}
+                  justify="space-between"
+                  wrap="nowrap"
+                  gap="xs"
+                >
                   <Group gap={8} wrap="nowrap" miw={0}>
-                    <Avatar variant="filled" color={color} size={22} radius="xl">
+                    <Avatar
+                      variant="filled"
+                      color={color}
+                      size={22}
+                      radius="xl"
+                    >
                       {initials}
                     </Avatar>
                     <Text fz="sm" truncate>

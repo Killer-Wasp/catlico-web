@@ -22,7 +22,9 @@ export type AssigneeRef = {
 }
 
 /** Map the backend assignee list to the UI shape, primary first. */
-export function toAssigneeRefs(dtos: AssigneeRefDTO[] | undefined): AssigneeRef[] {
+export function toAssigneeRefs(
+  dtos: AssigneeRefDTO[] | undefined,
+): AssigneeRef[] {
   return (dtos ?? [])
     .map((d) => ({ id: d.id, email: d.email ?? '', isPrimary: d.is_primary }))
     .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))

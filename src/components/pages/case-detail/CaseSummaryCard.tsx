@@ -166,7 +166,10 @@ export function CaseSummaryCard({
       notifications.show({ color: 'green', message: 'Assignees updated' })
     },
     onError: () => {
-      notifications.show({ color: 'red', message: 'Failed to update assignees' })
+      notifications.show({
+        color: 'red',
+        message: 'Failed to update assignees',
+      })
     },
   })
 

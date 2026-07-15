@@ -135,9 +135,7 @@ const CASE: CaseDetail = {
   statusName: 'Open',
   title: 'Suspicious login',
   assignee: 'analyst@example.com',
-  assignees: [
-    { id: 'u1', email: 'analyst@example.com', isPrimary: true },
-  ],
+  assignees: [{ id: 'u1', email: 'analyst@example.com', isPrimary: true }],
   tags: ['finance'],
   opened: '2026-07-13',
   openedAgo: '1d ago',
