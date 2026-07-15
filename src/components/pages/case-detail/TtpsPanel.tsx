@@ -1,13 +1,15 @@
 /**
- * The case's TTPs, backed by the procedures API (not tag heuristics).
- * "Add" opens the ATT&CK matrix in picker mode; saving replaces the case's
- * procedure set via PUT /cases/{id}/procedures.
+ * An entity's TTPs, backed by the procedures API (not tag heuristics). Shared by
+ * the case side-rail and the alert drawer via `entityType` — "Add" opens the
+ * ATT&CK matrix in picker mode; saving replaces the entity's procedure set via
+ * PUT /{cases|alerts}/{id}/procedures.
  */
 import {
   attackCatalogQueryOptions,
-  caseProceduresQueryOptions,
   invalidateProcedureQueries,
-  replaceCaseProcedures,
+  proceduresQueryOptions,
+  replaceProcedures,
+  type ProcedureEntityType,
   type ProcedureInput,
 } from '#/components/Attack/attackQueries'
 import { AttackMatrix } from '#/components/Attack/AttackMatrix'
@@ -28,15 +30,23 @@ import { Plus, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { actionNotice } from './constants'
 
-export function TtpsPanel({ caseId }: { caseId: string }) {
+export function TtpsPanel({
+  entityId,
+  entityType = 'case',
+}: {
+  entityId: string
+  /** Whether the TTPs hang off a case (default) or an alert (§4.1a). */
+  entityType?: ProcedureEntityType
+}) {
   const qc = useQueryClient()
-  const procedures = useQuery(caseProceduresQueryOptions(caseId))
+  const procedures = useQuery(proceduresQueryOptions(entityType, entityId))
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const save = useMutation({
-    mutationFn: (procs: ProcedureInput[]) => replaceCaseProcedures(caseId, procs),
+    mutationFn: (procs: ProcedureInput[]) =>
+      replaceProcedures(entityType, entityId, procs),
     onSuccess: () => {
-      invalidateProcedureQueries(qc, caseId)
+      invalidateProcedureQueries(qc, entityType, entityId)
       setPickerOpen(false)
     },
     onError: () => actionNotice('Failed to update techniques'),

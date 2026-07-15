@@ -4,6 +4,10 @@ import {
   createCaseObservableFile,
 } from '#/components/Cases/casesQueries'
 import type { CaseListFilters } from '#/components/Cases/casesQueries'
+import {
+  createAlertObservable,
+  createAlertObservableFile,
+} from '#/components/Alerts/alertsQueries'
 import { observableTypesQueryOptions } from '#/components/pages/settings/settingsQueries'
 import { TLP } from '#/lib/domain'
 import type { Tlp } from '#/lib/domain'
@@ -36,6 +40,12 @@ export type CreateObservableDialogProps = {
    * rendered and the chosen case supplies the create target.
    */
   caseId?: number
+  /**
+   * When provided, the observable is created on this alert (alert-drawer usage,
+   * §4.1c) via the alert observable routes. Mutually exclusive with `caseId`;
+   * like a fixed `caseId`, it suppresses the case picker.
+   */
+  alertId?: string
   /** Called after a successful create so the caller can invalidate its lists. */
   onCreated?: () => void
 }
@@ -51,6 +61,7 @@ export function CreateObservableDialog({
   opened,
   onClose,
   caseId,
+  alertId,
   onCreated,
 }: CreateObservableDialogProps) {
   const [newType, setNewType] = useState<string | null>(null)
@@ -64,7 +75,8 @@ export function CreateObservableDialog({
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const needsCasePicker = caseId == null
+  // An alert target fixes the entity like a fixed case id — no picker either way.
+  const needsCasePicker = caseId == null && alertId == null
 
   const { data: obsTypes } = useQuery({
     ...observableTypesQueryOptions(),
@@ -95,7 +107,13 @@ export function CreateObservableDialog({
     enabled: opened && needsCasePicker,
   })
 
-  const targetCaseId = needsCasePicker ? selectedCaseId : String(caseId)
+  const targetCaseId = needsCasePicker
+    ? selectedCaseId
+    : caseId != null
+      ? String(caseId)
+      : null
+  // For an alert target, whether we have a place to create the observable.
+  const hasTarget = alertId != null ? true : Boolean(targetCaseId)
 
   const reset = () => {
     setNewType(null)
@@ -118,7 +136,9 @@ export function CreateObservableDialog({
   const handleError = (error: unknown) => {
     if (isHTTPError(error) && error.response.status === 409) {
       setErrorMessage(
-        'An observable with this type and value already exists on the case.',
+        `An observable with this type and value already exists on the ${
+          alertId != null ? 'alert' : 'case'
+        }.`,
       )
     } else {
       setErrorMessage('Could not create the observable. Please try again.')
@@ -126,35 +146,43 @@ export function CreateObservableDialog({
   }
 
   const addObservable = useMutation({
-    mutationFn: () =>
-      createCaseObservable(targetCaseId!, {
+    mutationFn: () => {
+      const body = {
         observable_type: newType!,
         data: newData,
         message: newMessage,
         tlp: Number(newTlp),
         ioc: newIoc,
         sighted: newSighted,
-      }),
+      }
+      return alertId != null
+        ? createAlertObservable(alertId, body)
+        : createCaseObservable(targetCaseId!, body)
+    },
     onSuccess: handleSuccess,
     onError: handleError,
   })
   const addObservableFile = useMutation({
-    mutationFn: () =>
-      createCaseObservableFile(targetCaseId!, {
+    mutationFn: () => {
+      const body = {
         observable_type: newType!,
         file: file!,
         message: newMessage,
         tlp: Number(newTlp),
         ioc: newIoc,
         sighted: newSighted,
-      }),
+      }
+      return alertId != null
+        ? createAlertObservableFile(alertId, body)
+        : createCaseObservableFile(targetCaseId!, body)
+    },
     onSuccess: handleSuccess,
     onError: handleError,
   })
 
   const isPending = addObservable.isPending || addObservableFile.isPending
   const canSubmit =
-    Boolean(targetCaseId) &&
+    hasTarget &&
     Boolean(newType) &&
     (isFileMode ? Boolean(file) : Boolean(newData.trim()))
 

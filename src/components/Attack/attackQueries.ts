@@ -20,9 +20,13 @@ export type PatternDto = {
   created_at: string
 }
 
+/** An entity that can carry TTPs — a case or an alert (§4.1a). */
+export type ProcedureEntityType = 'case' | 'alert'
+
 export type ProcedureDto = {
   id: string
-  case_id: number
+  case_id: number | null
+  alert_id: number | null
   pattern_id: string
   pattern: PatternDto | null
   description: string
@@ -54,8 +58,22 @@ export const attackKeys = {
   techniqueCasesAll: () => [...attackKeys.all, 'technique-cases'] as const,
   techniqueCases: (externalId: string) =>
     [...attackKeys.techniqueCasesAll(), externalId] as const,
-  procedures: (caseId: string) =>
-    [...attackKeys.all, 'procedures', caseId] as const,
+  procedures: (entityType: ProcedureEntityType, entityId: string) =>
+    [...attackKeys.all, 'procedures', entityType, entityId] as const,
+}
+
+/** Strip the display prefix from a case (`#123`) or alert (`AL-123`) id. */
+const stripEntityPrefix = (id: string) => id.replace(/^(#|AL-)/, '')
+
+/** Path of an entity's procedures collection (`cases|alerts/{id}/procedures`). */
+function proceduresEndpoint(
+  entityType: ProcedureEntityType,
+  entityId: string,
+): string {
+  const numeric = stripEntityPrefix(entityId)
+  return entityType === 'alert'
+    ? `alerts/${numeric}/procedures`
+    : `cases/${numeric}/procedures`
 }
 
 // --- fetchers ----------------------------------------------------------------
@@ -80,9 +98,11 @@ async function fetchTechniqueCases(
     .json<PatternCaseSummaryDto[]>()
 }
 
-async function fetchCaseProcedures(caseId: string): Promise<ProcedureDto[]> {
-  const numeric = caseId.replace(/^#/, '')
-  return api.get(`cases/${numeric}/procedures`).json<ProcedureDto[]>()
+async function fetchProcedures(
+  entityType: ProcedureEntityType,
+  entityId: string,
+): Promise<ProcedureDto[]> {
+  return api.get(proceduresEndpoint(entityType, entityId)).json<ProcedureDto[]>()
 }
 
 // --- mutations ----------------------------------------------------------------
@@ -95,13 +115,13 @@ export type ProcedureInput = {
   description?: string
 }
 
-export async function replaceCaseProcedures(
-  caseId: string,
+export async function replaceProcedures(
+  entityType: ProcedureEntityType,
+  entityId: string,
   procedures: ProcedureInput[],
 ): Promise<ProcedureDto[]> {
-  const numeric = caseId.replace(/^#/, '')
   return api
-    .put(`cases/${numeric}/procedures`, { json: { procedures } })
+    .put(proceduresEndpoint(entityType, entityId), { json: { procedures } })
     .json<ProcedureDto[]>()
 }
 
@@ -109,12 +129,22 @@ export async function importAttackCatalog(): Promise<AttackImportResult> {
   return api.post('patterns/import-attack').json<AttackImportResult>()
 }
 
-/** Procedures changed for a case: refresh that case's TTPs + org-wide stats
- *  (the technique-cases invalidation is a prefix match across all techniques). */
-export function invalidateProcedureQueries(qc: QueryClient, caseId: string) {
-  qc.invalidateQueries({ queryKey: attackKeys.procedures(caseId) })
-  qc.invalidateQueries({ queryKey: attackKeys.caseStats() })
-  qc.invalidateQueries({ queryKey: attackKeys.techniqueCasesAll() })
+/** Procedures changed for an entity: refresh that entity's TTPs, plus the
+ *  org-wide case matrix stats when a *case*'s TTPs changed (alert TTPs never
+ *  feed the case matrix, so their invalidation is skipped). The technique-cases
+ *  invalidation is a prefix match across all techniques. */
+export function invalidateProcedureQueries(
+  qc: QueryClient,
+  entityType: ProcedureEntityType,
+  entityId: string,
+) {
+  qc.invalidateQueries({
+    queryKey: attackKeys.procedures(entityType, entityId),
+  })
+  if (entityType === 'case') {
+    qc.invalidateQueries({ queryKey: attackKeys.caseStats() })
+    qc.invalidateQueries({ queryKey: attackKeys.techniqueCasesAll() })
+  }
 }
 
 /** Catalog changed (import ran): refetch catalog-derived queries. */
@@ -144,8 +174,11 @@ export const techniqueCasesQueryOptions = (externalId: string) =>
     queryFn: () => fetchTechniqueCases(externalId),
   })
 
-export const caseProceduresQueryOptions = (caseId: string) =>
+export const proceduresQueryOptions = (
+  entityType: ProcedureEntityType,
+  entityId: string,
+) =>
   queryOptions({
-    queryKey: attackKeys.procedures(caseId),
-    queryFn: () => fetchCaseProcedures(caseId),
+    queryKey: attackKeys.procedures(entityType, entityId),
+    queryFn: () => fetchProcedures(entityType, entityId),
   })

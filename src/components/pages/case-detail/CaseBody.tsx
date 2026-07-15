@@ -109,7 +109,7 @@ export function CaseTabPanel({
 }) {
   switch (tab) {
     case 'custom-fields':
-      return <CustomFieldsPanel caseId={caseId} />
+      return <CustomFieldsPanel entityType="case" entityId={caseId} />
     case 'tasks':
       return <TasksPanel caseDetail={caseDetail} caseId={caseId} />
     case 'observables':

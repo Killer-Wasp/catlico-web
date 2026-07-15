@@ -25,9 +25,11 @@ import {
   VisuallyHidden,
 } from '@mantine/core'
 import { useNavigate } from '@tanstack/react-router'
-import { ExternalLink, MoreHorizontal, Play } from 'lucide-react'
+import { ExternalLink, MoreHorizontal, Play, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
+import { CustomFieldsPanel } from '#/components/pages/case-detail/CustomFieldsPanel'
+import { TtpsPanel } from '#/components/pages/case-detail/TtpsPanel'
 import { InlineMarkdown } from './InlineMarkdown'
 import styles from './styles.module.css'
 
@@ -40,6 +42,7 @@ export function AlertDetailDrawer({
   onDismiss,
   onMergeIntoCase,
   onRunAnalysis,
+  onAddObservable,
   onPromote,
   promotionPending = false,
   onDetach,
@@ -61,6 +64,9 @@ export function AlertDetailDrawer({
   onDismiss?: (id: string) => void
   onMergeIntoCase?: (id: string) => void
   onRunAnalysis: (id: string) => void
+  /** Opens the shared CreateObservableDialog targeting this alert (§4.1c). When
+   *  omitted, the "Add observable" affordance is hidden. */
+  onAddObservable?: (id: string) => void
   onPromote?: (id: string, templateId: string) => void
   promotionPending?: boolean
   /** Detach the alert from its linked case, returning it to New. Rendered in the
@@ -289,14 +295,26 @@ export function AlertDetailDrawer({
           title="Observables"
           count={(observables ?? alert.observables).length}
           action={
-            <Button
-              size="xs"
-              variant="default"
-              leftSection={<Play size={12} />}
-              onClick={() => onRunAnalysis(alert.id)}
-            >
-              Run analyzers
-            </Button>
+            <>
+              {onAddObservable && (
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<Plus size={12} />}
+                  onClick={() => onAddObservable(alert.id)}
+                >
+                  Add observable
+                </Button>
+              )}
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<Play size={12} />}
+                onClick={() => onRunAnalysis(alert.id)}
+              >
+                Run analyzers
+              </Button>
+            </>
           }
         >
           {observables ? (
@@ -337,6 +355,18 @@ export function AlertDetailDrawer({
             entityType="alert"
             entityId={alert.id.replace(/^AL-/, '')}
           />
+        </Box>
+
+        <DrawerSection title="TTPs">
+          <TtpsPanel entityType="alert" entityId={alert.id} />
+        </DrawerSection>
+
+        <Box
+          px={22}
+          py={16}
+          style={{ borderTop: '1px solid var(--line-soft)' }}
+        >
+          <CustomFieldsPanel entityType="alert" entityId={alert.id} />
         </Box>
 
         {linkedRows.length > 0 && (

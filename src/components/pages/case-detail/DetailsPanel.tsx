@@ -5,7 +5,7 @@ import {
   updateCaseDescription,
 } from '#/components/Cases/casesQueries'
 import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
-import { Stack, Text } from '@mantine/core'
+import { Divider, Stack, Text, Title } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 export function DetailsPanel({
@@ -50,6 +50,29 @@ export function DetailsPanel({
         entityType="case"
         entityId={caseId.replace(/^#/, '')}
       />
+
+      {/* Plugin results stay keyed to a promoted alert (§4.1b) — surface them
+          from the case via the same entity-polymorphic panel, one per linked
+          alert, so enrichment gathered during triage remains visible here. */}
+      {caseDetail.linkedAlerts.length > 0 && (
+        <Stack gap="md">
+          <Divider
+            label="Linked alert enrichment"
+            labelPosition="left"
+          />
+          {caseDetail.linkedAlerts.map((linkedAlert) => (
+            <Stack key={linkedAlert.id} gap="xs">
+              <Title order={6} size="h6" c="dimmed">
+                {linkedAlert.id} · {linkedAlert.title}
+              </Title>
+              <PluginResultsPanel
+                entityType="alert"
+                entityId={linkedAlert.id.replace(/^AL-/, '')}
+              />
+            </Stack>
+          ))}
+        </Stack>
+      )}
     </Stack>
   )
 }

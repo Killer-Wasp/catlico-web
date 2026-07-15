@@ -35,7 +35,7 @@ export function CaseSideRail({ caseDetail }: { caseDetail: CaseDetail }) {
       </SideCard>
 
       <SideCard title="TTPs" badge="ATT&CK">
-        <TtpsPanel caseId={caseDetail.id} />
+        <TtpsPanel entityType="case" entityId={caseDetail.id} />
       </SideCard>
 
       <AlertDrawer

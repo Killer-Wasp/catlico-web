@@ -311,6 +311,12 @@ beforeEach(() => {
         json: async () => ({ items: [caseDto], total: 1, skip: 0, limit: 10 }),
       } satisfies JsonResponse as ReturnType<typeof api.get>
     }
+    // The drawer's TTP panel (§4.1a) lists the alert's procedures as an array.
+    if (endpoint.endsWith('/procedures')) {
+      return {
+        json: async () => [],
+      } satisfies JsonResponse as ReturnType<typeof api.get>
+    }
     return {
       json: async () => ({}),
     } satisfies JsonResponse as ReturnType<typeof api.get>
