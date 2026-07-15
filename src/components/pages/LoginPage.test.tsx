@@ -11,14 +11,35 @@
  * Mocks the api client (get), the auth session `login` helper, and the router's
  * `useNavigate`/`Link` — matching SecurityPanel/AllUsersPanel test conventions.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { HTTPError } from 'ky'
 import { LoginPage } from './LoginPage'
 import { api } from '#/lib/api/client'
-import { login } from '#/lib/auth/session'
+import {
+  login,
+  verifyMfaCode,
+  verifyPasskey,
+  PasskeyCancelledError,
+} from '#/lib/auth/session'
 import type { IdentityProvider } from '#/lib/auth/authProviders'
+
+const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }))
 
 // API_BASE is absolute here, so the authorize URL resolves to the API origin
 // (http://localhost:8000), NOT the web app's own origin.
@@ -29,10 +50,13 @@ vi.mock('#/lib/api/client', () => ({
 
 vi.mock('#/lib/auth/session', () => ({
   login: vi.fn(),
+  verifyMfaCode: vi.fn(),
+  verifyPasskey: vi.fn(),
+  PasskeyCancelledError: class extends Error {},
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateMock,
   Link: ({ children, ...rest }: { children: React.ReactNode }) => (
     <a {...rest}>{children}</a>
   ),
@@ -40,6 +64,8 @@ vi.mock('@tanstack/react-router', () => ({
 
 const getMock = vi.mocked(api.get)
 const loginMock = vi.mocked(login)
+const verifyMfaCodeMock = vi.mocked(verifyMfaCode)
+const verifyPasskeyMock = vi.mocked(verifyPasskey)
 
 const PROVIDERS: IdentityProvider[] = [
   {
@@ -86,6 +112,9 @@ let assignSpy: ReturnType<typeof vi.fn>
 beforeEach(() => {
   getMock.mockReset()
   loginMock.mockReset()
+  verifyMfaCodeMock.mockReset()
+  verifyPasskeyMock.mockReset()
+  navigateMock.mockReset()
   assignSpy = vi.fn()
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -172,5 +201,100 @@ describe('LoginPage SSO section', () => {
     })
     fireEvent.click(signIn)
     expect(loginMock).toHaveBeenCalledWith('a@b.com', 'pw')
+  })
+})
+
+describe('LoginPage MFA step', () => {
+  // Drive the password form to the point where the API demands a second factor.
+  async function reachMfaStep(pendingToken = 'pending-xyz') {
+    mockProviders([])
+    loginMock.mockResolvedValue({ status: 'mfa_required', pendingToken })
+    renderLogin()
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'admin@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'changeme' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
+
+    return screen.findByLabelText(/authentication code/i)
+  }
+
+  it('shows the code step (not logged in yet) when login returns mfa_required', async () => {
+    await reachMfaStep()
+
+    // Second-factor UI is up; we have NOT navigated (not logged in).
+    expect(screen.getByRole('button', { name: /use a passkey/i })).toBeTruthy()
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(verifyMfaCodeMock).not.toHaveBeenCalled()
+    // The password fields are gone — we're on the second step.
+    expect(screen.queryByLabelText(/^email$/i)).toBeNull()
+  })
+
+  it('verifies a valid code (with the pending token) and completes login', async () => {
+    const codeInput = await reachMfaStep('pending-xyz')
+    verifyMfaCodeMock.mockResolvedValue(undefined)
+
+    fireEvent.change(codeInput, { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: /^verify$/i }))
+
+    await waitFor(() =>
+      expect(verifyMfaCodeMock).toHaveBeenCalledWith('pending-xyz', '123456'),
+    )
+    await waitFor(() => expect(navigateMock).toHaveBeenCalled())
+  })
+
+  it('shows an inline error and stays on the step when the code is rejected (401)', async () => {
+    const codeInput = await reachMfaStep()
+    verifyMfaCodeMock.mockRejectedValue(
+      new HTTPError(
+        new Response(null, { status: 401 }),
+        new Request('http://x/api/v1/auth/mfa/verify'),
+        {} as never,
+      ),
+    )
+
+    fireEvent.change(codeInput, { target: { value: '000000' } })
+    fireEvent.click(screen.getByRole('button', { name: /^verify$/i }))
+
+    expect(await screen.findByText(/invalid.*code/i)).toBeTruthy()
+    // Still on the code step; no navigation.
+    expect(screen.getByLabelText(/authentication code/i)).toBeTruthy()
+    expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('runs the passkey flow (verifyPasskey with the pending token) and completes login', async () => {
+    await reachMfaStep('pending-pk')
+    verifyPasskeyMock.mockResolvedValue(undefined)
+
+    fireEvent.click(screen.getByRole('button', { name: /use a passkey/i }))
+
+    await waitFor(() =>
+      expect(verifyPasskeyMock).toHaveBeenCalledWith('pending-pk'),
+    )
+    await waitFor(() => expect(navigateMock).toHaveBeenCalled())
+  })
+
+  it('stays on the step with a gentle message when the passkey prompt is cancelled', async () => {
+    await reachMfaStep()
+    verifyPasskeyMock.mockRejectedValue(new PasskeyCancelledError('cancelled'))
+
+    fireEvent.click(screen.getByRole('button', { name: /use a passkey/i }))
+
+    expect(await screen.findByText(/passkey.*cancel/i)).toBeTruthy()
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(screen.getByLabelText(/authentication code/i)).toBeTruthy()
+  })
+
+  it('returns to the password form via the back/cancel control', async () => {
+    await reachMfaStep()
+
+    fireEvent.click(screen.getByRole('button', { name: /back|cancel/i }))
+
+    // Password form is back; the code step is gone.
+    expect(await screen.findByLabelText(/^email$/i)).toBeTruthy()
+    expect(screen.queryByLabelText(/authentication code/i)).toBeNull()
   })
 })
