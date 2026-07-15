@@ -2,6 +2,7 @@ import {
   Alert,
   Anchor,
   Button,
+  Divider,
   PasswordInput,
   Stack,
   TextInput,
@@ -9,7 +10,12 @@ import {
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { isHTTPError } from 'ky'
+import { useQuery } from '@tanstack/react-query'
 import { login } from '#/lib/auth/session'
+import {
+  authProvidersQueryOptions,
+  authorizeUrl,
+} from '#/lib/auth/authProviders'
 import { AuthCard } from './auth/AuthCard'
 
 export function LoginPage({ returnUrl = '/' }: { returnUrl?: string }) {
@@ -18,6 +24,12 @@ export function LoginPage({ returnUrl = '/' }: { returnUrl?: string }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Enterprise SSO providers, fetched pre-auth. In OSS (or on any fetch
+  // failure) this stays empty and the SSO section renders nothing — the login
+  // page looks exactly as it does without SSO configured. This is purely
+  // additive; it must never block the password form.
+  const { data: ssoProviders = [] } = useQuery(authProvidersQueryOptions())
 
   async function handleSubmit() {
     setLoading(true)
@@ -40,6 +52,32 @@ export function LoginPage({ returnUrl = '/' }: { returnUrl?: string }) {
 
   return (
     <AuthCard>
+      {ssoProviders.length > 0 && (
+        <Stack gap="sm">
+          {ssoProviders.map((provider) => (
+            <Button
+              key={provider.id}
+              variant="default"
+              size="lg"
+              radius="md"
+              fullWidth
+              // Start SSO with a FULL-PAGE navigation to the API's authorize
+              // endpoint so the IdP redirect + state cookie round-trip works —
+              // not a router navigate or fetch.
+              onClick={() =>
+                window.location.assign(authorizeUrl(provider.authorize_path))
+              }
+              styles={{
+                root: { height: 58 },
+                label: { fontSize: 16, fontWeight: 600 },
+              }}
+            >
+              Continue with {provider.name}
+            </Button>
+          ))}
+          <Divider label="or" labelPosition="center" c="gray.6" />
+        </Stack>
+      )}
       <Stack
         component="form"
         gap="md"

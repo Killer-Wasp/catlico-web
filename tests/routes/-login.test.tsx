@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { MantineProvider } from '@mantine/core'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   RouterProvider,
   createMemoryHistory,
@@ -7,16 +8,30 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { LoginPage } from '#/components/pages/LoginPage'
 
-// The page renders router <Link>s, so it mounts inside a minimal memory router.
+// The page probes `GET /auth/providers` (pre-auth) for SSO buttons. Stub it to
+// the OSS-default empty list so this test stays hermetic and exercises the
+// plain password-form layout.
+vi.mock('#/lib/api/client', () => ({
+  api: { get: () => ({ json: () => Promise.resolve([]) }), post: vi.fn() },
+  API_BASE: '/api/v1',
+}))
+
+// The page renders router <Link>s and a react-query, so it mounts inside a
+// minimal memory router + QueryClientProvider.
 function Harness() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   const rootRoute = createRootRoute({
     component: () => (
-      <MantineProvider>
-        <LoginPage />
-      </MantineProvider>
+      <QueryClientProvider client={client}>
+        <MantineProvider>
+          <LoginPage />
+        </MantineProvider>
+      </QueryClientProvider>
     ),
   })
   const router = createRouter({
