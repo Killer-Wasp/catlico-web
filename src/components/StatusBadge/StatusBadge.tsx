@@ -1,27 +1,30 @@
-import type { CaseStatus } from '#/lib/domain'
-import type { MantineColor } from '@mantine/core'
 import { Badge } from '@mantine/core'
 
-// Case status → Mantine theme colour, driving the light badge tint.
-const STATUS_COLOR: Record<CaseStatus, MantineColor> = {
-  open: 'blue',
-  resolved: 'green',
-  duplicated: 'gray',
-}
-
 type StatusBadgeProps = {
-  status: CaseStatus
   /** Human-readable status label, e.g. "In progress". */
   label: string
+  /** Badge colour (hex) from the org's case-status lookup. */
+  color?: string | null
 }
 
+const FALLBACK_COLOR = '#6b7280'
+
 /**
- * Light status badge shared by the Alerts and Cases tables, colour-coded
- * by case status via the Mantine theme palette.
+ * Light status badge shared by the Cases table, case detail and search hits.
+ * Colour comes from the org-scoped case-status lookup (`case_status.color`),
+ * not a static map — so custom statuses render with their configured colour.
  */
-export function StatusBadge({ status, label }: StatusBadgeProps) {
+export function StatusBadge({ label, color }: StatusBadgeProps) {
+  const c = color || FALLBACK_COLOR
   return (
-    <Badge color={STATUS_COLOR[status]} variant="light" radius="sm" size="sm">
+    <Badge
+      variant="light"
+      radius="sm"
+      size="sm"
+      styles={{
+        root: { backgroundColor: `${c}22`, color: c },
+      }}
+    >
       {label}
     </Badge>
   )

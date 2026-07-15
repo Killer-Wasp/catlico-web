@@ -131,8 +131,7 @@ const CASE: CaseDetail = {
   sev: 2,
   tlp: 2,
   pap: 2,
-  status: 'open',
-  statusName: 'Open',
+  status: { id: 1, label: 'Open', stage: 'open', color: '#3b82f6' },
   title: 'Suspicious login',
   assignee: 'analyst@example.com',
   assignees: [{ id: 'u1', email: 'analyst@example.com', isPrimary: true }],
@@ -196,15 +195,40 @@ beforeEach(() => {
   getMock.mockReset()
   // Capability-aware: the responder picker asks for responder plugins, the
   // analyzer picker for enrichment ones.
-  getMock.mockImplementation(
-    (url) =>
-      ({
-        json: () =>
-          Promise.resolve(
-            String(url).includes('capability=responder') ? RESPONDERS : PLUGINS,
-          ),
-      }) as never,
-  )
+  getMock.mockImplementation((url) => {
+    const u = String(url)
+    const value = u.startsWith('case-statuses')
+      ? [
+          {
+            id: 1,
+            organisation_id: 'org',
+            label: 'Open',
+            stage: 'open',
+            color: '#3b82f6',
+            is_builtin: true,
+            hidden: false,
+            position: 0,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: null,
+          },
+          {
+            id: 3,
+            organisation_id: 'org',
+            label: 'Resolved',
+            stage: 'closed',
+            color: '#10b981',
+            is_builtin: true,
+            hidden: false,
+            position: 2,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: null,
+          },
+        ]
+      : u.includes('capability=responder')
+        ? RESPONDERS
+        : PLUGINS
+    return { json: () => Promise.resolve(value) } as never
+  })
   queueMock.mockReset()
   queueMock.mockResolvedValue({ id: 'run-1' } as never)
   caseRunMock.mockReset()

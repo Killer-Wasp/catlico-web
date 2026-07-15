@@ -1,4 +1,4 @@
-import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
+import type { CaseStatusRef, Pap, Severity, Tlp } from '#/lib/domain'
 import type { ObservableAttachment } from '#/components/Observables/observables.types'
 import type { AssigneeRef } from '#/components/Assign/assignees'
 import type { SlaState } from './cases.types'
@@ -100,8 +100,8 @@ export type CaseDetail = {
   sev: Severity
   tlp: Tlp
   pap: Pap
-  status: CaseStatus
-  statusName: string
+  /** Resolved status ref (label + colour + stage), or null. */
+  status: CaseStatusRef | null
   title: string
   assignee: string
   /** Full assignee set (primary flagged + collaborators). */

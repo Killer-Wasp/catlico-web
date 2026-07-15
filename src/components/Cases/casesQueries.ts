@@ -15,7 +15,7 @@ import { toAssigneeRefs } from '#/components/Assign/assignees'
 import { getActiveOrgId } from '#/lib/auth/session'
 import { appendClauses } from '#/lib/filters'
 import type { FilterClause, FilterOp } from '#/lib/filters'
-import type { CaseStatus, Severity, Tlp } from '#/lib/domain'
+import type { CaseStatusRef, Severity, Tlp } from '#/lib/domain'
 import type { MemberPublic } from './caseUsers'
 import type {
   AlertPublic,
@@ -210,13 +210,6 @@ type Page<T> = { items: T[]; total: number; skip: number; limit: number }
 const clamp = (n: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, Math.round(n)))
 
-// Backend status enum → UI status id + display name. The backend has a
-// narrower set (Open/Resolved/Duplicated) than the UI's prototype palette.
-const STATUS_MAP: Record<string, { id: CaseStatus; name: string }> = {
-  Open: { id: 'open', name: 'Open' },
-  Resolved: { id: 'resolved', name: 'Resolved' },
-  Duplicated: { id: 'duplicated', name: 'Duplicated' },
-}
 
 // Minutes → compact relative stamp ("8m" / "3h" / "2d"). Must match the
 // `^(\d+)\s*([mhd])$` shape the list view's "Updated" sort parser expects.
@@ -237,15 +230,13 @@ function relativeStamp(iso: string): string {
  * of the total so the progress bar can still reach 100%.
  */
 function toCase(c: CasePublic): Case {
-  const status = STATUS_MAP[c.status] ?? { id: 'open', name: c.status }
   const activeTasks = c.tasks.filter((t) => t.status !== 'Cancelled')
   return {
     id: `#${c.id}`,
     sev: clamp(c.severity, 1, 4) as Severity,
     tlp: clamp(c.tlp, 0, 3) as Tlp,
     pap: clamp(c.pap, 0, 3) as Tlp,
-    status: status.id,
-    statusName: status.name,
+    status: c.status,
     title: c.title,
     assignee: c.assignee_email ?? 'Unassigned',
     assignees: toAssigneeRefs(c.assignees),
@@ -456,10 +447,14 @@ export async function updateCaseAssignee(
   })
 }
 
-export async function closeCase(id: string): Promise<void> {
+/** Move a case to a given status (by lookup id) — the status picker + close flow. */
+export async function setCaseStatus(
+  id: string,
+  statusId: number,
+): Promise<void> {
   const numeric = id.replace(/^#/, '')
   await api.patch(`cases/${numeric}`, {
-    json: { status: 'Resolved' },
+    json: { status_id: statusId },
   })
 }
 
@@ -723,7 +718,7 @@ type SimilarCasePublicDTO = {
   id: number
   title: string
   severity: number
-  status: string
+  status: CaseStatusRef | null
   shared_observables: number
 }
 

@@ -20,7 +20,7 @@ import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
 import { Snippet } from '#/components/Search/Snippet'
 import { SEARCH_TYPES, hitRoute, searchQueryOptions } from '#/lib/search'
 import type { SearchEntityType } from '#/lib/search'
-import type { CaseStatus, Severity as SeverityLevel } from '#/lib/domain'
+import type { Severity as SeverityLevel } from '#/lib/domain'
 import { TASK_STATUS_COLOR, TASK_STATUS_LABEL } from '#/components/Tasks/tasks'
 import type { TaskStatus } from '#/components/Tasks/tasks.types'
 
@@ -64,16 +64,6 @@ const TAB_LABELS: Record<SearchEntityType, string> = {
   comment: 'Comments',
   knowledge_base: 'Knowledge base',
   attachment: 'Attachments',
-}
-
-// Backend enum wire values (`CaseStatus` in app/models/case_.py) are
-// PascalCase ("Open"/"Resolved"/"Duplicated"); the frontend's `CaseStatus`
-// domain type and `StatusBadge` want the lowercase id plus a display label —
-// mirrors the (unexported) STATUS_MAP in Cases/casesQueries.ts.
-const CASE_STATUS: Record<string, { id: CaseStatus; label: string }> = {
-  Open: { id: 'open', label: 'Open' },
-  Resolved: { id: 'resolved', label: 'Resolved' },
-  Duplicated: { id: 'duplicated', label: 'Duplicated' },
 }
 
 // Task wire values ("Waiting"/"InProgress"/…) -> the lowercase TaskStatus
@@ -216,10 +206,8 @@ function SearchPage() {
 
       <Stack gap={4} mt="md">
         {type === 'case' &&
-          data?.results.case.map((h) => {
-            const status: { id: CaseStatus; label: string } =
-              CASE_STATUS[h.status] ?? { id: 'open', label: h.status }
-            return rowLink(
+          data?.results.case.map((h) =>
+            rowLink(
               hitRoute('case', h),
               <Group wrap="nowrap" gap="sm">
                 <Severity id={`#${h.id}`} sev={h.severity as SeverityLevel} />
@@ -231,11 +219,13 @@ function SearchPage() {
                     <Snippet text={h.snippet} />
                   </Text>
                 </Box>
-                <StatusBadge status={status.id} label={status.label} />
+                {h.status ? (
+                  <StatusBadge label={h.status.label} color={h.status.color} />
+                ) : null}
               </Group>,
               `case-${h.id}`,
-            )
-          })}
+            ),
+          )}
         {type === 'alert' &&
           data?.results.alert.map((h) =>
             rowLink(

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import type { CaseStatus, Pap, Severity, Tlp } from '#/lib/domain'
+import type { CaseStatusRef, Pap, Severity, Tlp } from '#/lib/domain'
 import { TLP } from '#/lib/domain'
 import type { ObservableAttachment } from '#/components/Observables/observables.types'
 import type { AssigneeRefDTO } from '#/components/Assign/assignees'
@@ -32,7 +32,7 @@ export type CasePublic = {
   severity: number
   tlp: number
   pap: number
-  status: string
+  status: CaseStatusRef | null
   flagged: boolean
   assignee_id: string | null
   assignee_email: string | null
@@ -170,12 +170,6 @@ export function getCaseRouteId(caseId: string) {
 
 export function trafficLabel(value: Tlp | Pap) {
   return TLP[value].toUpperCase()
-}
-
-const STATUS_MAP: Record<string, { id: CaseStatus; name: string }> = {
-  Open: { id: 'open', name: 'Open' },
-  Resolved: { id: 'resolved', name: 'Resolved' },
-  Duplicated: { id: 'duplicated', name: 'Duplicated' },
 }
 
 const TASK_STATUS_MAP: Record<string, CaseDetailTaskStatus> = {
@@ -321,10 +315,6 @@ export function toCaseDetail(
   caseItem: CasePublic,
   alerts: AlertPublic[] = [],
 ): CaseDetail {
-  const status = STATUS_MAP[caseItem.status] ?? {
-    id: 'open' as const,
-    name: caseItem.status,
-  }
   const openedIso = caseItem.start_date ?? caseItem.created_at
 
   return {
@@ -332,8 +322,7 @@ export function toCaseDetail(
     sev: clamp(caseItem.severity, 1, 4) as Severity,
     tlp: clamp(caseItem.tlp, 0, 3) as Tlp,
     pap: clamp(caseItem.pap, 0, 3) as Pap,
-    status: status.id,
-    statusName: status.name,
+    status: caseItem.status,
     title: caseItem.title,
     assignee: caseItem.assignee_email ?? 'Unassigned',
     assignees: toAssigneeRefs(caseItem.assignees),

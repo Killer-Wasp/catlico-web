@@ -2,6 +2,7 @@
 // Backend: GET /api/v1/search.
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
+import type { CaseStatusRef } from '#/lib/domain'
 
 export type SearchEntityType =
   | 'case'
@@ -26,7 +27,7 @@ export type CaseHit = {
   id: number
   title: string
   snippet: string
-  status: string
+  status: CaseStatusRef | null
   severity: number
   updated_at: string | null
   created_at: string

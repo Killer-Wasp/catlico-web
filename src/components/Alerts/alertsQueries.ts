@@ -16,7 +16,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
 import { appendClauses } from '#/lib/filters'
 import type { FilterClause } from '#/lib/filters'
-import type { Severity, Tlp } from '#/lib/domain'
+import type { CaseStatusRef, Severity, Tlp } from '#/lib/domain'
 import type {
   PluginRunPublic,
   QueuePluginRunRequest,
@@ -139,7 +139,7 @@ type SimilarCasePublic = {
   id: number
   title: string
   severity: number
-  status: string
+  status: CaseStatusRef | null
   shared_observables: number
 }
 
@@ -148,7 +148,7 @@ type LinkedCasePublic = {
   id: number
   title: string
   severity: number
-  status: string
+  status: CaseStatusRef | null
 }
 
 export class AlertAlreadyPromotedError extends Error {

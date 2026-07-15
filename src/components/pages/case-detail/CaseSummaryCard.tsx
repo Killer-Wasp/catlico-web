@@ -4,10 +4,11 @@ import { trafficLabel } from '#/components/Cases/caseDetails'
 import {
   caseKeys,
   caseObservablesQueryOptions,
-  closeCase,
+  setCaseStatus,
   setCaseTags,
   updateCaseAssignee,
 } from '#/components/Cases/casesQueries'
+import { caseStatusesQueryOptions } from '#/components/Cases/caseStatusesQueries'
 import { CaseReportExportDialog } from './CaseReportExportDialog'
 import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
 import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDialog'
@@ -173,11 +174,43 @@ export function CaseSummaryCard({
     },
   })
 
+  // Org case statuses drive the status picker + close flow. Hidden statuses are
+  // still shown when they're the case's current status (so it renders), but not
+  // as pick targets.
+  const { data: statuses = [] } = useQuery(caseStatusesQueryOptions())
+  const pickableStatuses = statuses.filter(
+    (s) => !s.hidden || s.id === caseDetail.status?.id,
+  )
+  const closedStatus = statuses.find((s) => s.stage === 'closed' && !s.hidden)
+  const currentStage = caseDetail.status?.stage
+  const isTerminal = currentStage === 'closed' || currentStage === 'duplicated'
+
+  const setStatusMutation = useMutation({
+    mutationFn: (statusId: number) => setCaseStatus(caseId, statusId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: caseKeys.detail(caseId) })
+      void queryClient.invalidateQueries({
+        queryKey: caseKeys.fullDetail(caseId),
+      })
+      void queryClient.invalidateQueries({ queryKey: caseKeys.lists() })
+      notifications.show({ color: 'green', message: 'Status updated' })
+    },
+    onError: () => {
+      notifications.show({ color: 'red', message: 'Failed to update status' })
+    },
+  })
+
   const closeCaseMutation = useMutation({
-    mutationFn: () => closeCase(caseId),
+    mutationFn: () => {
+      if (!closedStatus) throw new Error('No closed status configured')
+      return setCaseStatus(caseId, closedStatus.id)
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: caseKeys.detail(caseId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: caseKeys.fullDetail(caseId),
       })
       void queryClient.invalidateQueries({ queryKey: caseKeys.lists() })
       notifications.show({ color: 'green', message: 'Case closed' })
@@ -209,10 +242,35 @@ export function CaseSummaryCard({
             >
               {SEV[caseDetail.sev].toUpperCase()}
             </Text>
-            <StatusBadge
-              status={caseDetail.status}
-              label={caseDetail.statusName}
-            />
+            <Menu shadow="md" position="bottom-start" withinPortal>
+              <Menu.Target>
+                <UnstyledButton
+                  aria-label="Change status"
+                  data-testid="case-status-picker"
+                  disabled={isTerminal && currentStage === 'duplicated'}
+                >
+                  <Group gap={4} wrap="nowrap">
+                    <StatusBadge
+                      label={caseDetail.status?.label ?? 'Unknown'}
+                      color={caseDetail.status?.color}
+                    />
+                    <ChevronDown size={12} />
+                  </Group>
+                </UnstyledButton>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>Set status</Menu.Label>
+                {pickableStatuses.map((s) => (
+                  <Menu.Item
+                    key={s.id}
+                    disabled={s.id === caseDetail.status?.id}
+                    onClick={() => setStatusMutation.mutate(s.id)}
+                  >
+                    <StatusBadge label={s.label} color={s.color} />
+                  </Menu.Item>
+                ))}
+              </Menu.Dropdown>
+            </Menu>
           </Group>
 
           <Title order={1} size="h2" mb={14}>
@@ -274,7 +332,7 @@ export function CaseSummaryCard({
         </Box>
 
         <CaseActionsMenu
-          closeDisabled={caseDetail.status !== 'open'}
+          closeDisabled={isTerminal || !closedStatus}
           closePending={closeCaseMutation.isPending}
           onCloseCase={() => closeCaseMutation.mutate()}
           onRunAnalyzers={handleRunAnalyzers}
