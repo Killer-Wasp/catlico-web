@@ -65,6 +65,14 @@ export function LoginPage({ returnUrl = '/' }: { returnUrl?: string }) {
     setError(null)
     try {
       const result = await login(email, password)
+      if (result.status === 'password_reset_required') {
+        // The account is flagged for a forced reset: no session was issued. Bounce
+        // to the standalone reset page (no auth needed) with the single-use token.
+        await navigate({
+          href: `/reset-password?token=${encodeURIComponent(result.resetToken)}`,
+        })
+        return
+      }
       if (result.status === 'mfa_required') {
         // No session yet — collect the second factor. NOTE: do not navigate.
         // Decode the pending token's type to route: a forced-enrollment token

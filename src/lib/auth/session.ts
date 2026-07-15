@@ -24,9 +24,10 @@ let accessToken: string | null = null
 type TokenResponse = {
   access_token: string
   token_type: string
-  // The normal login response omits this, but tolerate an explicit `false` so
-  // the MFA discriminant keys off the value, never mere key presence.
+  // The normal login response omits these, but tolerate explicit `false` values
+  // so each discriminant keys off the value, never mere key presence.
   mfa_required?: false
+  password_reset_required?: false
 }
 
 export function getAccessToken(): string | null {
@@ -103,17 +104,35 @@ async function completeSession(token: string): Promise<void> {
 }
 
 /** The API's second-factor challenge — issued instead of tokens when MFA is on. */
-type MfaChallenge = { mfa_required: true; pending_token: string }
+type MfaChallenge = {
+  mfa_required: true
+  pending_token: string
+  password_reset_required?: false
+}
 
 /**
- * The outcome of a password login: either the session is fully established
- * (`ok`), or the account has MFA and the caller must complete a second step
- * with the short-lived `pendingToken`. No tokens/cookie are issued in the
- * `mfa_required` case — the second-step endpoints issue them.
+ * The API's force-reset response — issued instead of tokens when the account
+ * carries `must_change_password`. The user proved their password but must set a
+ * new one first; `reset_token` is a single-use token for the reset page. No
+ * session/cookie is issued.
+ */
+type PasswordResetRequired = {
+  password_reset_required: true
+  reset_token: string
+  mfa_required?: false
+}
+
+/**
+ * The outcome of a password login: the session is fully established (`ok`); the
+ * account has MFA and the caller must complete a second step with the short-lived
+ * `pendingToken`; or the account is flagged for a forced password reset and the
+ * caller must bounce to the reset page with `resetToken`. Only `ok` issues a
+ * session — the other two issue no tokens/cookie.
  */
 export type LoginResult =
   | { status: 'ok' }
   | { status: 'mfa_required'; pendingToken: string }
+  | { status: 'password_reset_required'; resetToken: string }
 
 /**
  * Exchange credentials for a session. On the normal path the API returns a
@@ -130,11 +149,14 @@ export async function login(
 ): Promise<LoginResult> {
   const body = await api
     .post('auth/login', { json: { email, password }, credentials: 'include' })
-    .json<TokenResponse | MfaChallenge>()
+    .json<TokenResponse | MfaChallenge | PasswordResetRequired>()
 
-  // Discriminate on the VALUE, not just the key's presence: a token response
-  // that ever carried `mfa_required: false` must still establish the session
-  // rather than misroute into the MFA step.
+  // Discriminate on the VALUE, not just the key's presence (a token response may
+  // carry an explicit `false`). Force-reset is checked first: a flagged account
+  // gets no session and must bounce to the reset page.
+  if (body.password_reset_required === true) {
+    return { status: 'password_reset_required', resetToken: body.reset_token }
+  }
   if (body.mfa_required === true) {
     return { status: 'mfa_required', pendingToken: body.pending_token }
   }
