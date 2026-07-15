@@ -31,9 +31,19 @@ export const TLP: Record<Tlp, string> = {
 }
 
 // --- Case status -----------------------------------------------------------
-// Mirrors the backend case status enum (app/models/case_.py): Open | Resolved
-// | Duplicated.
-export type CaseStatus = 'open' | 'resolved' | 'duplicated'
+// Custom case statuses are org-scoped rows in the backend `case_status` lookup
+// (app/models/case_status.py). Consumers branch on the semantic `stage`; the
+// label + colour drive the badge. Built-ins: Open / In progress / Resolved /
+// Duplicated.
+export type CaseStage = 'open' | 'in_progress' | 'closed' | 'duplicated'
+
+/** A resolved case-status reference, as embedded in case read models. */
+export type CaseStatusRef = {
+  id: number
+  label: string
+  stage: CaseStage
+  color: string
+}
 
 // --- Shared select options + colour maps -----------------------------------
 // Reusable, cross-feature presentation constants derived from the domain

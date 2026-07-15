@@ -4,7 +4,7 @@ import {
   caseTaskLogsQueryOptions,
   caseTasksQueryOptions,
   casesQueryOptions,
-  closeCase,
+  setCaseStatus,
   createTaskWorkLog,
   fetchCaseDetail,
   updateTaskWorkLog,
@@ -390,15 +390,15 @@ describe('case mutations', () => {
     vi.mocked(api.patch).mockReset()
   })
 
-  test('closes a case by patching the backend status to Resolved', async () => {
+  test('sets a case status by patching status_id', async () => {
     vi.mocked(api.patch).mockReturnValue({
       json: async () => ({}),
     } satisfies JsonResponse as ReturnType<typeof api.patch>)
 
-    await closeCase('#1842')
+    await setCaseStatus('#1842', 3)
 
     expect(api.patch).toHaveBeenCalledWith('cases/1842', {
-      json: { status: 'Resolved' },
+      json: { status_id: 3 },
     })
   })
 })

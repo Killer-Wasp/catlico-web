@@ -1,7 +1,6 @@
 import type { Case } from '#/components/Cases/cases.types'
 import { avatarFor } from '#/components/Cases/cases'
 import { AssigneeStack } from '#/components/Assign/AssigneeStack'
-import type { CaseStatus } from '#/lib/domain'
 import { Severity } from '#/components/Severity/Severity'
 import { SlaChip } from '#/components/Cases/SlaChip'
 import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
@@ -91,19 +90,19 @@ export function buildCaseColumns({
     {
       id: 'status',
       header: 'Status',
-      accessorFn: (row) => row.status,
+      accessorFn: (row) => row.status?.label ?? '',
       filterFn: includesOne,
       enableSorting: false,
       meta: { minWidth: 112, nowrap: true } satisfies TableColumnMeta,
       // The table status is intentionally read-only: it renders a presentational
       // StatusBadge, not an editable control. Status is changed only from the case
       // detail view; the row click merely navigates there.
-      cell: (info) => (
-        <StatusBadge
-          status={info.getValue<CaseStatus>()}
-          label={info.row.original.statusName}
-        />
-      ),
+      cell: (info) => {
+        const status = info.row.original.status
+        return status ? (
+          <StatusBadge label={status.label} color={status.color} />
+        ) : null
+      },
     },
     {
       id: 'title',

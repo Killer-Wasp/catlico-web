@@ -1,13 +1,17 @@
-import type { Severity as SeverityLevel } from '#/lib/domain'
+import type {
+  CaseStatusRef,
+  Severity as SeverityLevel,
+} from '#/lib/domain'
 import { Severity } from '#/components/Severity/Severity'
-import { Badge, Table, Text } from '@mantine/core'
+import { StatusBadge } from '#/components/StatusBadge/StatusBadge'
+import { Table, Text } from '@mantine/core'
 
 /** A case sharing one or more observables with the current alert/case. */
 export type SimilarCaseRow = {
   id: string
   title: string
   sev: SeverityLevel
-  status: string
+  status: CaseStatusRef | null
 }
 
 /**
@@ -54,9 +58,12 @@ export function SimilarCaseTable({
                 </Text>
               </Table.Td>
               <Table.Td>
-                <Badge size="xs" variant="light" color="blue">
-                  {similar.status}
-                </Badge>
+                {similar.status ? (
+                  <StatusBadge
+                    label={similar.status.label}
+                    color={similar.status.color}
+                  />
+                ) : null}
               </Table.Td>
             </Table.Tr>
           ))}

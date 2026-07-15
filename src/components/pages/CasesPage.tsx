@@ -33,8 +33,9 @@ import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import { SEVERITY_OPTIONS } from '#/lib/domain'
+import { caseStatusesQueryOptions } from '#/components/Cases/caseStatusesQueries'
 import { buildCaseColumns } from './cases-list/caseColumns'
-import { SORT_FIELD, STATUS_OPTIONS } from './cases-list/constants'
+import { SORT_FIELD } from './cases-list/constants'
 
 type CasesPageProps = {
   filterParams?: string[]
@@ -83,6 +84,7 @@ export function CasesPage({
   const cases = data?.cases ?? []
   const total = data?.total ?? 0
   const { data: facets } = useQuery(caseFacetsQueryOptions())
+  const { data: caseStatuses = [] } = useQuery(caseStatusesQueryOptions())
 
   // Filters or sort changing can invalidate the current page index, so snap
   // back to the first page whenever either does.
@@ -157,11 +159,12 @@ export function CasesPage({
         label: 'Status',
         kind: 'enum',
         operators: ['eq'],
-        // STATUS_OPTIONS.label is the backend status value (Open/Resolved/…).
-        options: STATUS_OPTIONS.map((o) => ({
-          value: o.label,
-          label: o.label,
-        })),
+        // Status filter matches on the org's status labels (the backend resolves
+        // a label against its case_status lookup). Options come from the lookup,
+        // so custom statuses are filterable too.
+        options: caseStatuses
+          .filter((s) => !s.hidden)
+          .map((s) => ({ value: s.label, label: s.label })),
       },
       {
         key: 'severity',
@@ -191,7 +194,7 @@ export function CasesPage({
       }),
     )
     return [...core, ...tagFields]
-  }, [assigneeOptions, tagKeys])
+  }, [assigneeOptions, tagKeys, caseStatuses])
   const tokens = useMemo(
     () => clausesToTokens(clauses, filterFields),
     [clauses, filterFields],

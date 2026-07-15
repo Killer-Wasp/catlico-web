@@ -81,8 +81,7 @@ const caseDetail: CaseDetail = {
   sev: 3,
   tlp: 2,
   pap: 2,
-  status: 'open',
-  statusName: 'Open',
+  status: { id: 1, label: 'Open', stage: 'open', color: '#3b82f6' },
   title: 'OAuth consent grant — privileged account compromise',
   assignee: 'J. Tanaka',
   tags: ['T1528', 'identity', 'bec'],
@@ -387,6 +386,33 @@ beforeEach(() => {
     if (endpoint === 'cases/1842/comments') return page([])
     if (endpoint === 'cases/1842/activity') return page([])
     if (endpoint === 'cases/1842/attachments') return page([])
+    if (endpoint === 'case-statuses')
+      return json([
+        {
+          id: 1,
+          organisation_id: 'org',
+          label: 'Open',
+          stage: 'open',
+          color: '#3b82f6',
+          is_builtin: true,
+          hidden: false,
+          position: 0,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: null,
+        },
+        {
+          id: 3,
+          organisation_id: 'org',
+          label: 'Resolved',
+          stage: 'closed',
+          color: '#10b981',
+          is_builtin: true,
+          hidden: false,
+          position: 2,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: null,
+        },
+      ])
     return json(enrichmentOverview)
   })
   vi.mocked(api.patch).mockReturnValue({
@@ -444,7 +470,7 @@ describe('case summary card', () => {
 
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('cases/1842', {
-        json: { status: 'Resolved' },
+        json: { status_id: 3 },
       }),
     )
   })

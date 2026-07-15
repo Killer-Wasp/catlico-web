@@ -183,7 +183,17 @@ describe('AlertDetailDrawer', () => {
             observables={[]}
             similarCases={[]}
             linkedCases={[
-              { id: '#7', title: 'Linked case', sev: 3, status: 'Open' },
+              {
+                id: '#7',
+                title: 'Linked case',
+                sev: 3,
+                status: {
+                  id: 1,
+                  label: 'Open',
+                  stage: 'open',
+                  color: '#3b82f6',
+                },
+              },
             ]}
             hideActions
             onClose={vi.fn()}

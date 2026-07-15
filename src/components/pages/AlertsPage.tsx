@@ -388,7 +388,7 @@ export function AlertsPage() {
                     {caseItem.title}
                   </Text>
                   <Text ff="monospace" fz={12} c="dimmed">
-                    {caseItem.id} · {caseItem.statusName}
+                    {caseItem.id} · {caseItem.status?.label ?? 'Unknown'}
                   </Text>
                 </Box>
                 <Button

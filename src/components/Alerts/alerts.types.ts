@@ -1,4 +1,4 @@
-import type { Severity, Tlp } from '#/lib/domain'
+import type { CaseStatusRef, Severity, Tlp } from '#/lib/domain'
 
 // Alert as the triage queue consumes it — the same shape TheHive's `listAlert`
 // query returns, trimmed to what the list view needs.
@@ -30,5 +30,5 @@ export type AlertSimilarCase = {
   id: string
   title: string
   sev: Severity
-  status: string
+  status: CaseStatusRef | null
 }
