@@ -1,6 +1,7 @@
 import { Badge, Button, Group, Stack, Text } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MfaSection } from '#/components/pages/settings/panels/MfaSection'
+import { LinkedIdentitiesSection } from '#/components/pages/settings/panels/LinkedIdentitiesSection'
 import {
   revokeSession,
   sessionsQueryOptions,
@@ -149,6 +150,7 @@ export function SecurityPanel() {
   return (
     <Stack gap="lg">
       <MfaSection />
+      <LinkedIdentitiesSection />
       {isPending ? (
         <LoadingPanel label="Loading active sessions..." />
       ) : isError ? (
