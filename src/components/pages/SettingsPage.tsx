@@ -7,6 +7,7 @@ import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
 import { AttackCatalogPanel } from './settings/panels/AttackCatalogPanel'
 import { AuditLogPanel } from './settings/panels/AuditLogPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
+import { IdentityProvidersPanel } from './settings/panels/IdentityProvidersPanel'
 import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
 import { MyAccountPanel } from './settings/panels/MyAccountPanel'
 import { NotificationsPanel } from './settings/panels/NotificationsPanel'
@@ -56,6 +57,7 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'Integrations') return <IntegrationsPanel />
   if (section === 'Report templates') return <ReportTemplatesPanel />
   if (section === 'All users') return <AllUsersPanel />
+  if (section === 'Identity providers') return <IdentityProvidersPanel />
   if (section === 'Audit log') return <AuditLogPanel />
   return <OrgProfilePanel />
 }
@@ -82,8 +84,10 @@ export function SettingsLayout() {
   // empty nav for admins). Once known, hide sections the user can't read.
   const visibleSections = settingsSections.filter((s) => {
     if (!isLoaded) return true
-    // Global user accounts and the audit log are platform-admin surfaces.
+    // Global user accounts, identity providers and the audit log are
+    // platform-admin surfaces.
     if (s === 'All users') return isSuperadmin
+    if (s === 'Identity providers') return isSuperadmin
     if (s === 'Audit log') return isSuperadmin
     const needed = SECTION_READ_PERMISSION[s]
     return needed ? can(needed) : true

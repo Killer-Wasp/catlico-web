@@ -14,6 +14,7 @@ export type SettingsSection =
   | 'Integrations'
   | 'Report templates'
   | 'All users'
+  | 'Identity providers'
   | 'Audit log'
 
 export type Role = 'admin' | 'analyst' | 'readonly'
@@ -34,6 +35,7 @@ export const settingsSections: SettingsSection[] = [
   'Integrations',
   'Report templates',
   'All users',
+  'Identity providers',
   'Audit log',
 ]
 

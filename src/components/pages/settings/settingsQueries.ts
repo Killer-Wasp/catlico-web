@@ -148,6 +148,7 @@ export const settingsKeys = {
   reportTemplates: (orgId: string) =>
     [...settingsKeys.all, 'report-templates', orgId] as const,
   sessions: () => [...settingsKeys.all, 'sessions'] as const,
+  oidcProviders: () => [...settingsKeys.all, 'oidc-providers'] as const,
 }
 
 function activeOrgId(): string {
@@ -304,11 +305,13 @@ function readDetail(body: unknown): string | null {
 }
 
 /**
- * Re-throw a role mutation failure with the server's `detail` as the message so
- * a `notifyError(error, fallback)` surfaces the friendly text (e.g. the 409
- * "Built-in roles cannot be modified"). Non-HTTP errors pass through untouched.
+ * Re-throw an API mutation failure with the server's `detail` as the message so
+ * a `notifyError(error, fallback)` (or an inline form error) surfaces the
+ * friendly text — e.g. the roles 409 "Built-in roles cannot be modified", or the
+ * OIDC 400 "Default organisation not found". Non-HTTP errors pass through
+ * untouched.
  */
-async function rethrowRoleError(error: unknown): Promise<never> {
+async function rethrowApiDetailError(error: unknown): Promise<never> {
   if (error instanceof HTTPError) {
     // ky pre-parses the body into `error.data` (consuming the stream); prefer it
     // and fall back to reading the response for older ky / test doubles.
@@ -327,7 +330,7 @@ export async function updateRole(
   try {
     return await api.patch(`roles/${roleId}`, { json: input }).json<RolePublic>()
   } catch (error) {
-    return rethrowRoleError(error)
+    return rethrowApiDetailError(error)
   }
 }
 
@@ -335,7 +338,7 @@ export async function deleteRole(roleId: string): Promise<void> {
   try {
     await api.delete(`roles/${roleId}`)
   } catch (error) {
-    await rethrowRoleError(error)
+    await rethrowApiDetailError(error)
   }
 }
 
@@ -906,5 +909,101 @@ export const usersQueryOptions = () =>
   queryOptions({
     queryKey: settingsKeys.users(),
     queryFn: fetchUsers,
+    retry: false,
+  })
+
+// --- OIDC identity providers (superadmin-only) ------------------------------
+// Platform-wide SSO provider configuration, managed under `/admin/oidc/*`. Every
+// route is superadmin-gated on the backend (403 otherwise). The `client_secret`
+// is write-only: it is sent as `secrets.client_secret` and never returned — the
+// public shape only exposes `has_client_secret`.
+
+export type OidcProviderPublic = {
+  id: string
+  slug: string
+  name: string
+  issuer: string
+  client_id: string
+  has_client_secret: boolean
+  scopes: string[]
+  default_org_slug: string
+  default_role_name: string
+  enabled: boolean
+  created_at: string
+}
+
+/**
+ * Write-only secret bag. `client_secret` semantics on PATCH mirror the notifier
+ * flow: an omitted key keeps the stored secret, a string replaces it, and `null`
+ * deletes it.
+ */
+export type OidcProviderSecrets = {
+  client_secret?: string | null
+}
+
+export type OidcProviderCreateInput = {
+  slug: string
+  name: string
+  issuer: string
+  client_id: string
+  default_org_slug: string
+  default_role_name: string
+  scopes?: string[]
+  secrets?: OidcProviderSecrets
+  enabled?: boolean
+}
+
+export type OidcProviderUpdateInput = Partial<
+  Pick<
+    OidcProviderCreateInput,
+    | 'name'
+    | 'issuer'
+    | 'client_id'
+    | 'default_org_slug'
+    | 'default_role_name'
+    | 'scopes'
+    | 'secrets'
+    | 'enabled'
+  >
+>
+
+export async function fetchOidcProviders(): Promise<OidcProviderPublic[]> {
+  return api.get('admin/oidc/providers').json<OidcProviderPublic[]>()
+}
+
+export async function createOidcProvider(
+  input: OidcProviderCreateInput,
+): Promise<OidcProviderPublic> {
+  try {
+    return await api
+      .post('admin/oidc/providers', { json: input })
+      .json<OidcProviderPublic>()
+  } catch (error) {
+    // Surface the FastAPI 400 `detail` (unknown org/role) as the error message.
+    return rethrowApiDetailError(error)
+  }
+}
+
+export async function updateOidcProvider(
+  id: string,
+  patch: OidcProviderUpdateInput,
+): Promise<OidcProviderPublic> {
+  try {
+    return await api
+      .patch(`admin/oidc/providers/${id}`, { json: patch })
+      .json<OidcProviderPublic>()
+  } catch (error) {
+    return rethrowApiDetailError(error)
+  }
+}
+
+export async function deleteOidcProvider(id: string): Promise<void> {
+  await api.delete(`admin/oidc/providers/${id}`)
+}
+
+export const oidcProvidersQueryOptions = () =>
+  queryOptions({
+    queryKey: settingsKeys.oidcProviders(),
+    queryFn: fetchOidcProviders,
     retry: false,
   })
