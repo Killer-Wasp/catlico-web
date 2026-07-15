@@ -6,6 +6,7 @@ export type CustomFieldType =
   | 'float'
   | 'boolean'
   | 'date'
+  | 'url'
 
 export type CaseTemplateTask = {
   title: string

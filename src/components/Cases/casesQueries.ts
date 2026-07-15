@@ -45,6 +45,7 @@ import type {
   CaseDetailTimelineEvent,
 } from './caseDetails.types'
 import type { Case } from './cases.types'
+import type { SimilarCaseRow } from './SimilarCaseTable'
 import type {
   PluginRunPublic,
   QueuePluginRunRequest,
@@ -145,6 +146,9 @@ export const caseKeys = {
   observables: (id: string) => [...caseKeys.detail(id), 'observables'] as const,
   attachments: (id: string) => [...caseKeys.detail(id), 'attachments'] as const,
   timeline: (id: string) => [...caseKeys.detail(id), 'timeline'] as const,
+  similar: (id: string) => [...caseKeys.detail(id), 'similar'] as const,
+  customFieldValues: (id: string) =>
+    [...caseKeys.detail(id), 'custom-field-values'] as const,
   // With no sortOrder this is the prefix key — invalidating it clears every
   // sort variant; the queryFn always passes a concrete order.
   comments: (id: string, sortOrder?: string) =>
@@ -192,6 +196,16 @@ export function invalidateObservableQueries(qc: QueryClient, caseId: string) {
 export function invalidateAttachmentQueries(qc: QueryClient, caseId: string) {
   qc.invalidateQueries({ queryKey: caseKeys.attachments(caseId) })
   qc.invalidateQueries({ queryKey: caseKeys.counts(caseId) })
+}
+
+/**
+ * Custom-field values changed: refresh the raw values, the badge counts, and the
+ * full case detail (whose `customFields` render the read-only summary rows).
+ */
+export function invalidateCustomFieldQueries(qc: QueryClient, caseId: string) {
+  qc.invalidateQueries({ queryKey: caseKeys.customFieldValues(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.counts(caseId) })
+  qc.invalidateQueries({ queryKey: caseKeys.fullDetail(caseId) })
 }
 
 // --- API DTOs --------------------------------------------------------------
@@ -686,6 +700,7 @@ export type CaseCounts = {
   comments: number
   attachments: number
   observables: number
+  similar: number
 }
 
 async function fetchCaseCounts(id: string): Promise<CaseCounts> {
@@ -696,6 +711,7 @@ async function fetchCaseCounts(id: string): Promise<CaseCounts> {
     comments: number
     attachments: number
     observables: number
+    similar: number
   }>()
   return {
     tasks: c.tasks,
@@ -703,6 +719,62 @@ async function fetchCaseCounts(id: string): Promise<CaseCounts> {
     comments: c.comments,
     attachments: c.attachments,
     observables: c.observables,
+    similar: c.similar,
+  }
+}
+
+/** Mirrors the backend SimilarCasePublic (app/models/case_.py). */
+type SimilarCasePublicDTO = {
+  id: number
+  title: string
+  severity: number
+  status: string
+  shared_observables: number
+}
+
+/** Cases sharing one or more observables with this case (the "Similar" tab). */
+async function fetchCaseSimilarCases(id: string): Promise<SimilarCaseRow[]> {
+  const numeric = id.replace(/^#/, '')
+  const items = await api
+    .get(`cases/${numeric}/similar`)
+    .json<SimilarCasePublicDTO[]>()
+  return items.map((c) => ({
+    id: `#${c.id}`,
+    title: c.title,
+    sev: clamp(c.severity, 1, 4) as Severity,
+    status: c.status,
+  }))
+}
+
+/** Raw custom-field values for a case (name → typed value), for the editable
+ *  panel. Empty object when none are set. */
+async function fetchCaseCustomFieldValues(
+  id: string,
+): Promise<Record<string, unknown>> {
+  const numeric = id.replace(/^#/, '')
+  return api.get(`cases/${numeric}/custom-fields`).json<Record<string, unknown>>()
+}
+
+/**
+ * Replace-semantics PUT of a case's custom-field values. The full desired value
+ * set must be sent (the backend clears any field absent from `values` and 422s
+ * when a mandatory field is missing). Throws with the server's `detail` message.
+ */
+export async function setCaseCustomFields(
+  id: string,
+  values: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const numeric = id.replace(/^#/, '')
+  try {
+    return await api
+      .put(`cases/${numeric}/custom-fields`, { json: { values } })
+      .json<Record<string, unknown>>()
+  } catch (error) {
+    if (isHTTPError(error)) {
+      const detail = await extractErrorDetail(error)
+      if (detail) throw new Error(detail)
+    }
+    throw error
   }
 }
 
@@ -828,6 +900,18 @@ export const caseTimelineQueryOptions = (id: string) =>
   queryOptions({
     queryKey: caseKeys.timeline(id),
     queryFn: () => fetchCaseTimeline(id),
+  })
+
+export const caseSimilarQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: caseKeys.similar(id),
+    queryFn: () => fetchCaseSimilarCases(id),
+  })
+
+export const caseCustomFieldValuesQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: caseKeys.customFieldValues(id),
+    queryFn: () => fetchCaseCustomFieldValues(id),
   })
 
 export const caseCommentsQueryOptions = (caseId: string, sortOrder = 'desc') =>

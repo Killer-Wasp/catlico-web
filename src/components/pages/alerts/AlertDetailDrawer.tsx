@@ -6,7 +6,7 @@ import type {
 import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
 import { fmtRelativeTime } from '#/components/Alerts/alerts'
 import { SEV, TLP, TLP_COLOR } from '#/lib/domain'
-import { Severity } from '#/components/Severity/Severity'
+import { SimilarCaseTable } from '#/components/Cases/SimilarCaseTable'
 import { Tag } from '#/components/Tag/Tag'
 import { TagPickerInput } from '#/components/Tag/TagPickerInput'
 import {
@@ -477,58 +477,6 @@ export function AlertDetailDrawer({
         )}
       </Box>
     </Drawer>
-  )
-}
-
-function SimilarCaseTable({
-  rows,
-  onOpen,
-}: {
-  rows: AlertSimilarCase[]
-  onOpen: (id: string) => void
-}) {
-  if (rows.length === 0) {
-    return (
-      <Text fz={13} c="dimmed">
-        No similar cases found.
-      </Text>
-    )
-  }
-  return (
-    <Table.ScrollContainer minWidth={0}>
-      <Table verticalSpacing={7} fz={13} highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Case</Table.Th>
-            <Table.Th>Title</Table.Th>
-            <Table.Th>Status</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {rows.map((similar) => (
-            <Table.Tr
-              key={similar.id}
-              onClick={() => onOpen(similar.id)}
-              style={{ cursor: 'pointer' }}
-            >
-              <Table.Td>
-                <Severity id={similar.id} sev={similar.sev} />
-              </Table.Td>
-              <Table.Td>
-                <Text fz={13} fw={500} truncate maw={200}>
-                  {similar.title}
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                <Badge size="xs" variant="light" color="blue">
-                  {similar.status}
-                </Badge>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Table.ScrollContainer>
   )
 }
 

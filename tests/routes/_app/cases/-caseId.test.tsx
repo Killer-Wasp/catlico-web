@@ -9,6 +9,11 @@ import type {
   CaseDetailTimelineEvent,
 } from '#/components/Cases/caseDetails.types'
 import { caseKeys } from '#/components/Cases/casesQueries'
+import {
+  DEFAULT_SETTINGS_FILTERS,
+  settingsKeys,
+} from '#/components/pages/settings/settingsQueries'
+import type { CustomFieldPublic } from '#/components/pages/settings/settingsQueries'
 import { CaseSummaryCard } from '#/components/pages/case-detail/CaseSummaryCard'
 import { CaseTabPanel } from '#/components/pages/CaseDetailPage'
 import { api } from '#/lib/api/client'
@@ -100,6 +105,77 @@ const caseDetail: CaseDetail = {
   shares: 0,
   related: [],
 }
+
+// The custom-fields panel is data-driven: org field definitions + the case's raw
+// typed values, both seeded into the cache. `mandatory: false` here so PUTs in
+// tests aren't forced to include every field.
+const customFieldDefsFixture: CustomFieldPublic[] = [
+  {
+    id: 1,
+    name: 'affected_users',
+    display_name: 'Affected users',
+    description: '',
+    field_type: 'integer',
+    options: [],
+    mandatory: false,
+    organisation_id: 'org-a',
+    created_at: '2026-06-12T09:00:00Z',
+    updated_at: null,
+  },
+  {
+    id: 2,
+    name: 'business_unit',
+    display_name: 'Business unit',
+    description: '',
+    field_type: 'string',
+    options: [],
+    mandatory: false,
+    organisation_id: 'org-a',
+    created_at: '2026-06-12T09:00:00Z',
+    updated_at: null,
+  },
+  {
+    id: 3,
+    name: 'campaign_id',
+    display_name: 'Campaign ID',
+    description: '',
+    field_type: 'string',
+    options: [],
+    mandatory: false,
+    organisation_id: 'org-a',
+    created_at: '2026-06-12T09:00:00Z',
+    updated_at: null,
+  },
+  {
+    id: 4,
+    name: 'reference_url',
+    display_name: 'Reference URL',
+    description: '',
+    field_type: 'url',
+    options: [],
+    mandatory: false,
+    organisation_id: 'org-a',
+    created_at: '2026-06-12T09:00:00Z',
+    updated_at: null,
+  },
+]
+
+const customFieldValuesFixture: Record<string, unknown> = {
+  affected_users: 3,
+  business_unit: 'Corporate IT',
+  campaign_id: 'BILL-2026-Q2',
+}
+
+const permissionsFixture = {
+  is_superadmin: false,
+  organisation_id: 'org-a',
+  permissions: ['read:case', 'write:case'],
+  groups: [],
+}
+
+const similarCasesFixture = [
+  { id: '#1799', title: 'Related BEC campaign', sev: 3 as const, status: 'Open' },
+]
 
 // Each panel now fetches its own section; the harness seeds these fixtures into
 // the query cache (staleTime: Infinity) so panels read them without an API call.
@@ -249,6 +325,15 @@ function seededClient() {
   queryClient.setQueryData(caseKeys.comments('1842', 'desc'), commentsFixture)
   queryClient.setQueryData(caseKeys.attachments('1842'), attachmentsFixture)
   queryClient.setQueryData(caseKeys.timeline('1842'), timelineFixture)
+  queryClient.setQueryData(caseKeys.customFieldValues('1842'), {
+    ...customFieldValuesFixture,
+  })
+  queryClient.setQueryData(settingsKeys.customFields(DEFAULT_SETTINGS_FILTERS), {
+    fields: customFieldDefsFixture,
+    total: customFieldDefsFixture.length,
+  })
+  queryClient.setQueryData(['current-user', 'permissions'], permissionsFixture)
+  queryClient.setQueryData(caseKeys.similar('1842'), similarCasesFixture)
   return queryClient
 }
 
@@ -262,6 +347,7 @@ function CaseTabHarness({
     | 'details'
     | 'observables'
     | 'sharing'
+    | 'similar'
     | 'tasks'
     | 'timeline'
 }) {
@@ -516,17 +602,53 @@ describe('case custom fields tab', () => {
     expect(screen.getByText('BILL-2026-Q2')).toBeDefined()
   })
 
-  test('renders custom fields as a case-style table with an add action', () => {
+  test('the Add Custom field button reveals the unset-field picker (no longer dead)', () => {
     render(<CaseTabHarness tab="custom-fields" />)
 
-    expect(
-      screen.getByRole('button', { name: /add custom field/i }),
-    ).toBeDefined()
-    expect(
-      screen.getByRole('table', { name: /case custom fields/i }),
-    ).toBeDefined()
-    expect(screen.getByRole('columnheader', { name: 'Field' })).toBeDefined()
-    expect(screen.getByRole('columnheader', { name: 'Value' })).toBeDefined()
+    const addButton = screen.getByRole('button', { name: /add custom field/i })
+    expect(addButton).toBeDefined()
+    // The picker is hidden until the button is clicked (previously a dead button).
+    expect(screen.queryByPlaceholderText('Pick a field to add')).toBeNull()
+
+    fireEvent.click(addButton)
+    expect(screen.getByPlaceholderText('Pick a field to add')).toBeDefined()
+  })
+
+  test('editing a field PUTs the full merged value set', async () => {
+    vi.mocked(api.put).mockReturnValue({
+      json: async () => ({ ...customFieldValuesFixture, business_unit: 'Legal' }),
+    } as never)
+
+    render(<CaseTabHarness tab="custom-fields" />)
+
+    // Enter edit mode for "Business unit" (the second field's row Edit button).
+    const editButtons = screen.getAllByRole('button', { name: 'Edit' })
+    fireEvent.click(editButtons[1])
+
+    const input = screen.getByDisplayValue('Corporate IT')
+    fireEvent.change(input, { target: { value: 'Legal' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('cases/1842/custom-fields', {
+        json: {
+          values: {
+            affected_users: 3,
+            business_unit: 'Legal',
+            campaign_id: 'BILL-2026-Q2',
+          },
+        },
+      }),
+    )
+  })
+})
+
+describe('case similar tab', () => {
+  test('renders similar cases sharing an observable with this case', () => {
+    render(<CaseTabHarness tab="similar" />)
+
+    expect(screen.getByText('Similar cases')).toBeDefined()
+    expect(screen.getByText('Related BEC campaign')).toBeDefined()
   })
 })
 
