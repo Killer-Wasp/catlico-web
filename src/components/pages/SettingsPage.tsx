@@ -2,7 +2,6 @@ import classes from '#/components/Cases/CasesPage.module.css'
 import { Box, Group, Tabs, Text, Title } from '@mantine/core'
 import { ModalsProvider } from '@mantine/modals'
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
-import { AllUsersPanel } from './settings/panels/AllUsersPanel'
 import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
 import { AttackCatalogPanel } from './settings/panels/AttackCatalogPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
@@ -20,8 +19,10 @@ import { SlaPanel } from './settings/panels/SlaPanel'
 import { TaxonomiesPanel } from './settings/panels/TaxonomiesPanel'
 import { UsersPanel } from './settings/panels/UsersPanel'
 import {
+  accountSections,
+  adminSections,
+  appSettingsSections,
   sectionToSlug,
-  settingsSections,
   slugToSection,
 } from './settings/settingsData'
 import type { SettingsSection } from './settings/settingsData'
@@ -34,8 +35,8 @@ import { systemCapabilitiesQueryOptions } from '#/lib/system/capabilities'
 // always shown (every built-in role can view them). Server-side enforcement still
 // applies regardless — this only trims the nav.
 const SECTION_READ_PERMISSION: Partial<Record<SettingsSection, string>> = {
-  'Users & roles': 'read:user',
-  'Profiles & permissions': 'read:role',
+  Users: 'read:user',
+  Roles: 'read:role',
   'Custom fields': 'read:custom_field',
   Notifications: 'read:organisation',
   'SLA policies': 'read:organisation',
@@ -47,8 +48,8 @@ const SECTION_READ_PERMISSION: Partial<Record<SettingsSection, string>> = {
 function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'My account') return <MyAccountPanel />
   if (section === 'Security') return <SecurityPanel />
-  if (section === 'Users & roles') return <UsersPanel />
-  if (section === 'Profiles & permissions') return <ProfilesPanel />
+  if (section === 'Users') return <UsersPanel />
+  if (section === 'Roles') return <ProfilesPanel />
   if (section === 'Custom fields') return <CustomFieldsPanel />
   if (section === 'Observable types') return <ObservableTypesPanel />
   if (section === 'Taxonomies & tags') return <TaxonomiesPanel />
@@ -58,26 +59,50 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'API keys') return <ApiKeysPanel />
   if (section === 'Integrations') return <IntegrationsPanel />
   if (section === 'Report templates') return <ReportTemplatesPanel />
-  if (section === 'All users') return <AllUsersPanel />
   if (section === 'Identity providers') return <IdentityProvidersPanel />
   if (section === 'MFA policy') return <MfaSettingsPanel />
   return <OrgProfilePanel />
 }
 
-// Rendered by the `/settings/$section` child route into the layout's Outlet.
-export function SettingsSectionPanel() {
+// Route param → section for the child `$section` panel, defaulting to the page's
+// first section. Shared by all three pages' `$section` routes.
+function useActiveSection(defaultSection: SettingsSection): SettingsSection {
   const { section } = useParams({ strict: false })
-  return (
-    <SectionPanel
-      section={(section && slugToSection(section)) || 'Organisation'}
-    />
-  )
+  return (section && slugToSection(section)) || defaultSection
 }
 
-export function SettingsLayout() {
-  const { section } = useParams({ strict: false })
-  const activeSection: SettingsSection =
-    (section && slugToSection(section)) || 'Organisation'
+function SectionRoutePanel({ defaultSection }: { defaultSection: SettingsSection }) {
+  const active = useActiveSection(defaultSection)
+  return <SectionPanel section={active} />
+}
+
+export const SettingsSectionPanel = () => (
+  <SectionRoutePanel defaultSection="Organisation" />
+)
+export const AccountSectionPanel = () => (
+  <SectionRoutePanel defaultSection="My account" />
+)
+export const AdminSectionPanel = () => (
+  <SectionRoutePanel defaultSection="Users" />
+)
+
+/**
+ * Generic settings-style page: a title, a sticky vertical pill-tab rail of
+ * `sections`, and an `Outlet` for the active section's panel. Reused by the
+ * Settings, Account and Admin pages (each passes its own section list + route).
+ */
+function SectionLayout({
+  title,
+  sections,
+  to,
+  defaultSection,
+}: {
+  title: string
+  sections: SettingsSection[]
+  to: '/settings/$section' | '/account/$section' | '/admin/$section'
+  defaultSection: SettingsSection
+}) {
+  const activeSection = useActiveSection(defaultSection)
   const navigate = useNavigate()
   const stamp = useStamp()
   const { can, isSuperadmin, isLoaded } = usePermissions()
@@ -85,16 +110,13 @@ export function SettingsLayout() {
 
   // Until effective permissions load, show every section (avoids a flash of an
   // empty nav for admins). Once known, hide sections the user can't read.
-  const visibleSections = settingsSections.filter((s) => {
+  const visibleSections = sections.filter((s) => {
     if (!isLoaded) return true
-    // Global user accounts, identity providers and the audit log are
-    // platform-admin surfaces.
-    if (s === 'All users') return isSuperadmin
+    // Identity providers is a platform-admin surface.
     if (s === 'Identity providers') return isSuperadmin
     // The org-wide MFA policy is a superadmin surface AND only exists on builds
     // that report the MFA capability (hidden on the OSS default).
-    if (s === 'MFA policy')
-      return isSuperadmin && capabilities?.mfa === true
+    if (s === 'MFA policy') return isSuperadmin && capabilities?.mfa === true
     const needed = SECTION_READ_PERMISSION[s]
     return needed ? can(needed) : true
   })
@@ -103,7 +125,7 @@ export function SettingsLayout() {
     <ModalsProvider>
       <Box className={classes.page}>
         <Group align="baseline" gap={16} mb={26} wrap="wrap">
-          <Title order={1}>Settings</Title>
+          <Title order={1}>{title}</Title>
           <Text ff="monospace" fz={12} c="var(--faint)">
             {stamp}
           </Text>
@@ -116,7 +138,7 @@ export function SettingsLayout() {
           onChange={(value) => {
             if (value)
               navigate({
-                to: '/settings/$section',
+                to,
                 params: { section: sectionToSlug(value as SettingsSection) },
               })
           }}
@@ -124,7 +146,7 @@ export function SettingsLayout() {
         >
           <Box
             component="nav"
-            aria-label="Settings sections"
+            aria-label={`${title} sections`}
             w={220}
             style={{ position: 'sticky', top: 84, alignSelf: 'flex-start' }}
           >
@@ -145,5 +167,38 @@ export function SettingsLayout() {
         </Tabs>
       </Box>
     </ModalsProvider>
+  )
+}
+
+export function SettingsLayout() {
+  return (
+    <SectionLayout
+      title="Settings"
+      sections={appSettingsSections}
+      to="/settings/$section"
+      defaultSection="Organisation"
+    />
+  )
+}
+
+export function AccountLayout() {
+  return (
+    <SectionLayout
+      title="Account"
+      sections={accountSections}
+      to="/account/$section"
+      defaultSection="My account"
+    />
+  )
+}
+
+export function AdminLayout() {
+  return (
+    <SectionLayout
+      title="Admin"
+      sections={adminSections}
+      to="/admin/$section"
+      defaultSection="Users"
+    />
   )
 }

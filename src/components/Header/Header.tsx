@@ -278,7 +278,7 @@ export function Header() {
               leftSection={<UserCog size={16} />}
               onClick={() =>
                 navigate({
-                  to: '/settings/$section',
+                  to: '/account/$section',
                   params: { section: 'my-account' },
                 })
               }

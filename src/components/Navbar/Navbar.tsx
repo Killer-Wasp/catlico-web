@@ -15,6 +15,7 @@ import {
   Puzzle,
   Server,
   Settings,
+  ShieldCheck,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -45,6 +46,7 @@ import {
 } from '#/components/Tasks/tasksQueries'
 import { accessibleOrganisationsQueryOptions } from '#/components/pages/settings/settingsQueries'
 import { getActiveOrgId } from '#/lib/auth/session'
+import { usePermissions } from '#/lib/auth/usePermissions'
 import { useState } from 'react'
 
 type NavItem = {
@@ -72,7 +74,10 @@ type NavbarCounts = {
   caseTemplates: number
 }
 
-function sectionsForCounts(counts: NavbarCounts): NavSection[] {
+function sectionsForCounts(
+  counts: NavbarCounts,
+  showAdmin: boolean,
+): NavSection[] {
   return [
     {
       title: 'Operate',
@@ -136,6 +141,11 @@ function sectionsForCounts(counts: NavbarCounts): NavSection[] {
           badge: counts.caseTemplates,
         },
         { icon: Settings, label: 'Settings', to: '/settings' },
+        // Admin (Users/Roles/Identity providers) is privileged — the route also
+        // enforces this, and every underlying API is server-side gated.
+        ...(showAdmin
+          ? [{ icon: ShieldCheck, label: 'Admin', to: '/admin' }]
+          : []),
       ],
     },
   ]
@@ -349,16 +359,21 @@ export function Navbar({
   const { data: organisations } = useQuery(
     accessibleOrganisationsQueryOptions(),
   )
-  const sections = sectionsForCounts({
-    tasks: openTasks?.total,
-    alerts: alerts?.total,
-    cases: cases?.total,
-    observables: observables?.total,
-    plugins: plugins?.length,
-    pluginRuns: pluginRunsData?.total,
-    pluginRunners: pluginRunners?.length,
-    caseTemplates: caseTemplates?.total ?? 0,
-  })
+  const { can, isSuperadmin } = usePermissions()
+  const showAdmin = isSuperadmin || can('manage:users')
+  const sections = sectionsForCounts(
+    {
+      tasks: openTasks?.total,
+      alerts: alerts?.total,
+      cases: cases?.total,
+      observables: observables?.total,
+      plugins: plugins?.length,
+      pluginRuns: pluginRunsData?.total,
+      pluginRunners: pluginRunners?.length,
+      caseTemplates: caseTemplates?.total ?? 0,
+    },
+    showAdmin,
+  )
   const organisationOptions = (organisations ?? []).map((organisation) => ({
     value: organisation.id,
     label: organisation.name,
