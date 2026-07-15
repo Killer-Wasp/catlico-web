@@ -12,10 +12,15 @@
  * key and never double-fetch.
  */
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
 import { appendClauses } from '#/lib/filters'
 import type { FilterClause } from '#/lib/filters'
 import type { Severity, Tlp } from '#/lib/domain'
+import type {
+  PluginRunPublic,
+  QueuePluginRunRequest,
+} from '#/components/Plugins/plugins.types'
 import type { Alert, AlertSimilarCase } from './alerts.types'
 import { isHTTPError } from 'ky'
 
@@ -65,6 +70,8 @@ export const alertKeys = {
     [...alertKeys.detail(id), 'similar-cases'] as const,
   linkedCases: (id: string) =>
     [...alertKeys.detail(id), 'linked-cases'] as const,
+  customFieldValues: (id: string) =>
+    [...alertKeys.detail(id), 'custom-field-values'] as const,
 }
 
 // --- API DTOs --------------------------------------------------------------
@@ -421,3 +428,114 @@ export const alertLinkedCasesQueryOptions = (id: string) =>
     queryKey: alertKeys.linkedCases(id),
     queryFn: () => fetchAlertLinkedCases(id),
   })
+
+// --- Alert observables (create) --------------------------------------------
+// Mirror the case create fns (casesQueries) against the alert routes, so the
+// shared CreateObservableDialog can target an alert via its `alertId` prop.
+
+export async function createAlertObservable(
+  alertId: string,
+  body: {
+    observable_type: string
+    data: string
+    message?: string
+    tlp?: number
+    ioc?: boolean
+    sighted?: boolean
+  },
+): Promise<ObservablePublic> {
+  const numeric = alertId.replace(/^AL-/, '')
+  return api
+    .post(`alerts/${numeric}/observables`, { json: body })
+    .json<ObservablePublic>()
+}
+
+export async function createAlertObservableFile(
+  alertId: string,
+  body: {
+    observable_type: string
+    file: File
+    message?: string
+    tlp?: number
+    ioc?: boolean
+    sighted?: boolean
+  },
+): Promise<ObservablePublic> {
+  const numeric = alertId.replace(/^AL-/, '')
+  const form = new FormData()
+  form.append('file', body.file)
+  form.append('observable_type', body.observable_type)
+  if (body.message != null) form.append('message', body.message)
+  if (body.tlp != null) form.append('tlp', String(body.tlp))
+  if (body.ioc != null) form.append('ioc', String(body.ioc))
+  if (body.sighted != null) form.append('sighted', String(body.sighted))
+  return api
+    .post(`alerts/${numeric}/observables/file`, { body: form })
+    .json<ObservablePublic>()
+}
+
+// --- Alert custom fields ----------------------------------------------------
+
+async function fetchAlertCustomFieldValues(
+  id: string,
+): Promise<Record<string, unknown>> {
+  const numeric = id.replace(/^AL-/, '')
+  return api
+    .get(`alerts/${numeric}/custom-fields`)
+    .json<Record<string, unknown>>()
+}
+
+/**
+ * Replace-semantics PUT of an alert's custom-field values (mirror of
+ * `setCaseCustomFields`). The full desired set is sent; the backend 422s on a
+ * missing mandatory field — its `detail` is surfaced as the thrown message.
+ */
+export async function setAlertCustomFields(
+  id: string,
+  values: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const numeric = id.replace(/^AL-/, '')
+  try {
+    return await api
+      .put(`alerts/${numeric}/custom-fields`, { json: { values } })
+      .json<Record<string, unknown>>()
+  } catch (error) {
+    if (isHTTPError(error)) {
+      try {
+        const body: { detail?: string } = await error.response.json()
+        if (body.detail) throw new Error(body.detail)
+      } catch (parseError) {
+        if (parseError instanceof Error && parseError.message) throw parseError
+      }
+    }
+    throw error
+  }
+}
+
+export const alertCustomFieldValuesQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: alertKeys.customFieldValues(id),
+    queryFn: () => fetchAlertCustomFieldValues(id),
+  })
+
+/** Custom-field values changed for an alert: refresh the raw values + the alert
+ *  list (whose rows carry a custom-field summary). */
+export function invalidateAlertCustomFieldQueries(
+  qc: QueryClient,
+  alertId: string,
+) {
+  qc.invalidateQueries({ queryKey: alertKeys.customFieldValues(alertId) })
+  qc.invalidateQueries({ queryKey: alertKeys.lists() })
+}
+
+// --- Alert plugin runs (Run analyzers on the alert entity) ------------------
+
+export async function queueAlertPluginRun(
+  alertId: string,
+  body: QueuePluginRunRequest,
+): Promise<PluginRunPublic> {
+  const numeric = alertId.replace(/^AL-/, '')
+  return api
+    .post(`alerts/${numeric}/plugin-runs`, { json: body })
+    .json<PluginRunPublic>()
+}

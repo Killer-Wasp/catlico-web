@@ -12,6 +12,7 @@ import { notifications } from '@mantine/notifications'
 import { allSettledPooled } from '#/lib/pool'
 import { queueObservablePluginRun } from '#/components/Observables/observablesQueries'
 import { queueCasePluginRun } from '#/components/Cases/casesQueries'
+import { queueAlertPluginRun } from '#/components/Alerts/alertsQueries'
 import type { PluginRunPublic } from './plugins.types'
 
 /** One (observable, plugin) dispatch. */
@@ -65,6 +66,25 @@ export function dispatchCaseResponderRuns(
   return allSettledPooled(
     pluginIds,
     (pluginId) => queueCasePluginRun(caseId, { plugin_id: pluginId, force }),
+    ANALYZER_RUN_CONCURRENCY,
+  )
+}
+
+/**
+ * Dispatch one run per selected plugin against a single alert (§4.1c), at most
+ * `ANALYZER_RUN_CONCURRENCY` at a time. Like case responders, analyzers here act
+ * on the alert entity itself — the targets are just the chosen plugins, NOT a
+ * cross-product with observables (N plugins → N calls). Always resolves; a failed
+ * dispatch surfaces as a rejected result. Pair with `notifyAnalyzerRuns`.
+ */
+export function dispatchAlertAnalyzerRuns(
+  alertId: string,
+  pluginIds: readonly string[],
+  force: boolean,
+): Promise<PromiseSettledResult<PluginRunPublic>[]> {
+  return allSettledPooled(
+    pluginIds,
+    (pluginId) => queueAlertPluginRun(alertId, { plugin_id: pluginId, force }),
     ANALYZER_RUN_CONCURRENCY,
   )
 }

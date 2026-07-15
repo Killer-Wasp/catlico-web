@@ -47,6 +47,7 @@ function makeProc(external_id: string, name: string): ProcedureDto {
   return {
     id: `proc-${external_id}`,
     case_id: 42,
+    alert_id: null,
     pattern_id: `pat-${external_id}`,
     pattern: {
       id: `pat-${external_id}`,
@@ -80,7 +81,7 @@ function renderPanel() {
     <MantineProvider>
       <Notifications />
       <QueryClientProvider client={queryClient}>
-        <TtpsPanel caseId="#42" />
+        <TtpsPanel entityType="case" entityId="#42" />
       </QueryClientProvider>
     </MantineProvider>,
   )

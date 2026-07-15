@@ -12,10 +12,18 @@ import {
 } from '#/components/Alerts/alertsQueries'
 import { caseKeys } from '#/components/Cases/casesQueries'
 import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
+import { CreateObservableDialog } from '#/components/Observables/CreateObservableDialog'
+import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
+import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDialog'
+import {
+  dispatchAlertAnalyzerRuns,
+  notifyAnalyzerRuns,
+} from '#/components/Plugins/runAnalyzers'
+import { pluginResultKeys } from '#/components/PluginResults/pluginResults'
 import { recordRecentlyViewed } from '#/lib/recentlyViewed'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertDetailDrawer } from './AlertDetailDrawer'
 
 /**
@@ -34,7 +42,6 @@ export function AlertDrawer({
   onMergeIntoCase,
   onPromote,
   promotionPending,
-  onRunAnalysis,
 }: {
   alertId: string | null
   onClose: () => void
@@ -44,10 +51,11 @@ export function AlertDrawer({
   onMergeIntoCase?: (id: string) => void
   onPromote?: (id: string, templateId: string) => void
   promotionPending?: boolean
-  onRunAnalysis?: (id: string) => void
 }) {
   const queryClient = useQueryClient()
   const enabled = Boolean(alertId)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [observableDialogOpen, setObservableDialogOpen] = useState(false)
 
   const { data: alert } = useQuery({
     ...alertQueryOptions(alertId ?? ''),
@@ -132,41 +140,76 @@ export function AlertDrawer({
       }),
   })
 
-  const runAnalysis =
-    onRunAnalysis ??
-    ((id: string) =>
-      notifications.show({
-        color: 'blue',
-        message: `Running analysis on ${id}…`,
-      }))
+  // "Run analyzers" fans the picked plugins out against the alert entity
+  // (POST /alerts/{id}/plugin-runs), then refreshes the alert's Plugin Results.
+  const runAnalyzers = useMutation({
+    mutationFn: ({ pluginIds, force }: PluginPickerSelection) =>
+      dispatchAlertAnalyzerRuns(alertId ?? '', pluginIds, force),
+    onSuccess: (results) => {
+      notifyAnalyzerRuns(results)
+      if (alertId) {
+        void queryClient.invalidateQueries({
+          queryKey: pluginResultKeys.list(
+            'alert',
+            alertId.replace(/^AL-/, ''),
+          ),
+        })
+      }
+    },
+    onSettled: () => setPickerOpen(false),
+  })
 
   return (
-    <AlertDetailDrawer
-      alert={alertId ? (alert ?? null) : null}
-      comments={comments ?? []}
-      tags={tags ?? alert?.tags ?? []}
-      onSaveTags={(id, nextTags) =>
-        saveTags.mutateAsync({ alertId: id, tags: nextTags })
-      }
-      savingTags={saveTags.isPending}
-      observables={observables ?? []}
-      similarCases={similarCases ?? []}
-      linkedCases={linkedCases ?? []}
-      caseTemplates={caseTemplates}
-      onClose={onClose}
-      onAddComment={(id, note) => {
-        const message = note.trim()
-        if (!message) return
-        addComment.mutate({ alertId: id, message })
-      }}
-      onRunAnalysis={runAnalysis}
-      onDismiss={onDismiss}
-      onMergeIntoCase={onMergeIntoCase}
-      onPromote={onPromote}
-      promotionPending={promotionPending}
-      onDetach={(id) => detach.mutate(id)}
-      detachPending={detach.isPending}
-      hideActions={hideActions}
-    />
+    <>
+      <AlertDetailDrawer
+        alert={alertId ? (alert ?? null) : null}
+        comments={comments ?? []}
+        tags={tags ?? alert?.tags ?? []}
+        onSaveTags={(id, nextTags) =>
+          saveTags.mutateAsync({ alertId: id, tags: nextTags })
+        }
+        savingTags={saveTags.isPending}
+        observables={observables ?? []}
+        similarCases={similarCases ?? []}
+        linkedCases={linkedCases ?? []}
+        caseTemplates={caseTemplates}
+        onClose={onClose}
+        onAddComment={(id, note) => {
+          const message = note.trim()
+          if (!message) return
+          addComment.mutate({ alertId: id, message })
+        }}
+        onRunAnalysis={() => setPickerOpen(true)}
+        onAddObservable={() => setObservableDialogOpen(true)}
+        onDismiss={onDismiss}
+        onMergeIntoCase={onMergeIntoCase}
+        onPromote={onPromote}
+        promotionPending={promotionPending}
+        onDetach={(id) => detach.mutate(id)}
+        detachPending={detach.isPending}
+        hideActions={hideActions}
+      />
+      {alertId && (
+        <>
+          <PluginPickerDialog
+            opened={pickerOpen}
+            onClose={() => setPickerOpen(false)}
+            isRunning={runAnalyzers.isPending}
+            contextLabel={`Run on alert ${alertId}`}
+            onRun={(selection) => runAnalyzers.mutate(selection)}
+          />
+          <CreateObservableDialog
+            opened={observableDialogOpen}
+            alertId={alertId}
+            onClose={() => setObservableDialogOpen(false)}
+            onCreated={() =>
+              queryClient.invalidateQueries({
+                queryKey: alertKeys.observables(alertId),
+              })
+            }
+          />
+        </>
+      )}
+    </>
   )
 }

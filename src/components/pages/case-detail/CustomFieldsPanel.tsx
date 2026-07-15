@@ -3,6 +3,11 @@ import {
   invalidateCustomFieldQueries,
   setCaseCustomFields,
 } from '#/components/Cases/casesQueries'
+import {
+  alertCustomFieldValuesQueryOptions,
+  invalidateAlertCustomFieldQueries,
+  setAlertCustomFields,
+} from '#/components/Alerts/alertsQueries'
 import { CustomFieldInput } from '#/components/CustomFields/CustomFieldInput'
 import { CustomFieldValueDisplay } from '#/components/CustomFields/CustomFieldValueDisplay'
 import { customFieldsQueryOptions } from '#/components/pages/settings/settingsQueries'
@@ -20,6 +25,7 @@ import {
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { UseQueryOptions } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { CasePanelHeader } from './CasePanelHeader'
@@ -47,13 +53,36 @@ function toStringValue(field: CustomFieldPublic, value: unknown): string {
   return String(value)
 }
 
-export function CustomFieldsPanel({ caseId }: { caseId: string }) {
+export function CustomFieldsPanel({
+  caseId,
+  entityId,
+  entityType = 'case',
+}: {
+  /** @deprecated pass `entityId` + `entityType`; kept for the case caller. */
+  caseId?: string
+  entityId?: string
+  /** Whether the fields hang off a case (default) or an alert (§4.1c). */
+  entityType?: 'case' | 'alert'
+}) {
+  const id = entityId ?? caseId ?? ''
+  const isAlert = entityType === 'alert'
   const queryClient = useQueryClient()
   const { can } = usePermissions()
-  const canWrite = can('write:case')
+  const canWrite = can(isAlert ? 'write:alert' : 'write:case')
 
   const { data: defsResult } = useQuery(customFieldsQueryOptions())
-  const { data: values } = useQuery(caseCustomFieldValuesQueryOptions(caseId))
+  // Both branches yield the same value shape but different literal query keys,
+  // so widen to a common options type before handing to useQuery.
+  const valuesOptions = (
+    isAlert
+      ? alertCustomFieldValuesQueryOptions(id)
+      : caseCustomFieldValuesQueryOptions(id)
+  ) as UseQueryOptions<
+    Record<string, unknown>,
+    Error,
+    Record<string, unknown>
+  >
+  const { data: values } = useQuery(valuesOptions)
   const definitions = defsResult?.fields ?? []
   const currentValues = values ?? {}
 
@@ -63,9 +92,10 @@ export function CustomFieldsPanel({ caseId }: { caseId: string }) {
 
   const mutation = useMutation({
     mutationFn: (next: Record<string, unknown>) =>
-      setCaseCustomFields(caseId, next),
+      isAlert ? setAlertCustomFields(id, next) : setCaseCustomFields(id, next),
     onSuccess: () => {
-      invalidateCustomFieldQueries(queryClient, caseId)
+      if (isAlert) invalidateAlertCustomFieldQueries(queryClient, id)
+      else invalidateCustomFieldQueries(queryClient, id)
       setEditingKey(null)
       setDraft('')
       setAdding(false)
@@ -147,7 +177,7 @@ export function CustomFieldsPanel({ caseId }: { caseId: string }) {
 
       {shownFields.length === 0 && !editingKey ? (
         <Text fz={13} c="dimmed">
-          No custom fields for this case.
+          No custom fields for this {isAlert ? 'alert' : 'case'}.
         </Text>
       ) : (
         <Table verticalSpacing="sm" fz={14}>

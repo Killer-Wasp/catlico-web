@@ -352,7 +352,6 @@ export function AlertsPage() {
         onClose={closeAlert}
         onDismiss={dismissAlertById}
         onMergeIntoCase={setMergeAlertId}
-        onRunAnalysis={runAnalysis}
         onPromote={(alertId, nextTemplateId) => {
           const selectedTemplate = caseTemplates.find(
             (template) => template.id === nextTemplateId,

@@ -117,6 +117,57 @@ describe('AlertDetailDrawer', () => {
     expect(calls).not.toContain('alerts/AL-42/plugin-results')
   })
 
+  test('mounts the alert TTP panel wired to the alert procedures route', async () => {
+    renderDrawer()
+
+    await screen.findByText('Plugin Results')
+    expect(screen.getByText('TTPs')).toBeInTheDocument()
+    expect(await screen.findByText('No techniques linked yet.')).toBeInTheDocument()
+    const calls = vi.mocked(api.get).mock.calls.map((c) => c[0])
+    expect(calls).toContain('alerts/42/procedures')
+    expect(calls).not.toContain('cases/42/procedures')
+  })
+
+  test('mounts the alert custom-fields panel', async () => {
+    renderDrawer()
+
+    expect(
+      await screen.findByText('No custom fields for this alert.'),
+    ).toBeInTheDocument()
+    const calls = vi.mocked(api.get).mock.calls.map((c) => c[0])
+    expect(calls).toContain('alerts/42/custom-fields')
+  })
+
+  test('renders an Add observable action only when onAddObservable is given', async () => {
+    const onAddObservable = vi.fn()
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    })
+    render(
+      <MantineProvider>
+        <Notifications />
+        <QueryClientProvider client={queryClient}>
+          <AlertDetailDrawer
+            alert={alert}
+            comments={[]}
+            observables={[]}
+            similarCases={[]}
+            linkedCases={[]}
+            onClose={vi.fn()}
+            onAddComment={vi.fn()}
+            onRunAnalysis={vi.fn()}
+            onAddObservable={onAddObservable}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    )
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Add observable' }),
+    )
+    expect(onAddObservable).toHaveBeenCalledWith('AL-42')
+  })
+
   test('shows a Detach action for a linked alert and calls onDetach', async () => {
     const onDetach = vi.fn()
     const queryClient = new QueryClient({
