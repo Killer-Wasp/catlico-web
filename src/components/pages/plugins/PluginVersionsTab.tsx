@@ -1,37 +1,36 @@
 /**
- * PluginVersionsTab — the plugin config drawer's Versions tab (v1).
+ * PluginVersionsTab — the plugin config drawer's Versions tab (read-only).
+ *
+ * Since the venv redesign (WP4) plugins are provisioned into the runner's
+ * `/plugins` directory at IMAGE BUILD, not installed at runtime — there is no
+ * in-app install/upgrade action any more. This tab therefore shows the installed
+ * version / source / runner info read-only, and when the best-effort update
+ * check reports a newer version it explains how to apply it at build time
+ * (`plugin-runner install <source>` + rebuild/restart the runner image).
  *
  * Two independent queries so the (usually "unknown") update check never blocks
  * the installed-version view:
  *   - GET plugins/{id}/versions          → installed metadata + runner list
  *   - GET plugins/{id}/versions/check-latest → best-effort update check
- *
- * Upgrade reuses the existing install flow (POST plugin-runners/{id}/plugins/
- * install) — one call per runner the plugin is on. The API responds 202 and the
- * runner reports install progress back asynchronously; we invalidate the
- * metadata query so the runner rows reflect the new install_status.
  */
 import {
   Anchor,
   Badge,
   Button,
+  Code,
   Group,
   Loader,
   Stack,
   Text,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { AlertTriangle, ArrowUpCircle, Check, RefreshCw } from 'lucide-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
-  pluginKeys,
   pluginVersionsQueryOptions,
   pluginVersionCheckQueryOptions,
-  installPluginOnRunner,
 } from '#/components/Plugins/plugins'
 import type { PluginVersionRunnerPublic } from '#/components/Plugins/plugins.types'
 import { localDateTimeLabel } from '#/components/Time/RelativeTime'
-import { errorMessage } from '#/lib/ui-helpers'
 
 function runnerStatusColor(status: string): string {
   return status === 'healthy'
@@ -41,96 +40,43 @@ function runnerStatusColor(status: string): string {
       : 'gray'
 }
 
-function installStatusColor(status: string): string {
-  if (status === 'installed' || status === 'active') return 'green'
-  if (status === 'failed') return 'red'
-  return 'blue' // installing / pending / anything in-flight
-}
-
 function RunnerRow({ runner }: { runner: PluginVersionRunnerPublic }) {
   return (
     <Group gap="xs" justify="space-between" wrap="nowrap">
       <Text fz={13} fw={500}>
         {runner.name || runner.id}
       </Text>
-      <Group gap={6} wrap="nowrap">
-        <Badge variant="dot" color={runnerStatusColor(runner.status)} size="sm">
-          {runner.status || 'unknown'}
-        </Badge>
-        {runner.install_status && (
-          <Badge
-            variant="light"
-            color={installStatusColor(runner.install_status)}
-            size="sm"
-            radius="sm"
-          >
-            {runner.install_status}
-          </Badge>
-        )}
-      </Group>
+      <Badge variant="dot" color={runnerStatusColor(runner.status)} size="sm">
+        {runner.status || 'unknown'}
+      </Badge>
     </Group>
   )
 }
 
-export function PluginVersionsTab({ pluginId }: { pluginId: string }) {
-  const queryClient = useQueryClient()
+/**
+ * Build-time upgrade guidance — shown in place of the removed in-app upgrade
+ * action. Plugins are baked into the runner image, so an upgrade is an infra
+ * step, not an API call.
+ */
+function BuildTimeUpgradeGuidance({ sourceUrl }: { sourceUrl: string | null }) {
+  return (
+    <Stack gap={4}>
+      <Text fz={13}>
+        Upgrades are applied at image build. Provision the new version into the
+        runner and restart it:
+      </Text>
+      <Code block fz={12}>
+        {`plugin-runner install ${sourceUrl || '<source>'}\nplugin-runner sync   # then rebuild / restart the runner image`}
+      </Code>
+    </Stack>
+  )
+}
 
+export function PluginVersionsTab({ pluginId }: { pluginId: string }) {
   const { data, isLoading, isError, refetch } = useQuery(
     pluginVersionsQueryOptions(pluginId),
   )
   const check = useQuery(pluginVersionCheckQueryOptions(pluginId))
-
-  const upgrade = useMutation({
-    mutationFn: async () => {
-      const runners = data?.runners ?? []
-      const source_url = data?.source_url
-      // Defend the invariant: never trigger an install without a real source.
-      // `update_available` implies a source in v1, but if that ever breaks we
-      // must not silently POST an empty URL → a garbage/failing install.
-      if (!source_url) {
-        throw new Error('Cannot upgrade: plugin has no source URL')
-      }
-      const source_ref = data.source_ref ?? 'main'
-      // Upgrade every runner the plugin is installed on. `allSettled` so one
-      // runner's failure doesn't discard the successes on the others.
-      const results = await Promise.allSettled(
-        runners.map((runner) =>
-          installPluginOnRunner(runner.id, {
-            plugin_id: pluginId,
-            source_url,
-            source_ref,
-          }),
-        ),
-      )
-      const succeeded = results.filter((r) => r.status === 'fulfilled').length
-      return { succeeded, total: runners.length }
-    },
-    onSuccess: ({ succeeded, total }) => {
-      const failed = total - succeeded
-      if (succeeded === 0) {
-        notifications.show({
-          color: 'red',
-          message: `Upgrade failed on all ${total} runner${total === 1 ? '' : 's'}`,
-        })
-        return
-      }
-      notifications.show({
-        color: failed > 0 ? 'yellow' : 'green',
-        message:
-          failed > 0
-            ? `Upgrade started on ${succeeded} of ${total} runners; ${failed} failed`
-            : 'Upgrade started',
-      })
-      // Any success means at least one runner is now (re)installing — repaint.
-      queryClient.invalidateQueries({ queryKey: pluginKeys.versions(pluginId) })
-      check.refetch()
-    },
-    onError: (error) =>
-      notifications.show({
-        color: 'red',
-        message: `Upgrade failed: ${errorMessage(error)}`,
-      }),
-  })
 
   if (isLoading) {
     return (
@@ -238,7 +184,7 @@ export function PluginVersionsTab({ pluginId }: { pluginId: string }) {
         </Stack>
       )}
 
-      {/* Update check */}
+      {/* Update check — read-only; upgrades happen at image build */}
       <Stack gap={6}>
         <Group gap="xs" justify="space-between">
           <Text fz={12} c="dimmed" tt="uppercase" fw={600}>
@@ -263,7 +209,7 @@ export function PluginVersionsTab({ pluginId }: { pluginId: string }) {
             </Text>
           </Group>
         ) : checkStatus === 'update_available' ? (
-          <Group gap="sm" justify="space-between" wrap="nowrap">
+          <Stack gap={8}>
             <Group gap="xs" wrap="nowrap">
               <ArrowUpCircle size={16} color="var(--mantine-color-yellow-filled)" />
               <Text fz={13} fw={600}>
@@ -271,18 +217,8 @@ export function PluginVersionsTab({ pluginId }: { pluginId: string }) {
                 {check.data?.latest_version ? `: ${check.data.latest_version}` : ''}
               </Text>
             </Group>
-            {installed && data.source_url && data.runners.length > 0 && (
-              <Button
-                size="xs"
-                color="yellow"
-                leftSection={<ArrowUpCircle size={14} />}
-                loading={upgrade.isPending}
-                onClick={() => upgrade.mutate()}
-              >
-                Upgrade
-              </Button>
-            )}
-          </Group>
+            <BuildTimeUpgradeGuidance sourceUrl={data.source_url} />
+          </Stack>
         ) : checkStatus === 'up_to_date' ? (
           <Group gap="xs">
             <Check size={16} color="var(--mantine-color-green-filled)" />

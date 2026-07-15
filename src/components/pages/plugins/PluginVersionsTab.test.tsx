@@ -2,22 +2,23 @@
  * @vitest-environment jsdom
  *
  * Component tests for PluginVersionsTab — the plugin config drawer's Versions
- * tab (v1: view installed version + upgrade-to-latest).
+ * tab. Since the venv redesign (WP4) it is READ-ONLY: plugins are provisioned
+ * into the runner at image build, so there is no in-app install/upgrade action.
+ * When the update check reports a newer version the tab shows build-time upgrade
+ * guidance instead of an Upgrade button — and never POSTs an install.
  *
  * The tab fires two independent GETs:
  *   - GET plugins/{id}/versions          → installed metadata + runners
  *   - GET plugins/{id}/versions/check-latest → best-effort update check
- * and a POST plugin-runners/{runner_id}/plugins/install to trigger an upgrade.
  *
  * Stubs at the `#/lib/api/client` boundary (queryOptions closures call the real
  * fetcher, so mocking the fetcher export wouldn't intercept it).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PluginVersionsTab } from './PluginVersionsTab'
-import { notifications } from '@mantine/notifications'
 import { api } from '#/lib/api/client'
 import type {
   PluginVersionInfoPublic,
@@ -29,14 +30,8 @@ vi.mock('#/lib/api/client', () => ({
   API_BASE: '/api/v1',
 }))
 
-// Notifications render into a portal the tests don't mount — assert on `show`.
-vi.mock('@mantine/notifications', () => ({
-  notifications: { show: vi.fn() },
-}))
-
 const getMock = vi.mocked(api.get)
 const postMock = vi.mocked(api.post)
-const notifyMock = vi.mocked(notifications.show)
 
 const INSTALLED: PluginVersionInfoPublic = {
   plugin_id: 'virustotal',
@@ -111,7 +106,6 @@ function stubGets(
 
 function renderTab(pluginId = 'virustotal') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const invalidateSpy = vi.spyOn(client, 'invalidateQueries')
   render(
     <QueryClientProvider client={client}>
       <MantineProvider>
@@ -119,14 +113,12 @@ function renderTab(pluginId = 'virustotal') {
       </MantineProvider>
     </QueryClientProvider>,
   )
-  return { invalidateSpy }
 }
 
 beforeEach(() => {
   getMock.mockReset()
   postMock.mockReset()
   postMock.mockResolvedValue(undefined as never)
-  notifyMock.mockReset()
   stubGets()
 })
 afterEach(() => cleanup())
@@ -167,30 +159,21 @@ describe('PluginVersionsTab', () => {
     expect(screen.queryByRole('button', { name: /upgrade/i })).not.toBeInTheDocument()
   })
 
-  it('shows the Upgrade button when an update is available and POSTs the install trigger per runner', async () => {
+  it('shows read-only build-time upgrade guidance when an update is available and never POSTs an install', async () => {
     stubGets(INSTALLED, CHECK_UPDATE)
     renderTab()
 
-    // Latest version highlighted + Upgrade offered.
+    // Latest version highlighted.
     expect(await screen.findByText(/1\.5\.0/)).toBeInTheDocument()
-    const upgrade = await screen.findByRole('button', { name: /upgrade/i })
-    fireEvent.click(upgrade)
+    // No in-app Upgrade action — guidance points to the build-time CLI instead.
+    expect(screen.queryByRole('button', { name: /^upgrade$/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/applied at image build/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/plugin-runner install https:\/\/github\.com\/catlico\/vt-plugin/i),
+    ).toBeInTheDocument()
 
-    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2))
-    expect(postMock).toHaveBeenCalledWith('plugin-runners/r1/plugins/install', {
-      json: {
-        plugin_id: 'virustotal',
-        source_url: 'https://github.com/catlico/vt-plugin',
-        source_ref: 'main',
-      },
-    })
-    expect(postMock).toHaveBeenCalledWith('plugin-runners/r2/plugins/install', {
-      json: {
-        plugin_id: 'virustotal',
-        source_url: 'https://github.com/catlico/vt-plugin',
-        source_ref: 'main',
-      },
-    })
+    // Nothing is ever POSTed from this read-only tab.
+    expect(postMock).not.toHaveBeenCalled()
   })
 
   it('shows an error state with a Retry button when the metadata query fails', async () => {
@@ -207,34 +190,12 @@ describe('PluginVersionsTab', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
 
-  it('upgrades the healthy runners even if one runner install fails, and still invalidates', async () => {
-    stubGets(INSTALLED, CHECK_UPDATE)
-    // r2's install rejects; r1 succeeds.
-    postMock.mockImplementation((input) => {
-      const url = String(input)
-      return url.includes('/r2/')
-        ? (Promise.reject(new Error('runner down')) as never)
-        : (Promise.resolve(undefined) as never)
-    })
-
-    const { invalidateSpy } = renderTab()
-
-    const upgrade = await screen.findByRole('button', { name: /upgrade/i })
-    fireEvent.click(upgrade)
-
-    // Both runners were attempted despite r2 failing.
-    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2))
-    // A partial success still repaints the versions view.
-    await waitFor(() =>
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ['plugins', 'detail', 'virustotal', 'versions'],
-      }),
-    )
-    // The partial-failure summary surfaces the success count.
-    await waitFor(() =>
-      expect(notifyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.stringMatching(/1 of 2 runners/i) }),
-      ),
-    )
+  it('allows re-running the update check', async () => {
+    stubGets(INSTALLED, CHECK_UP_TO_DATE)
+    renderTab()
+    await screen.findByText(/up to date/i)
+    fireEvent.click(screen.getByRole('button', { name: /check for update/i }))
+    // The check GET is re-issued (versions + check-latest, then check-latest again).
+    expect(getMock).toHaveBeenCalled()
   })
 })

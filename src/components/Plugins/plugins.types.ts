@@ -208,14 +208,6 @@ export type PluginLatestCheckPublic = {
   reason: string | null
 }
 
-/** Body for POST /plugin-runners/{runner_id}/plugins/install (re-install/upgrade). */
-export type PluginInstallRequest = {
-  plugin_id: string
-  source_url: string
-  source_ref?: string
-  version?: string
-}
-
 export type ProposedActionPublic = {
   id: string
   plugin_id: string

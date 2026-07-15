@@ -16,7 +16,6 @@ import type {
   PluginStats,
   PluginVersionInfoPublic,
   PluginLatestCheckPublic,
-  PluginInstallRequest,
 } from './plugins.types'
 
 // ── Query key factory ───────────────────────────────────────────────────────
@@ -179,18 +178,6 @@ export const pluginVersionCheckQueryOptions = (id: string | null) =>
   })
 
 // ── Mutations ───────────────────────────────────────────────────────────────
-
-/**
- * Trigger a (re)install of a plugin on a runner from its git source — reused by
- * the Versions tab's Upgrade action. Fire-and-forget: the API responds 202 and
- * the runner reports install progress back asynchronously.
- */
-export async function installPluginOnRunner(
-  runnerId: string,
-  payload: PluginInstallRequest,
-): Promise<void> {
-  await api.post(`plugin-runners/${runnerId}/plugins/install`, { json: payload })
-}
 
 export async function savePluginConfig(
   id: string,
