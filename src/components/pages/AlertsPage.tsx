@@ -39,6 +39,13 @@ import { SEVERITY_OPTIONS, TLP_OPTIONS } from '#/lib/domain'
 import { useMemo, useState } from 'react'
 import { AlertDrawer } from './alerts/AlertDrawer'
 import { buildAlertColumns } from './alerts/alertColumns'
+import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
+import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDialog'
+import {
+  dispatchAlertAnalyzerRuns,
+  notifyAnalyzerRuns,
+} from '#/components/Plugins/runAnalyzers'
+import { pluginResultKeys } from '#/components/PluginResults/pluginResults'
 
 // Sortable columns whose id is a valid backend sort key.
 const ALERT_SORTS = new Set<AlertSort>(['id', 'age'])
@@ -58,6 +65,8 @@ export function AlertsPage() {
     void navigate({ to: '/alerts/$alertId', params: { alertId: id } })
   const closeAlert = () => void navigate({ to: '/alerts' })
   const [mergeAlertId, setMergeAlertId] = useState<string | null>(null)
+  // Per-row "Run analysis": the alert whose analyzer picker is open (null = closed).
+  const [analysisAlertId, setAnalysisAlertId] = useState<string | null>(null)
   const [caseSearch, setCaseSearch] = useState('')
   // Client-only "ignored"/promoted removals: alerts to hide from the current
   // view without a dedicated backend delete. Cleared on refetch is not needed —
@@ -224,8 +233,27 @@ export function AlertsPage() {
     },
   })
 
-  const runAnalysis = (id: string) =>
-    notifications.show({ color: 'blue', message: `Running analysis on ${id}…` })
+  // Per-row "Run analysis" opens the same plugin picker the alert drawer uses,
+  // then fans the selection out over the alert's observables
+  // (POST /alerts/{id}/plugin-runs) and refreshes that alert's Plugin Results.
+  const runAnalysis = (id: string) => setAnalysisAlertId(id)
+
+  const runAnalyzers = useMutation({
+    mutationFn: ({ pluginIds, force }: PluginPickerSelection) =>
+      dispatchAlertAnalyzerRuns(analysisAlertId ?? '', pluginIds, force),
+    onSuccess: (results) => {
+      notifyAnalyzerRuns(results)
+      if (analysisAlertId) {
+        void queryClient.invalidateQueries({
+          queryKey: pluginResultKeys.list(
+            'alert',
+            analysisAlertId.replace(/^AL-/, ''),
+          ),
+        })
+      }
+    },
+    onSettled: () => setAnalysisAlertId(null),
+  })
 
   const dismissAlertById = (id: string) => dismissAlertMutation.mutate([id])
 
@@ -366,6 +394,15 @@ export function AlertsPage() {
       {/* `/alerts/$alertId` renders nothing here — it only carries the open
           alert in the URL, which the drawer above reads via route params. */}
       <Outlet />
+      <PluginPickerDialog
+        opened={Boolean(analysisAlertId)}
+        onClose={() => setAnalysisAlertId(null)}
+        isRunning={runAnalyzers.isPending}
+        contextLabel={
+          analysisAlertId ? `Run on alert ${analysisAlertId}` : undefined
+        }
+        onRun={(selection) => runAnalyzers.mutate(selection)}
+      />
       <Modal
         opened={Boolean(mergeAlertId)}
         onClose={() => {
