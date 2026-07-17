@@ -36,7 +36,8 @@ export const pluginKeys = {
 
 // ── DTO to view mapping ─────────────────────────────────────────────────────
 
-function parseManifest(raw: Record<string, unknown>): PluginManifest {
+function parseManifest(raw: Record<string, unknown> | undefined): PluginManifest {
+  if (!raw) return {}
   return {
     name: (raw as { name?: string }).name,
     description: (raw as { description?: string }).description,
@@ -56,7 +57,7 @@ function parseManifest(raw: Record<string, unknown>): PluginManifest {
 }
 
 function toPlugin(dto: PluginPublic): Plugin {
-  const manifest = parseManifest(dto.manifest)
+  const manifest = parseManifest(dto.manifest ?? {})
   return {
     id: dto.id,
     displayName: dto.display_name,
