@@ -1,4 +1,5 @@
 import { useAssigneeSelectOptions } from '#/components/Assign/assigneeOptions'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import { RichTextField } from './RichTextField'
 import type { DraftTask } from './draft'
 import {
@@ -24,7 +25,6 @@ import {
   Button,
   Group,
   Menu,
-  Modal,
   Select,
   SimpleGrid,
   Stack,
@@ -166,11 +166,48 @@ export function TaskFormModal({
     setTask((current) => ({ ...current, ...patch }))
 
   return (
-    <Modal
+    <AppDrawer
       opened
       onClose={onClose}
       title={mode === 'create' ? 'New task' : 'Edit task'}
-      centered
+      footer={
+        <Group justify="space-between" mt="sm">
+          <Group gap="xs">
+            {mode === 'edit' ? (
+              <>
+                <ActionIcon
+                  variant="default"
+                  aria-label="Move task up"
+                  disabled={!canMoveUp}
+                  onClick={() => onMove(-1)}
+                >
+                  <ArrowUp size={15} />
+                </ActionIcon>
+                <ActionIcon
+                  variant="default"
+                  aria-label="Move task down"
+                  disabled={!canMoveDown}
+                  onClick={() => onMove(1)}
+                >
+                  <ArrowDown size={15} />
+                </ActionIcon>
+              </>
+            ) : null}
+          </Group>
+          <Group gap="sm">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              color="orange"
+              disabled={!task.title.trim()}
+              onClick={() => onSave(task)}
+            >
+              Save
+            </Button>
+          </Group>
+        </Group>
+      }
     >
       <Stack gap="sm">
         <TextInput
@@ -226,44 +263,8 @@ export function TaskFormModal({
           checked={task.flagged}
           onChange={(event) => update({ flagged: event.currentTarget.checked })}
         />
-        <Group justify="space-between" mt="sm">
-          <Group gap="xs">
-            {mode === 'edit' ? (
-              <>
-                <ActionIcon
-                  variant="default"
-                  aria-label="Move task up"
-                  disabled={!canMoveUp}
-                  onClick={() => onMove(-1)}
-                >
-                  <ArrowUp size={15} />
-                </ActionIcon>
-                <ActionIcon
-                  variant="default"
-                  aria-label="Move task down"
-                  disabled={!canMoveDown}
-                  onClick={() => onMove(1)}
-                >
-                  <ArrowDown size={15} />
-                </ActionIcon>
-              </>
-            ) : null}
-          </Group>
-          <Group gap="sm">
-            <Button variant="default" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              color="orange"
-              disabled={!task.title.trim()}
-              onClick={() => onSave(task)}
-            >
-              Save
-            </Button>
-          </Group>
-        </Group>
       </Stack>
-    </Modal>
+    </AppDrawer>
   )
 }
 

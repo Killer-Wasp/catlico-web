@@ -2,7 +2,6 @@ import {
   Button,
   Code,
   Group,
-  Modal,
   Stack,
   Text,
   Textarea,
@@ -13,6 +12,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '#/components/Table/DataTable'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import {
   createReportTemplate,
   deleteReportTemplate,
@@ -103,11 +103,15 @@ function TemplateModal({
   })
 
   return (
-    <Modal
+    <FormDrawer
       opened={opened}
       onClose={onClose}
       title={template ? `Edit ${template.name}` : 'New report template'}
       size="lg"
+      submitLabel={template ? 'Save changes' : 'Create template'}
+      loading={mutation.isPending}
+      submitDisabled={!name.trim()}
+      onSubmit={() => mutation.mutate()}
     >
       <Stack gap="md">
         <TextInput
@@ -132,21 +136,8 @@ function TemplateModal({
           placeholder={'# {{ title }}\n\n{{ timeline_summary }}'}
         />
         <PlaceholderHelp />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={mutation.isPending}
-            disabled={!name.trim()}
-            onClick={() => mutation.mutate()}
-          >
-            {template ? 'Save changes' : 'Create template'}
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 

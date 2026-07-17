@@ -260,7 +260,8 @@ function CaseTemplatesIndex() {
         countNoun="templates"
         table={table}
         filterFields={filterFields}
-        filterPlaceholder="Filter templates — pick a field, then a value"
+        filterPlaceholder="Filter templates — type to search name, or pick a field"
+        filterDefaultTextField="name"
         actions={
           <Group gap="xs">
             <Button

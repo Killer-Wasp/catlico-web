@@ -5,7 +5,6 @@ import type {
 } from '#/components/Observables/observables.types'
 import { observableTypeLabels } from '#/components/Observables/observables'
 import {
-  observableFacetsQueryOptions,
   observableKeys,
   observablesQueryOptions,
   updateObservableFlags,
@@ -84,7 +83,6 @@ export function ObservablesPage() {
   )
   const fetchedObservables = data?.observables ?? []
   const total = data?.total ?? 0
-  const { data: facets } = useQuery(observableFacetsQueryOptions())
 
   const onTokensChange = (next: Token[]) => {
     setTokens(next)
@@ -171,10 +169,6 @@ export function ObservablesPage() {
     getCoreRowModel: getCoreRowModel(),
   })
 
-  const sourceOptions = useMemo(() => facets?.sources ?? [], [facets])
-
-  const toOpts = (values: string[]) =>
-    values.map((value) => ({ value, label: value }))
   const filterFields = useMemo<TokenField[]>(
     () => [
       {
@@ -209,16 +203,9 @@ export function ObservablesPage() {
           { value: 'sighted', label: 'Sighted' },
         ],
       },
-      {
-        key: 'source',
-        label: 'Source',
-        kind: 'enum',
-        operators: ['eq'],
-        options: toOpts(sourceOptions),
-      },
-      { key: 'value', label: 'Value', kind: 'text', operators: ['eq', 'co'] },
+      { key: 'value', label: 'Value', kind: 'text', operators: ['co', 'eq'] },
     ],
-    [sourceOptions],
+    [],
   )
 
   const selectedRows = table.getSelectedRowModel().rows
@@ -266,7 +253,8 @@ export function ObservablesPage() {
         count={total}
         table={table}
         filterFields={filterFields}
-        filterPlaceholder="Filter observables — pick a field, then a value"
+        filterPlaceholder="Filter observables — type to search value, or pick a field"
+        filterDefaultTextField="value"
         tokens={tokens}
         onTokensChange={onTokensChange}
         hasActiveFilters={tokens.length > 0}

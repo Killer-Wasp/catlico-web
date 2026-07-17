@@ -1,4 +1,5 @@
-import { Modal, Stack, Text, UnstyledButton } from '@mantine/core'
+import { Stack, Text, UnstyledButton } from '@mantine/core'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { FileText } from 'lucide-react'
 import {
@@ -69,7 +70,11 @@ export function CaseReportExportDialog({
   const templates = data ?? []
 
   return (
-    <Modal opened={opened} onClose={onClose} title={`Export report — case ${caseNumber}`}>
+    <AppDrawer
+      opened={opened}
+      onClose={onClose}
+      title={`Export report — case ${caseNumber}`}
+    >
       {isPending ? (
         <LoadingPanel label="Loading report templates..." />
       ) : isError ? (
@@ -119,6 +124,6 @@ export function CaseReportExportDialog({
           ))}
         </Stack>
       )}
-    </Modal>
+    </AppDrawer>
   )
 }

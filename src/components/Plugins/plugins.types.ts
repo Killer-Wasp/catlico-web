@@ -78,8 +78,12 @@ export type PluginManifest = {
   name?: string
   description?: string
   version?: string
+  /** Coarse capability tags the plugin advertises (e.g. "enrichment", "responder"). */
+  capabilities?: string[]
+  /** Scoped permissions the plugin requests (e.g. "read:observable", "write:plugin_result"). */
   permissions?: string[]
-  triggers?: { cron?: string; event?: string[] }[]
+  /** Event identifiers that trigger the plugin (e.g. "observable.created"). */
+  triggers?: string[]
   schedule?: string
   configuration?: PluginConfigParam[]
   result_ttl_seconds?: number

@@ -181,7 +181,33 @@ function teardown(refs: SocketRefs): void {
   }
   const ws = refs.ws.current
   refs.ws.current = null
-  ws?.close()
+  if (ws !== null) closeSocket(ws)
+}
+
+/**
+ * Discard a socket we no longer want. Detaches every handler first so the
+ * orphaned socket can drive nothing — belt-and-braces alongside `connect`'s
+ * identity guards.
+ *
+ * A socket still mid-handshake (`CONNECTING`) can't be closed quietly: calling
+ * `close()` on it makes the browser log the harmless but alarming
+ * "WebSocket is closed before the connection is established." warning. This is
+ * routine under React StrictMode, whose dev-only mount → unmount → remount
+ * cycle tears the first socket down while it is still connecting. Defer the
+ * close to `onopen` instead — by then the socket is `OPEN` and `close()` is
+ * silent; if it errors out before opening it dies on its own with no handlers
+ * attached, so nothing leaks either way.
+ */
+function closeSocket(ws: WebSocket): void {
+  ws.onmessage = null
+  ws.onerror = null
+  ws.onclose = null
+  if (ws.readyState === WebSocket.CONNECTING) {
+    ws.onopen = () => ws.close()
+    return
+  }
+  ws.onopen = null
+  ws.close()
 }
 
 function connect(queryClient: QueryClient, refs: SocketRefs): void {

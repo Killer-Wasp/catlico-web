@@ -19,12 +19,12 @@ import {
   Button,
   Group,
   Loader,
-  Modal,
   Stack,
   Text,
   TextInput,
   Tooltip,
 } from '@mantine/core'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -188,7 +188,15 @@ function AttackPickerDialog({
     )
 
   return (
-    <Modal opened={opened} onClose={close} title="Link ATT&CK techniques" size="90%">
+    <FormDrawer
+      opened={opened}
+      onClose={close}
+      title="Link ATT&CK techniques"
+      size="full"
+      submitLabel={`Save (${effective.size})`}
+      loading={saving}
+      onSubmit={handleSave}
+    >
       <Stack gap="sm">
         <TextInput
           leftSection={<Search size={14} />}
@@ -222,15 +230,7 @@ function AttackPickerDialog({
             search={search}
           />
         )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={close}>
-            Cancel
-          </Button>
-          <Button loading={saving} onClick={handleSave}>
-            Save ({effective.size})
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }

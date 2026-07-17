@@ -11,12 +11,12 @@ import { AssigneeStack } from '#/components/Assign/AssigneeStack'
 import { DataTable } from '#/components/Table/DataTable'
 import { TablePanel } from '#/components/Table/TablePanel'
 import type { TableColumnMeta } from '#/components/Table/columnMeta'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import {
   Badge,
   Box,
   Button,
   Group,
-  Modal,
   Stack,
   Text,
   TextInput,
@@ -156,10 +156,14 @@ export function TasksPanel({
 
   return (
     <Stack gap="md" p="lg">
-      <Modal
+      <FormDrawer
         opened={addingTask}
         onClose={() => setAddingTask(false)}
         title="Add task"
+        submitLabel="Add task"
+        loading={addTask.isPending}
+        submitDisabled={!newTaskTitle.trim()}
+        onSubmit={submitNewTask}
       >
         <Stack gap="md">
           <TextInput
@@ -167,22 +171,11 @@ export function TasksPanel({
             placeholder="Revoke refresh tokens for affected users"
             value={newTaskTitle}
             onChange={(event) => setNewTaskTitle(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') submitNewTask()
-            }}
             disabled={addTask.isPending}
             required
           />
-          <Button
-            fullWidth
-            onClick={submitNewTask}
-            loading={addTask.isPending}
-            disabled={!newTaskTitle.trim()}
-          >
-            Add task
-          </Button>
         </Stack>
-      </Modal>
+      </FormDrawer>
 
       <TablePanel
         title="Tasks"

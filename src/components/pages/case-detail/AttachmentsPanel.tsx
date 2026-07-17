@@ -15,10 +15,10 @@ import {
   Button,
   Group,
   Menu,
-  Modal,
   Stack,
   Text,
 } from '@mantine/core'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -165,7 +165,7 @@ export function AttachmentsPanel({ caseId }: { caseId: string }) {
 
   return (
     <Stack gap="md" p="lg">
-      <Modal
+      <AppDrawer
         opened={infoAttachment !== null}
         onClose={() => setInfoAttachment(null)}
         title={infoAttachment ? `${infoAttachment.name} info` : 'Attachment info'}
@@ -184,7 +184,7 @@ export function AttachmentsPanel({ caseId }: { caseId: string }) {
             />
           </Stack>
         ) : null}
-      </Modal>
+      </AppDrawer>
 
       <input
         ref={fileInputRef}

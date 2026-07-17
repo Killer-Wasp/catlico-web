@@ -40,6 +40,11 @@ function AppLayout() {
   return (
     <>
       <AppShell
+        // `alt` layout: the navbar spans the full height on the left (so the
+        // CATLICO logo sits at the very top), and the header is offset by the
+        // navbar width — it persists at the top of the content area only,
+        // rather than stretching across the whole viewport above the sidebar.
+        layout="alt"
         header={{ height: 64 }}
         navbar={{ width: collapsed ? 80 : 275, breakpoint: 'sm' }}
         padding={0}

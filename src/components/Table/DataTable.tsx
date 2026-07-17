@@ -23,6 +23,8 @@ type DataTableProps<T extends RowData> = {
   stopPropagationColumnIds?: string[]
   /** Accessible name for the `<table>` element. */
   ariaLabel?: string
+  /** Optional `data-testid` to stamp on each row's `<tr>`, keyed off the row. */
+  rowTestId?: (row: Row<T>) => string | undefined
 }
 
 export function DataTable<T extends RowData>({
@@ -40,6 +42,7 @@ export function DataTable<T extends RowData>({
   selectColumnId = 'select',
   stopPropagationColumnIds = ['select', 'actions'],
   ariaLabel,
+  rowTestId,
 }: DataTableProps<T>) {
   const rows = table.getRowModel().rows
   const colSpan = table.getVisibleLeafColumns().length
@@ -196,6 +199,7 @@ export function DataTable<T extends RowData>({
               return (
                 <Table.Tr
                   key={row.id}
+                  data-testid={rowTestId?.(row)}
                   bg={isSel ? 'orange.0' : undefined}
                   tabIndex={clickable ? 0 : undefined}
                   style={clickable ? { cursor: 'pointer' } : undefined}

@@ -32,6 +32,20 @@ function toStatus(value: string): PluginRunStatus {
   return STATUS_MAP[value] ?? 'failure'
 }
 
+// Non-terminal statuses: a run in one of these is still expected to change. The
+// list and detail queries poll while any run is active so status transitions
+// (queued → running → success) surface without a manual refresh, then stop once
+// everything has settled — an idle runs page (and the navbar count) mustn't poll
+// forever.
+const ACTIVE_STATUSES: ReadonlySet<PluginRunStatus> = new Set([
+  'queued',
+  'accepted',
+  'running',
+  'cancelling',
+])
+
+const isActiveStatus = (status: PluginRunStatus) => ACTIVE_STATUSES.has(status)
+
 function toPluginRun(dto: PluginRunPublic): PluginRun {
   return {
     id: dto.id,
@@ -119,13 +133,35 @@ export async function clearFinishedRuns(): Promise<number> {
 
 // ── queryOptions units ──────────────────────────────────────────────────────
 
+// `pollUntil` (epoch ms) keeps the list polling even when it holds no active run,
+// until that moment passes. The runs page opens this window on mount so a run that
+// is dispatched but not yet persisted (the create→outbox→runner pipeline lands the
+// row a beat later) gets discovered on its own — without it, an idle list never
+// refetches and the row only appears on a manual refresh. Callers that omit it (the
+// navbar badge) keep the active-only gate and still stop polling when idle.
+type PluginRunsQueryExtras = { pollUntil?: number }
+
 export const pluginRunsQueryOptions = (
   filters: PluginRunFilter = {},
   tokenFilters?: FilterClause[],
+  extras?: PluginRunsQueryExtras,
 ) =>
   queryOptions({
     queryKey: runKeys.list({ ...filters, tokenFilters }),
     queryFn: () => fetchPluginRuns(filters, tokenFilters),
+    // Runs are time-sensitive: opt out of the global 30s staleTime so navigating
+    // to the page always refetches and a just-triggered run shows immediately
+    // (rather than sitting behind stale cache for up to 30s).
+    staleTime: 0,
+    // Poll while any run is still in flight, so a just-queued run and its
+    // progress show up on their own; stop once every run is terminal — except
+    // during the caller's discovery window, which keeps polling so a not-yet-
+    // persisted run can appear. Self-terminates once the window passes.
+    refetchInterval: (query) => {
+      if (query.state.data?.runs.some((r) => isActiveStatus(r.status))) return 3_000
+      if (extras?.pollUntil !== undefined && Date.now() < extras.pollUntil) return 3_000
+      return false
+    },
   })
 
 export const pluginRunDetailQueryOptions = (id: string | null) =>
@@ -133,4 +169,8 @@ export const pluginRunDetailQueryOptions = (id: string | null) =>
     queryKey: runKeys.detail(id ?? ''),
     queryFn: () => fetchPluginRun(id as string),
     enabled: id !== null,
+    staleTime: 0,
+    // Keep an open run's drawer live until it reaches a terminal status.
+    refetchInterval: (query) =>
+      query.state.data && isActiveStatus(query.state.data.status) ? 2_000 : false,
   })

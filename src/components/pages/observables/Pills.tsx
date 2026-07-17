@@ -2,8 +2,30 @@ import type {
   Observable,
   ObservableType,
 } from '#/components/Observables/observables.types'
-import { Badge, Text } from '@mantine/core'
+import {
+  observableTypeIcons,
+  observableTypeLabels,
+} from '#/components/Observables/observables'
+import { Badge, Text, Tooltip } from '@mantine/core'
 import type { ReactNode } from 'react'
+
+export function TypeIcon({ type }: { type: ObservableType }) {
+  const Icon = observableTypeIcons[type]
+  return (
+    <Tooltip label={observableTypeLabels[type]} withArrow openDelay={200}>
+      <Icon
+        size={14}
+        strokeWidth={2}
+        aria-label={observableTypeLabels[type]}
+        style={{
+          display: 'block',
+          flexShrink: 0,
+          color: 'var(--mantine-color-dimmed)',
+        }}
+      />
+    </Tooltip>
+  )
+}
 
 export function TypePill({ type }: { type: ObservableType }) {
   return (

@@ -19,10 +19,15 @@ import {
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { ColumnDef } from '@tanstack/react-table'
-import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table'
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import { RefreshCw } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 
 import type { PluginRunner } from '#/components/Plugins/plugins.types'
@@ -33,7 +38,10 @@ import {
   runnerKeys,
 } from '#/components/Plugins/pluginRunners'
 import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import type { Token } from '#/components/Table/TokenSearch'
 import classes from '#/components/Cases/CasesPage.module.css'
+import { buildRunnerFilterFields, filterRunners } from './runnerFilterSearch'
 import { useStamp, errorMessage } from '#/lib/ui-helpers'
 
 // ── Health dot ──────────────────────────────────────────────────────────────
@@ -51,6 +59,29 @@ export function RunnersPage() {
   const stamp = useStamp()
 
   const { data: runners = [], isPending, isError, refetch } = useQuery(pluginRunnersQueryOptions())
+
+  const [tokens, setTokens] = useState<Token[]>([])
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+
+  const filterFields = useMemo(
+    () => buildRunnerFilterFields(runners),
+    [runners],
+  )
+  const filtered = useMemo(
+    () => filterRunners(runners, tokens),
+    [runners, tokens],
+  )
+
+  const onTokensChange = (next: Token[]) => {
+    setTokens(next)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  // A sort re-orders the whole list; snap back to page 1 so the top rows show.
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
@@ -179,9 +210,14 @@ export function RunnersPage() {
   )
 
   const table = useReactTable({
-    data: runners,
+    data: filtered,
     columns,
+    state: { sorting, pagination },
+    onSortingChange,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.id,
   })
 
@@ -209,15 +245,33 @@ export function RunnersPage() {
         </Group>
       </Group>
 
-      <DataTable
+      <TablePanel
+        title="Runners"
+        countNoun="runners"
+        count={filtered.length}
         table={table}
-        minWidth={900}
-        emptyMessage="No plugin runners registered. Runners appear here once they self-register with the shared secret."
-        isPending={isPending}
-        isError={isError}
-        onRetry={() => refetch()}
-        loadingMessage="Loading runners…"
-      />
+        filterFields={filterFields}
+        filterPlaceholder="Filter runners — search name or ID, or pick a field"
+        filterDefaultTextField="name"
+        tokens={tokens}
+        onTokensChange={onTokensChange}
+        hasActiveFilters={tokens.length > 0}
+        onClearFilters={() => onTokensChange([])}
+      >
+        <DataTable
+          table={table}
+          minWidth={900}
+          emptyMessage={
+            tokens.length
+              ? 'No plugin runners match the current filters.'
+              : 'No plugin runners registered. Runners appear here once they self-register with the shared secret.'
+          }
+          isPending={isPending}
+          isError={isError}
+          onRetry={() => refetch()}
+          loadingMessage="Loading runners…"
+        />
+      </TablePanel>
     </Box>
   )
 }

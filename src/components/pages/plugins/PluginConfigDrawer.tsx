@@ -15,16 +15,17 @@ import {
   Badge,
   Box,
   Button,
-  Drawer,
+  Checkbox,
   Group,
   Loader,
   Paper,
   Stack,
+  Switch,
   Tabs,
   Text,
-  Title,
   Tooltip,
 } from '@mantine/core'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import { notifications } from '@mantine/notifications'
 import { useForm, schemaResolver } from '@mantine/form'
 import { isHTTPError } from 'ky'
@@ -40,9 +41,12 @@ import {
   pluginKeys,
   savePluginConfig,
   testPluginConfig,
+  setAutoRunEnabled,
+  setAutoApplyActions,
   pluginConfigQueryOptions,
   configStatusQueryOptions,
 } from '#/components/Plugins/plugins'
+import { usePermissions } from '#/lib/auth/usePermissions'
 import { PluginVersionsTab } from './PluginVersionsTab'
 import { SchemaField } from './schema-form/Field'
 import {
@@ -83,6 +87,65 @@ function isConfigComplete(
 
 type FastAPIError = {
   detail: { loc: (string | number)[]; msg: string; type?: string }[]
+}
+
+/**
+ * The proposed-action types an org may auto-apply without review. Mirrors the
+ * backend `LOW_RISK_ACTIONS` set (`crud/plugin_proposed_action.py`) — the
+ * `PUT /plugins/{id}/auto-apply` endpoint rejects anything outside it. Keep in
+ * sync if the backend set changes.
+ */
+const AUTO_APPLY_ACTIONS: { value: string; label: string }[] = [
+  { value: 'add_tag', label: 'Add tag' },
+  { value: 'create_task', label: 'Create task' },
+  { value: 'append_task_log', label: 'Append task log' },
+  { value: 'add_related_observable', label: 'Add related observable' },
+]
+
+/**
+ * One labelled row of manifest identifiers (capabilities / triggers /
+ * permissions) rendered as badges. Renders nothing when the list is empty so
+ * plugins that omit a section don't show a bare label.
+ */
+function MetaRow({
+  label,
+  items,
+  color,
+}: {
+  label: string
+  items?: string[]
+  color: string
+}) {
+  if (!items || items.length === 0) return null
+  return (
+    <Group gap="sm" wrap="nowrap" align="flex-start">
+      <Text
+        fz={11}
+        fw={600}
+        c="dimmed"
+        tt="uppercase"
+        w={92}
+        style={{ flexShrink: 0, lineHeight: 1.7 }}
+      >
+        {label}
+      </Text>
+      <Group gap={6} wrap="wrap">
+        {items.map((v) => (
+          <Badge
+            key={v}
+            variant="light"
+            color={color}
+            radius="sm"
+            size="sm"
+            tt="none"
+            ff="monospace"
+          >
+            {v}
+          </Badge>
+        ))}
+      </Group>
+    </Group>
+  )
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -145,6 +208,24 @@ export function PluginConfigDrawer({
   type TestOutcome = { ok: boolean; message: string; logTail?: string }
   const [testOutcome, setTestOutcome] = useState<TestOutcome | null>(null)
 
+  // ── Automation settings (auto-run, auto-apply) ─────────────────────────────
+  // Managing automation is the same capability the backend gates these routes
+  // on (`write:connector`). The controls only hide UI; the API is the boundary.
+  const { can } = usePermissions()
+  const canManageAutomation = can('write:connector')
+
+  // The `plugin` prop is a snapshot from the catalog list, so it won't update in
+  // place after a mutation. Mirror the two automation fields locally, seeded on
+  // open and advanced by each mutation's returned plugin, for immediate feedback.
+  const [autoRun, setAutoRun] = useState(plugin?.autoRunEnabled ?? false)
+  const [autoApply, setAutoApply] = useState<string[]>(
+    plugin?.autoApplyActions ?? [],
+  )
+  useEffect(() => {
+    setAutoRun(plugin?.autoRunEnabled ?? false)
+    setAutoApply(plugin?.autoApplyActions ?? [])
+  }, [plugin?.id, plugin?.autoRunEnabled, plugin?.autoApplyActions])
+
   // ── Mutations ────────────────────────────────────────────────────────────
 
   const saveMutation = useMutation({
@@ -195,6 +276,44 @@ export function PluginConfigDrawer({
       }),
   })
 
+  const invalidatePlugin = () => {
+    queryClient.invalidateQueries({ queryKey: pluginKeys.catalog() })
+    queryClient.invalidateQueries({ queryKey: pluginKeys.detail(plugin!.id) })
+  }
+
+  const autoRunMutation = useMutation({
+    mutationFn: (enabled: boolean) => setAutoRunEnabled(plugin!.id, enabled),
+    onSuccess: (updated) => {
+      setAutoRun(updated.autoRunEnabled)
+      invalidatePlugin()
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: `Couldn't update auto-run: ${error instanceof Error ? error.message : 'Request failed'}`,
+      }),
+  })
+
+  const autoApplyMutation = useMutation({
+    mutationFn: (actions: string[]) => setAutoApplyActions(plugin!.id, actions),
+    onSuccess: (updated) => {
+      setAutoApply(updated.autoApplyActions)
+      invalidatePlugin()
+    },
+    onError: (error) =>
+      notifications.show({
+        color: 'red',
+        message: `Couldn't update auto-apply: ${error instanceof Error ? error.message : 'Request failed'}`,
+      }),
+  })
+
+  const toggleAutoApply = (action: string, checked: boolean) => {
+    const next = checked
+      ? [...autoApply, action]
+      : autoApply.filter((a) => a !== action)
+    autoApplyMutation.mutate(next)
+  }
+
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleSave = () => {
@@ -242,25 +361,15 @@ export function PluginConfigDrawer({
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!plugin) {
-    return (
-      <Drawer opened={false} onClose={onClose} position="right" size="lg" />
-    )
+    return <AppDrawer opened={false} onClose={onClose} title="" size="lg" />
   }
 
   return (
-    <Drawer
+    <AppDrawer
       opened
       onClose={onClose}
-      title={
-        <Group gap="sm" wrap="nowrap">
-          <Title order={3} size="h4">
-            {plugin.displayName}
-          </Title>
-        </Group>
-      }
-      position="right"
+      title={plugin.displayName}
       size="lg"
-      padding="lg"
     >
       <Stack gap="md" h="100%">
         {/* Badges row */}
@@ -294,6 +403,90 @@ export function PluginConfigDrawer({
         <Text fz={14} c="dimmed">
           {plugin.description || 'No description available.'}
         </Text>
+
+        {/* Manifest metadata — what the plugin does, when it runs, what it can touch */}
+        {(plugin.manifest.capabilities?.length ||
+          plugin.manifest.triggers?.length ||
+          plugin.manifest.permissions?.length) && (
+          <Paper withBorder radius="md" p="sm">
+            <Stack gap={8}>
+              <MetaRow
+                label="Capabilities"
+                items={plugin.manifest.capabilities}
+                color="violet"
+              />
+              <MetaRow
+                label="Triggers"
+                items={plugin.manifest.triggers}
+                color="blue"
+              />
+              <MetaRow
+                label="Permissions"
+                items={plugin.manifest.permissions}
+                color="gray"
+              />
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Automation — auto-run on triggers + auto-apply of low-risk actions */}
+        <Paper withBorder radius="md" p="sm">
+          <Stack gap="sm">
+            <Text fz={11} fw={600} c="dimmed" tt="uppercase">
+              Automation
+            </Text>
+            {!plugin.enabled ? (
+              <Text fz={13} c="dimmed">
+                Enable the plugin to configure automation.
+              </Text>
+            ) : null}
+            <Tooltip
+              label="You don't have permission to manage automation"
+              disabled={canManageAutomation}
+              withArrow
+            >
+              <Switch
+                label="Auto-run on trigger events"
+                description="Run automatically when a matching event fires (e.g. an observable is created), not just on manual runs."
+                checked={autoRun}
+                disabled={
+                  readOnly ||
+                  !plugin.enabled ||
+                  !canManageAutomation ||
+                  autoRunMutation.isPending
+                }
+                onChange={(e) => autoRunMutation.mutate(e.currentTarget.checked)}
+              />
+            </Tooltip>
+            <Box>
+              <Text fz={13} fw={500}>
+                Auto-apply results
+              </Text>
+              <Text fz={12} c="dimmed" mb={6}>
+                Apply these low-risk proposed actions without review. Others stay
+                queued for approval.
+              </Text>
+              <Stack gap={6}>
+                {AUTO_APPLY_ACTIONS.map((action) => (
+                  <Checkbox
+                    key={action.value}
+                    label={action.label}
+                    checked={autoApply.includes(action.value)}
+                    disabled={
+                      readOnly ||
+                      !plugin.enabled ||
+                      !canManageAutomation ||
+                      autoApplyMutation.isPending
+                    }
+                    onChange={(e) =>
+                      toggleAutoApply(action.value, e.currentTarget.checked)
+                    }
+                  />
+                ))}
+              </Stack>
+            </Box>
+          </Stack>
+        </Paper>
 
         {/* Tab panels */}
         <Tabs defaultValue="config" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -423,6 +616,6 @@ export function PluginConfigDrawer({
           )}
         </Group>
       </Stack>
-    </Drawer>
+    </AppDrawer>
   )
 }

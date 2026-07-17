@@ -6,7 +6,7 @@
  * style). Data shaping happens in buildMatrix; this renders it.
  */
 import type { MatrixColumn, MatrixTechnique } from './buildMatrix'
-import { Badge, Box, Group, Stack, Text, UnstyledButton } from '@mantine/core'
+import { Badge, Group, Stack, Text, UnstyledButton } from '@mantine/core'
 import { Fragment } from 'react'
 
 export type AttackMatrixProps = {
@@ -54,7 +54,7 @@ export function AttackMatrix({
         if (visible.length === 0) return null
         return (
           <Stack key={col.tactic} gap={4} miw={168} maw={200}>
-            <Text fw={700} fz={13} ta="center" py={4}>
+            <Text fw={700} fz={13} ta="left" py={4}>
               {col.label}
             </Text>
             {visible.map((t) => (
@@ -71,19 +71,18 @@ export function AttackMatrix({
                   }
                 />
                 {t.subtechniques.filter(matches).map((s) => (
-                  <Box key={s.externalId} pl="md">
-                    <TechniqueCell
-                      technique={s}
-                      mode={mode}
-                      maxCount={maxCount}
-                      selected={selectedIds?.has(s.externalId) ?? false}
-                      onClick={() =>
-                        mode === 'picker'
-                          ? onToggle?.(s.externalId)
-                          : onOpenTechnique?.(s.externalId)
-                      }
-                    />
-                  </Box>
+                  <TechniqueCell
+                    key={s.externalId}
+                    technique={s}
+                    mode={mode}
+                    maxCount={maxCount}
+                    selected={selectedIds?.has(s.externalId) ?? false}
+                    onClick={() =>
+                      mode === 'picker'
+                        ? onToggle?.(s.externalId)
+                        : onOpenTechnique?.(s.externalId)
+                    }
+                  />
                 ))}
               </Fragment>
             ))}
@@ -107,10 +106,10 @@ function TechniqueCell({
   selected: boolean
   onClick: () => void
 }) {
-  const heat =
-    mode === 'heatmap' && technique.caseCount > 0
-      ? 0.15 + 0.6 * (technique.caseCount / maxCount)
-      : 0
+  // Keep the tint light enough that the dark title and dimmed id stay readable —
+  // the count badge carries the exact intensity, the background only hints at it.
+  const heated = mode === 'heatmap' && technique.caseCount > 0
+  const heat = heated ? 0.08 + 0.24 * (technique.caseCount / maxCount) : 0
   return (
     <UnstyledButton
       onClick={onClick}
@@ -121,7 +120,9 @@ function TechniqueCell({
         borderRadius: 4,
         border: selected
           ? '1px solid var(--mantine-color-blue-6)'
-          : '1px solid var(--mantine-color-default-border)',
+          : heated
+            ? '1px solid light-dark(rgba(220, 60, 60, 0.45), rgba(255, 120, 110, 0.4))'
+            : '1px solid var(--mantine-color-default-border)',
         backgroundColor:
           heat > 0
             ? `light-dark(rgba(220, 60, 60, ${heat}), rgba(255, 120, 110, ${heat}))`
@@ -135,7 +136,7 @@ function TechniqueCell({
           {technique.name}
         </Text>
         {technique.caseCount > 0 && mode === 'heatmap' ? (
-          <Badge size="xs" variant="filled" color="gray" radius="xl">
+          <Badge size="xs" variant="filled" color="red" radius="xl">
             {technique.caseCount}
           </Badge>
         ) : null}

@@ -265,3 +265,86 @@ describe('TokenSearch with operators', () => {
     ])
   })
 })
+
+// A default text field turns the bar into a search box: free-typed text falls
+// back to a "contains" token on that field when no key is picked.
+const DEFAULT_FIELDS: TokenField[] = [
+  // operators deliberately list 'eq' first (as the real title fields do) to
+  // prove the search fallback still picks 'co' (contains), not the default op.
+  { key: 'name', label: 'Name', kind: 'text', operators: ['eq', 'co'] },
+  {
+    key: 'status',
+    label: 'Status',
+    kind: 'enum',
+    operators: ['eq'],
+    options: [
+      { value: 'open', label: 'Open' },
+      { value: 'new', label: 'New' },
+    ],
+  },
+]
+
+function DefaultFieldHarness() {
+  const [tokens, setTokens] = useState<Token[]>([])
+  return (
+    <MantineProvider>
+      <TokenSearch
+        fields={DEFAULT_FIELDS}
+        tokens={tokens}
+        onChange={setTokens}
+        defaultTextField="name"
+      />
+    </MantineProvider>
+  )
+}
+
+describe('TokenSearch with a default text field', () => {
+  test('Enter searches the default field when the term matches no field', () => {
+    render(<DefaultFieldHarness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'elastic' } })
+
+    // No field matches "elastic", so the only option is the search fallback.
+    expect(options().map((o) => o.textContent)).toEqual([
+      'Search Name for “elastic”',
+    ])
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // Committed as a Contains token on the default field.
+    expect(screen.getByText('Name : elastic')).toBeDefined()
+  })
+
+  test('the search fallback trails behind matching fields', () => {
+    render(<DefaultFieldHarness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'stat' } })
+
+    // A field match keeps the default highlight; search is offered last.
+    expect(options().map((o) => o.textContent)).toEqual([
+      'Status',
+      'Search Name for “stat”',
+    ])
+  })
+
+  test('clicking the search fallback commits a contains token', () => {
+    render(<DefaultFieldHarness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'stat' } })
+
+    fireEvent.click(optionByName('Search Name for “stat”'))
+    expect(screen.getByText('Name : stat')).toBeDefined()
+  })
+
+  test('no search fallback appears without a defaultTextField', () => {
+    render(<OpHarness />)
+    const input = screen.getByRole('textbox')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'elastic' } })
+
+    // OpHarness sets no default field, so an unmatched term yields no options.
+    expect(options()).toHaveLength(0)
+  })
+})

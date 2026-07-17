@@ -6,8 +6,9 @@
  *  2. Any unhealthy runner → warning banner, drawers read-only
  *  3. All healthy → normal
  *
- * Table: client-side search + filter via fuzzy match (match-sorter). No
- * server-side pagination — the plugin list is typically under 100 rows.
+ * Table: client-side filtering via the shared token filter bar (same TablePanel
+ * / TokenSearch used by the cases list). No server-side pagination — the plugin
+ * list is typically under 100 rows, so filtering + paging run in the browser.
  */
 
 import {
@@ -18,16 +19,20 @@ import {
   Stack,
   Switch,
   Text,
-  TextInput,
   Title,
   Tooltip,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Plus, Search } from 'lucide-react'
+import { AlertTriangle, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import type { ColumnDef } from '@tanstack/react-table'
-import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table'
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 
 import type { Plugin, PluginRunner } from '#/components/Plugins/plugins.types'
 import {
@@ -37,8 +42,11 @@ import {
 } from '#/components/Plugins/plugins'
 import { pluginRunnersQueryOptions } from '#/components/Plugins/pluginRunners'
 import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import type { Token } from '#/components/Table/TokenSearch'
 import classes from '#/components/Cases/CasesPage.module.css'
 import { PluginConfigDrawer } from './PluginConfigDrawer'
+import { buildPluginFilterFields, filterPlugins } from './pluginFilterSearch'
 import { useStamp, errorMessage } from '#/lib/ui-helpers'
 import { usePermissions } from '#/lib/auth/usePermissions'
 
@@ -80,11 +88,24 @@ export function PluginsPage() {
   const { data: plugins = [], isPending, isError, refetch } = useQuery(pluginsQueryOptions())
   const { data: runners = [] } = useQuery(pluginRunnersQueryOptions())
 
-  const [search, setSearch] = useState('')
+  const [tokens, setTokens] = useState<Token[]>([])
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [activePlugin, setActivePlugin] = useState<Plugin | null>(null)
 
   const health = runnerHealth(runners)
   const healthReadOnly = health === 'unhealthy'
+
+  // Filters change can invalidate the current page window; snap back to page 1.
+  const onTokensChange = (next: Token[]) => {
+    setTokens(next)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  // A sort re-orders the whole list; snap back to page 1 so the top rows show.
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
@@ -107,16 +128,14 @@ export function PluginsPage() {
 
   // ── Client-side filter ───────────────────────────────────────────────────
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return plugins
-    return plugins.filter(
-      (p) =>
-        p.displayName.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.id.toLowerCase().includes(q),
-    )
-  }, [plugins, search])
+  const filterFields = useMemo(
+    () => buildPluginFilterFields(plugins, runners),
+    [plugins, runners],
+  )
+  const filtered = useMemo(
+    () => filterPlugins(plugins, tokens, runners),
+    [plugins, tokens, runners],
+  )
 
   // ── Table columns ────────────────────────────────────────────────────────
 
@@ -161,74 +180,6 @@ export function PluginsPage() {
         },
       },
       {
-        id: 'version',
-        header: 'Version',
-        accessorFn: (row) => row.manifest.version ?? '—',
-        meta: { nowrap: true },
-        cell: (info) => (
-          <Badge variant="light" color="gray" radius="sm" size="sm">
-            {info.getValue() as string}
-          </Badge>
-        ),
-      },
-      {
-        id: 'triggers',
-        header: 'Triggers',
-        accessorFn: (row) => row.manifest.triggers?.length ?? 0,
-        meta: { nowrap: true },
-        cell: (info) => {
-          const plugin = info.row.original
-          const count = plugin.manifest.triggers?.length ?? 0
-          if (count === 0) return <Text fz={12} c="dimmed">—</Text>
-          return (
-            <Group gap={4}>
-              {plugin.manifest.triggers?.map((t, i) => (
-                <Badge key={i} variant="outline" size="xs" radius="sm">
-                  {t.event ? t.event.join(', ') : t.cron ? 'cron' : 'event'}
-                </Badge>
-              ))}
-            </Group>
-          )
-        },
-      },
-      {
-        id: 'enabled',
-        header: 'Enabled',
-        accessorFn: (row) => row.enabled,
-        meta: { nowrap: true },
-        cell: (info) => {
-          const plugin = info.row.original
-          // Gate enabling on server-computed completeness, but never block
-          // disabling a plugin that's already on.
-          const canToggle = plugin.enabled || plugin.configComplete
-          return (
-            <Tooltip
-              label="Configure all required fields before enabling"
-              disabled={canToggle}
-              withArrow
-            >
-              <Box onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  checked={plugin.enabled}
-                  disabled={
-                    !canToggle ||
-                    (toggleMutation.isPending &&
-                      toggleMutation.variables?.id === plugin.id)
-                  }
-                  onChange={(e) =>
-                    toggleMutation.mutate({
-                      id: plugin.id,
-                      enabled: e.currentTarget.checked,
-                    })
-                  }
-                  aria-label={`Toggle ${plugin.displayName}`}
-                />
-              </Box>
-            </Tooltip>
-          )
-        },
-      },
-      {
         id: 'runner',
         header: 'Runner',
         accessorFn: (row) => row.runnerId ?? 'none',
@@ -269,6 +220,43 @@ export function PluginsPage() {
           )
         },
       },
+      {
+        id: 'enabled',
+        header: 'Enabled',
+        accessorFn: (row) => row.enabled,
+        meta: { nowrap: true },
+        cell: (info) => {
+          const plugin = info.row.original
+          // Gate enabling on server-computed completeness, but never block
+          // disabling a plugin that's already on.
+          const canToggle = plugin.enabled || plugin.configComplete
+          return (
+            <Tooltip
+              label="Configure all required fields before enabling"
+              disabled={canToggle}
+              withArrow
+            >
+              <Box onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={plugin.enabled}
+                  disabled={
+                    !canToggle ||
+                    (toggleMutation.isPending &&
+                      toggleMutation.variables?.id === plugin.id)
+                  }
+                  onChange={(e) =>
+                    toggleMutation.mutate({
+                      id: plugin.id,
+                      enabled: e.currentTarget.checked,
+                    })
+                  }
+                  aria-label={`Toggle ${plugin.displayName}`}
+                />
+              </Box>
+            </Tooltip>
+          )
+        },
+      },
     ],
     [runners, toggleMutation],
   )
@@ -276,7 +264,12 @@ export function PluginsPage() {
   const table = useReactTable({
     data: filtered,
     columns,
+    state: { sorting, pagination },
+    onSortingChange,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.id,
   })
 
@@ -327,28 +320,31 @@ export function PluginsPage() {
         </Alert>
       )}
 
-      {/* Search bar */}
-      <Group mb="lg">
-        <TextInput
-          placeholder="Search plugins…"
-          leftSection={<Search size={14} />}
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          style={{ width: 320 }}
-        />
-      </Group>
-
-      {/* Table */}
-      <DataTable
+      {/* Table with token filter bar */}
+      <TablePanel
+        title="Catalog"
+        countNoun="plugins"
+        count={filtered.length}
         table={table}
-        minWidth={800}
-        emptyMessage="No plugins found."
-        isPending={isPending}
-        isError={isError}
-        onRetry={() => refetch()}
-        onRowClick={(row) => setActivePlugin(row.original)}
-        loadingMessage="Loading plugins…"
-      />
+        filterFields={filterFields}
+        filterPlaceholder="Filter plugins — type to search, or pick a field"
+        filterDefaultTextField="name"
+        tokens={tokens}
+        onTokensChange={onTokensChange}
+        hasActiveFilters={tokens.length > 0}
+        onClearFilters={() => onTokensChange([])}
+      >
+        <DataTable
+          table={table}
+          minWidth={800}
+          emptyMessage="No plugins match the current filters."
+          isPending={isPending}
+          isError={isError}
+          onRetry={() => refetch()}
+          onRowClick={(row) => setActivePlugin(row.original)}
+          loadingMessage="Loading plugins…"
+        />
+      </TablePanel>
 
       {/* Config drawer */}
       <PluginConfigDrawer

@@ -4,13 +4,13 @@ import {
   Checkbox,
   Code,
   Group,
-  Modal,
   Select,
   Stack,
   TagsInput,
   Text,
   TextInput,
 } from '@mantine/core'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -91,7 +91,15 @@ function AddFieldModal({
   })
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Add custom field">
+    <FormDrawer
+      opened={opened}
+      onClose={onClose}
+      title="Add custom field"
+      submitLabel="Create field"
+      loading={mutation.isPending}
+      submitDisabled={!name.trim()}
+      onSubmit={() => mutation.mutate()}
+    >
       <Stack gap="md">
         <TextInput
           label="Key (name)"
@@ -135,21 +143,8 @@ function AddFieldModal({
           checked={mandatory}
           onChange={(e) => setMandatory(e.currentTarget.checked)}
         />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={mutation.isPending}
-            disabled={!name.trim()}
-            onClick={() => mutation.mutate()}
-          >
-            Create field
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 
@@ -197,10 +192,13 @@ function EditFieldModal({
   })
 
   return (
-    <Modal
+    <FormDrawer
       opened={field !== null}
       onClose={onClose}
       title={field ? `Edit ${field.display_name || field.name}` : 'Edit field'}
+      submitLabel="Save changes"
+      loading={mutation.isPending}
+      onSubmit={() => mutation.mutate()}
     >
       <Stack gap="md">
         <TextInput label="Key (name)" value={field?.name ?? ''} readOnly disabled />
@@ -234,20 +232,8 @@ function EditFieldModal({
           checked={mandatory}
           onChange={(e) => setMandatory(e.currentTarget.checked)}
         />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            Save changes
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 

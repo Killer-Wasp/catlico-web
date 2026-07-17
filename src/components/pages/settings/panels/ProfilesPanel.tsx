@@ -4,7 +4,7 @@ import {
   Button,
   Checkbox,
   Group,
-  Modal,
+  Select,
   Stack,
   Table,
   Text,
@@ -35,13 +35,14 @@ import {
   Panel,
   TableBox,
 } from '#/components/pages/settings/settingsUi'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 
-const KINDS: PermissionKind[] = ['read', 'write', 'delete', 'run']
+const KINDS: PermissionKind[] = ['read', 'write', 'delete', 'manage']
 
 type DomainRow = {
   domain: string
   // Permissions grouped by column. A column can hold more than one grant
-  // under the same kind (e.g. `run:enrichment` under `run`).
+  // under the same kind (e.g. `manage:users` and `manage:org` under `manage`).
   cells: Record<PermissionKind, PermissionInfo[]>
 }
 
@@ -52,7 +53,7 @@ function groupByDomain(catalog: PermissionInfo[]): DomainRow[] {
   const byDomain = new Map<string, DomainRow['cells']>()
   for (const info of catalog) {
     if (!byDomain.has(info.domain)) {
-      byDomain.set(info.domain, { read: [], write: [], delete: [], run: [] })
+      byDomain.set(info.domain, { read: [], write: [], delete: [], manage: [] })
       order.push(info.domain)
     }
     byDomain.get(info.domain)![info.kind].push(info)
@@ -97,7 +98,15 @@ function NewProfileModal({
   })
 
   return (
-    <Modal opened={opened} onClose={onClose} title="New profile">
+    <FormDrawer
+      opened={opened}
+      onClose={onClose}
+      title="New profile"
+      submitLabel="Create profile"
+      loading={mutation.isPending}
+      submitDisabled={!name.trim()}
+      onSubmit={() => mutation.mutate()}
+    >
       <Stack gap="md">
         <TextInput
           label="Profile name"
@@ -105,21 +114,8 @@ function NewProfileModal({
           onChange={(e) => setName(e.currentTarget.value)}
           required
         />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={mutation.isPending}
-            disabled={!name.trim()}
-            onClick={() => mutation.mutate()}
-          >
-            Create profile
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 
@@ -254,24 +250,20 @@ export function ProfilesPanel() {
         }
       >
         <Box p={18}>
-          <Group gap={8} mb="md">
-            {roles.map((item) => (
-              <Group key={item.id} gap={4} wrap="nowrap">
-                <Button
-                  variant={item.id === profile ? 'light' : 'default'}
-                  color={item.id === profile ? 'orange' : 'gray'}
-                  size="xs"
-                  onClick={() => setProfile(item.id)}
-                >
-                  {item.name}
-                </Button>
-                {item.is_builtin && (
-                  <Badge size="xs" color="gray" variant="light" radius="sm">
-                    Built-in
-                  </Badge>
-                )}
-              </Group>
-            ))}
+          <Group gap={8} mb="md" wrap="nowrap">
+            <Select
+              aria-label="Profile"
+              data={roles.map((item) => ({ value: item.id, label: item.name }))}
+              value={activeProfile.id}
+              onChange={(value) => value && setProfile(value)}
+              allowDeselect={false}
+              w={260}
+            />
+            {isBuiltin && (
+              <Badge size="sm" color="gray" variant="light" radius="sm">
+                Built-in
+              </Badge>
+            )}
           </Group>
           <Text ff="monospace" fz={11} c="var(--faint)" mb="sm">
             {checkState.size} permission{checkState.size === 1 ? '' : 's'}{' '}
@@ -314,7 +306,7 @@ export function ProfilesPanel() {
                                   checked={checkState.has(info.key)}
                                   disabled={!canEdit || isBuiltin}
                                   // Only label per-checkbox when a column holds
-                                  // more than one grant (e.g. Automation/run).
+                                  // more than one grant (e.g. Administration/manage).
                                   label={
                                     infos.length > 1 ? info.label : undefined
                                   }

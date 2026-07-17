@@ -1,10 +1,10 @@
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import {
   Badge,
   Box,
   Button,
   Code,
   Group,
-  Modal,
   Paper,
   Select,
   Stack,
@@ -370,10 +370,15 @@ export function OrganisationsPanel() {
         </Paper>
       )}
 
-      <Modal
+      <FormDrawer
         opened={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
         title="Delete organisation"
+        submitLabel="Delete organisation"
+        submitColor="red"
+        loading={deleteMutation.isPending}
+        submitDisabled={deleteConfirmName !== managedOrg?.name}
+        onSubmit={() => deleteMutation.mutate()}
       >
         <Stack gap="md">
           <Text fz={14}>
@@ -387,24 +392,8 @@ export function OrganisationsPanel() {
               setDeleteConfirmName(event.currentTarget.value)
             }
           />
-          <Group justify="flex-end">
-            <Button
-              variant="default"
-              onClick={() => setDeleteConfirmOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              loading={deleteMutation.isPending}
-              disabled={deleteConfirmName !== managedOrg?.name}
-              onClick={() => deleteMutation.mutate()}
-            >
-              Delete organisation
-            </Button>
-          </Group>
         </Stack>
-      </Modal>
+      </FormDrawer>
 
       <Panel
         title="Organisations"
@@ -488,10 +477,14 @@ export function OrganisationsPanel() {
         </Stack>
       </Panel>
 
-      <Modal
+      <FormDrawer
         opened={linkModalOpen}
         onClose={() => setLinkModalOpen(false)}
         title="Add organisation link"
+        submitLabel="Add link"
+        loading={linkCreateMutation.isPending}
+        submitDisabled={!linkToOrg}
+        onSubmit={() => linkCreateMutation.mutate()}
       >
         <Stack gap="md">
           <Select
@@ -503,21 +496,8 @@ export function OrganisationsPanel() {
             onChange={(v) => setLinkToOrg(v ?? '')}
             searchable
           />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setLinkModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              color="orange"
-              loading={linkCreateMutation.isPending}
-              disabled={!linkToOrg}
-              onClick={() => linkCreateMutation.mutate()}
-            >
-              Add link
-            </Button>
-          </Group>
         </Stack>
-      </Modal>
+      </FormDrawer>
     </Stack>
   )
 }

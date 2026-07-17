@@ -7,7 +7,6 @@ import { AttackCatalogPanel } from './settings/panels/AttackCatalogPanel'
 import { CaseStatusesPanel } from './settings/panels/CaseStatusesPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
 import { IdentityProvidersPanel } from './settings/panels/IdentityProvidersPanel'
-import { IntegrationsPanel } from './settings/panels/IntegrationsPanel'
 import { MfaSettingsPanel } from './settings/panels/MfaSettingsPanel'
 import { MyAccountPanel } from './settings/panels/MyAccountPanel'
 import { NotificationsPanel } from './settings/panels/NotificationsPanel'
@@ -43,7 +42,6 @@ const SECTION_READ_PERMISSION: Partial<Record<SettingsSection, string>> = {
   Notifications: 'read:organisation',
   'SLA policies': 'read:organisation',
   'API keys': 'write:organisation',
-  Integrations: 'read:organisation',
   'Report templates': 'write:organisation',
 }
 
@@ -60,7 +58,6 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'Notifications') return <NotificationsPanel />
   if (section === 'SLA policies') return <SlaPanel />
   if (section === 'API keys') return <ApiKeysPanel />
-  if (section === 'Integrations') return <IntegrationsPanel />
   if (section === 'Report templates') return <ReportTemplatesPanel />
   if (section === 'Identity providers') return <IdentityProvidersPanel />
   if (section === 'MFA policy') return <MfaSettingsPanel />

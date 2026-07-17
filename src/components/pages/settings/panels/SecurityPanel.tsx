@@ -1,7 +1,11 @@
-import { Badge, Button, Group, Stack, Text } from '@mantine/core'
+import { Badge, Button, Checkbox, Group, Stack, Text } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
 import { MfaSection } from '#/components/pages/settings/panels/MfaSection'
 import { LinkedIdentitiesSection } from '#/components/pages/settings/panels/LinkedIdentitiesSection'
+import { DataTable } from '#/components/Table/DataTable'
 import {
   revokeSession,
   sessionsQueryOptions,
@@ -59,59 +63,35 @@ function sortSessions(sessions: SessionPublic[]): SessionPublic[] {
   })
 }
 
-function SessionRow({
-  session,
-  onRevoke,
-  revoking,
-}: {
-  session: SessionPublic
-  onRevoke: (session: SessionPublic) => void
-  revoking: boolean
-}) {
-  return (
-    <Group
-      data-testid={`session-row-${session.id}`}
-      justify="space-between"
-      wrap="nowrap"
-      align="flex-start"
-      py="sm"
-      style={{ borderBottom: '1px solid var(--line-soft)' }}
-    >
-      <Stack gap={2} miw={0}>
-        <Group gap="xs" wrap="nowrap">
-          <Text fw={600}>{formatUserAgent(session.user_agent)}</Text>
-          {session.is_current && (
-            <Badge color="green" variant="light" radius="xl">
-              Current session
-            </Badge>
-          )}
-        </Group>
-        <Text size="sm" c="dimmed" ff="monospace">
-          {session.ip_address ?? '—'}
-        </Text>
-        <Text size="xs" c="var(--faint)">
-          Signed in {compactDate(session.created_at)} · expires{' '}
-          {compactDate(session.expires_at)}
-        </Text>
-      </Stack>
-      <Button
-        size="xs"
-        variant="default"
-        color="red"
-        loading={revoking}
-        onClick={() => onRevoke(session)}
-      >
-        Revoke
-      </Button>
-    </Group>
-  )
-}
-
 export function SecurityPanel() {
-  const queryClient = useQueryClient()
   const { data, isPending, isError, refetch, isFetching } = useQuery(
     sessionsQueryOptions(),
   )
+
+  return (
+    <Stack gap="lg">
+      <MfaSection />
+      <LinkedIdentitiesSection />
+      {isPending ? (
+        <LoadingPanel label="Loading active sessions..." />
+      ) : isError ? (
+        <ErrorPanel
+          label="Couldn't load active sessions."
+          onRetry={() => refetch()}
+          retrying={isFetching}
+        />
+      ) : (
+        <SessionsTable sessions={sortSessions(data)} />
+      )}
+    </Stack>
+  )
+}
+
+// Kept as a child so the table hook stays above the parent's early returns
+// (matches ApiKeysPanel's ApiKeysTable split).
+function SessionsTable({ sessions }: { sessions: SessionPublic[] }) {
+  const queryClient = useQueryClient()
+  const [rowSelection, setRowSelection] = useState({})
 
   const revokeMutation = useMutation({
     // Carry the whole session so onSuccess can honour the confirm's promise:
@@ -133,6 +113,29 @@ export function SecurityPanel() {
     onError: (error) => notifyError(error, 'Unable to revoke session'),
   })
 
+  const bulkRevokeMutation = useMutation({
+    // Revoke the other sessions first, then the current one last (if selected),
+    // so a mid-batch sign-out can't strand the remaining revokes.
+    mutationFn: async (selected: SessionPublic[]) => {
+      const current = selected.find((s) => s.is_current)
+      const others = selected.filter((s) => !s.is_current)
+      await Promise.all(others.map((s) => revokeSession(s.id)))
+      if (current) await revokeSession(current.id)
+      return { signedOut: Boolean(current) }
+    },
+    onSuccess: ({ signedOut }) => {
+      if (signedOut) {
+        logout()
+        redirectToLogin()
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: settingsKeys.sessions() })
+      notifySuccess('Sessions revoked')
+      setRowSelection({})
+    },
+    onError: (error) => notifyError(error, 'Unable to revoke sessions'),
+  })
+
   const askRevoke = (session: SessionPublic) => {
     const device = formatUserAgent(session.user_agent)
     confirmDelete({
@@ -145,43 +148,149 @@ export function SecurityPanel() {
     })
   }
 
-  const sessions = data ? sortSessions(data) : []
+  const askBulkRevoke = (selected: SessionPublic[]) => {
+    const includesCurrent = selected.some((s) => s.is_current)
+    confirmDelete({
+      title: 'Revoke sessions',
+      message: includesCurrent
+        ? `Revoke ${selected.length} selected sessions? This includes the session you're using, so you'll be signed out.`
+        : `Revoke ${selected.length} selected sessions? Those devices will need to sign in again.`,
+      confirmLabel: 'Revoke sessions',
+      onConfirm: () => bulkRevokeMutation.mutate(selected),
+    })
+  }
+
+  const columns = useMemo<ColumnDef<SessionPublic>[]>(
+    () => [
+      {
+        id: 'select',
+        header: ({ table }) => (
+          <Checkbox
+            size="xs"
+            checked={table.getIsAllRowsSelected()}
+            indeterminate={table.getIsSomeRowsSelected()}
+            onChange={table.getToggleAllRowsSelectedHandler()}
+            aria-label="Select all sessions"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            size="xs"
+            checked={row.getIsSelected()}
+            onChange={row.getToggleSelectedHandler()}
+            aria-label={`Select session ${row.original.id}`}
+          />
+        ),
+        enableSorting: false,
+      },
+      {
+        id: 'device',
+        header: 'Device',
+        meta: { grow: true },
+        cell: ({ row }) => (
+          <Group gap="xs" wrap="nowrap">
+            <Text fw={600}>{formatUserAgent(row.original.user_agent)}</Text>
+            {row.original.is_current && (
+              <Badge color="green" variant="light" radius="xl">
+                Current session
+              </Badge>
+            )}
+          </Group>
+        ),
+      },
+      {
+        id: 'ip',
+        header: 'IP address',
+        meta: { nowrap: true },
+        cell: ({ row }) => (
+          <Text size="sm" c="dimmed" ff="monospace">
+            {row.original.ip_address ?? '—'}
+          </Text>
+        ),
+      },
+      {
+        id: 'signedIn',
+        header: 'Signed in',
+        meta: { nowrap: true },
+        cell: ({ row }) => (
+          <Text size="sm" c="var(--faint)">
+            {compactDate(row.original.created_at)}
+          </Text>
+        ),
+      },
+      {
+        id: 'expires',
+        header: 'Expires',
+        meta: { nowrap: true },
+        cell: ({ row }) => (
+          <Text size="sm" c="var(--faint)">
+            {compactDate(row.original.expires_at)}
+          </Text>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        meta: { ta: 'right' },
+        cell: ({ row }) => (
+          <Button
+            size="xs"
+            variant="default"
+            color="red"
+            loading={
+              revokeMutation.isPending &&
+              revokeMutation.variables.id === row.original.id
+            }
+            onClick={() => askRevoke(row.original)}
+          >
+            Revoke
+          </Button>
+        ),
+      },
+    ],
+    // Rebuild when the revoke mutation identity changes — the actions cell reads
+    // its pending state (matches ApiKeysPanel's columns memo).
+    [revokeMutation],
+  )
+
+  const table = useReactTable({
+    data: sessions,
+    columns,
+    state: { rowSelection },
+    getRowId: (row) => row.id,
+    enableRowSelection: true,
+    enableSorting: false,
+    onRowSelectionChange: setRowSelection,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  const selected = table.getSelectedRowModel().rows.map((r) => r.original)
 
   return (
-    <Stack gap="lg">
-      <MfaSection />
-      <LinkedIdentitiesSection />
-      {isPending ? (
-        <LoadingPanel label="Loading active sessions..." />
-      ) : isError ? (
-        <ErrorPanel
-          label="Couldn't load active sessions."
-          onRetry={() => refetch()}
-          retrying={isFetching}
-        />
-      ) : (
-        <Panel title="Active sessions" count={sessions.length}>
-          <Stack gap={0} px={18} py={4}>
-            {sessions.length === 0 ? (
-              <Text c="dimmed" py="md">
-                No active sessions.
-              </Text>
-            ) : (
-              sessions.map((session) => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  revoking={
-                    revokeMutation.isPending &&
-                    revokeMutation.variables.id === session.id
-                  }
-                  onRevoke={askRevoke}
-                />
-              ))
-            )}
-          </Stack>
-        </Panel>
-      )}
-    </Stack>
+    <Panel
+      title="Active sessions"
+      count={sessions.length}
+      action={
+        selected.length > 0 ? (
+          <Button
+            size="xs"
+            variant="default"
+            color="red"
+            loading={bulkRevokeMutation.isPending}
+            onClick={() => askBulkRevoke(selected)}
+          >
+            Revoke selected ({selected.length})
+          </Button>
+        ) : undefined
+      }
+    >
+      <DataTable
+        table={table}
+        minWidth={680}
+        ariaLabel="Active sessions"
+        emptyMessage="No active sessions."
+        rowTestId={(row) => `session-row-${row.original.id}`}
+      />
+    </Panel>
   )
 }

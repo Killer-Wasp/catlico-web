@@ -63,23 +63,30 @@ export type TaskFacets = {
   kinds: string[]
 }
 
+/**
+ * Default status filter for the task views: "not finished" (Waiting | InProgress).
+ * Same-key clauses OR server-side. Shared by the list's default view and the
+ * navbar's open-task badge so they stay in sync.
+ */
+export const DEFAULT_TASK_STATUS_CLAUSES: FilterClause[] = [
+  { key: 'status', op: 'eq', value: 'Waiting' },
+  { key: 'status', op: 'eq', value: 'InProgress' },
+]
+
 export const DEFAULT_TASK_FILTERS: TaskListFilters = {
   sort: 'caseId',
   order: 'asc',
   skip: 0,
   limit: 10,
+  clauses: DEFAULT_TASK_STATUS_CLAUSES,
 }
 
 /**
- * Count-only query for open (Waiting | InProgress) tasks — same-key clauses OR,
- * so this is "not finished" server-side. `limit: 1` because only `total` is
- * read (a badge), not the rows.
+ * Count-only query for open (Waiting | InProgress) tasks. `limit: 1` because only
+ * `total` is read (a badge), not the rows.
  */
 export const OPEN_TASK_FILTERS: TaskListFilters = {
-  clauses: [
-    { key: 'status', op: 'eq', value: 'Waiting' },
-    { key: 'status', op: 'eq', value: 'InProgress' },
-  ],
+  clauses: DEFAULT_TASK_STATUS_CLAUSES,
   skip: 0,
   limit: 1,
 }

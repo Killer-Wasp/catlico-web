@@ -3,7 +3,6 @@ import {
   Button,
   ColorInput,
   Group,
-  Modal,
   Select,
   Stack,
   Switch,
@@ -31,6 +30,7 @@ import {
   notifySuccess,
   Panel,
 } from '#/components/pages/settings/settingsUi'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { usePermissions } from '#/lib/auth/usePermissions'
 import type { CaseStage } from '#/lib/domain'
 
@@ -65,7 +65,15 @@ function AddStatusModal({
   })
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Add case status">
+    <FormDrawer
+      opened={opened}
+      onClose={onClose}
+      title="Add case status"
+      submitLabel="Create status"
+      loading={mutation.isPending}
+      submitDisabled={!label.trim()}
+      onSubmit={() => mutation.mutate()}
+    >
       <Stack gap="md">
         <TextInput
           label="Label"
@@ -82,21 +90,8 @@ function AddStatusModal({
           allowDeselect={false}
         />
         <ColorInput label="Colour" value={color} onChange={setColor} />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={mutation.isPending}
-            disabled={!label.trim()}
-            onClick={() => mutation.mutate()}
-          >
-            Create status
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 

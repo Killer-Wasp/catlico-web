@@ -26,6 +26,8 @@ type TablePanelProps<T extends RowData> = {
   /** Token filter fields; only used when the filter bar is shown. */
   filterFields?: FilterField[]
   filterPlaceholder?: string
+  /** Key of the text field free-typed input searches when no field is picked. */
+  filterDefaultTextField?: string
   /** Render the token filter row. Detail-page tables opt out. */
   withFilterBar?: boolean
   /** Render the pagination footer. Detail-page tables opt out. */
@@ -65,6 +67,7 @@ export function TablePanel<T extends RowData>({
   table,
   filterFields = [],
   filterPlaceholder,
+  filterDefaultTextField,
   withFilterBar = true,
   withPagination = true,
   pageSizeOptions,
@@ -142,6 +145,7 @@ export function TablePanel<T extends RowData>({
           table={table}
           filterFields={filterFields}
           placeholder={filterPlaceholder}
+          defaultTextField={filterDefaultTextField}
           selectable={selectable}
           selectMode={selectMode}
           onToggleSelectMode={onToggleSelectMode}

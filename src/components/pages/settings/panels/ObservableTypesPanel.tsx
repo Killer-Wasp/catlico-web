@@ -3,8 +3,6 @@ import {
   Button,
   Checkbox,
   Code,
-  Group,
-  Modal,
   Stack,
   TextInput,
 } from '@mantine/core'
@@ -28,6 +26,7 @@ import {
   notifySuccess,
   Panel,
 } from '#/components/pages/settings/settingsUi'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { usePermissions } from '#/lib/auth/usePermissions'
 
 function AddTypeModal({
@@ -57,7 +56,15 @@ function AddTypeModal({
   })
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Add observable type">
+    <FormDrawer
+      opened={opened}
+      onClose={onClose}
+      title="Add observable type"
+      submitLabel="Create type"
+      loading={mutation.isPending}
+      submitDisabled={!name.trim()}
+      onSubmit={() => mutation.mutate()}
+    >
       <Stack gap="md">
         <TextInput
           label="Type name"
@@ -70,21 +77,8 @@ function AddTypeModal({
           checked={isAttachment}
           onChange={(e) => setIsAttachment(e.currentTarget.checked)}
         />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={mutation.isPending}
-            disabled={!name.trim()}
-            onClick={() => mutation.mutate()}
-          >
-            Create type
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 

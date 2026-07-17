@@ -1,15 +1,11 @@
-import type {
-  Observable,
-  ObservableType,
-} from '#/components/Observables/observables.types'
+import type { Observable } from '#/components/Observables/observables.types'
 import { RelativeTime } from '#/components/Time/RelativeTime'
 import { TableTlpBadge } from '#/components/Tlp/TableTlpBadge'
-import { ActionIcon, Badge, Checkbox, Group, Menu, Text } from '@mantine/core'
+import { ActionIcon, Checkbox, Group, Menu, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Play, Settings } from 'lucide-react'
-import { AnalysisPill, TypePill } from './Pills'
-import { ObservableFileIndicator } from './ObservableFileIndicator'
+import { TypeIcon } from './Pills'
 import {
   includesAnySubstring,
   includesOne as includesOneString,
@@ -43,22 +39,14 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       meta: { ta: 'center' },
     },
     {
-      id: 'type',
-      header: 'Type',
-      accessorFn: (row) => row.type,
-      filterFn: includesOneString,
-      enableSorting: false,
-      meta: { minWidth: 96, nowrap: true } satisfies TableColumnMeta,
-      cell: (info) => <TypePill type={info.getValue<ObservableType>()} />,
-    },
-    {
       id: 'value',
       header: 'Value',
       accessorFn: (row) => row.value,
       filterFn: includesAnySubstring,
       enableSorting: true,
       cell: ({ row }) => (
-        <Group gap={6} wrap="nowrap">
+        <Group gap={10} wrap="nowrap" align="center">
+          <TypeIcon type={row.original.type} />
           <Text
             ff="monospace"
             fz={13}
@@ -68,7 +56,9 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
             {row.original.value}
           </Text>
           {row.original.attachment ? (
-            <ObservableFileIndicator attachment={row.original.attachment} />
+            <Text fz={11} c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+              {row.original.attachment.filename}
+            </Text>
           ) : null}
         </Group>
       ),
@@ -83,27 +73,6 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       cell: (info) => (
         <TableTlpBadge tlp={info.getValue<Observable['tlp']>()} />
       ),
-    },
-    {
-      id: 'source',
-      header: 'Source',
-      accessorFn: (row) => row.source,
-      filterFn: includesOneString,
-      enableSorting: false,
-      meta: { minWidth: 88, nowrap: true } satisfies TableColumnMeta,
-      cell: (info) => (
-        <Badge variant="light" color="gray" radius="sm" ff="monospace">
-          {info.getValue<string>()}
-        </Badge>
-      ),
-    },
-    {
-      id: 'analysis',
-      header: 'Analysis',
-      enableColumnFilter: false,
-      enableSorting: false,
-      meta: { visibleFrom: 'md' },
-      cell: ({ row }) => <AnalysisPill observable={row.original} />,
     },
     {
       id: 'added',

@@ -303,7 +303,7 @@ describe('ObservablesPage', () => {
     expect(screen.getByText('8 observables')).toBeDefined()
     expect(
       screen.getByPlaceholderText(
-        'Filter observables — pick a field, then a value',
+        'Filter observables — type to search value, or pick a field',
       ),
     ).toBeDefined()
     expect(screen.getAllByLabelText('TLP:AMBER').length).toBeGreaterThan(0)
@@ -352,7 +352,7 @@ describe('ObservablesPage', () => {
     expect(await screen.findByText('login-paylink.support')).toBeDefined()
     fireEvent.click(
       screen.getByPlaceholderText(
-        'Filter observables — pick a field, then a value',
+        'Filter observables — type to search value, or pick a field',
       ),
     )
     fireEvent.click(screen.getByRole('option', { name: 'Type' }))

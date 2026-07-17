@@ -17,7 +17,6 @@ import {
   Box,
   Button,
   Divider,
-  Drawer,
   FileButton,
   Group,
   Menu,
@@ -30,6 +29,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import { notifications } from '@mantine/notifications'
 import { RichTextEditor } from '@mantine/tiptap'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -630,11 +630,10 @@ export function KnowledgeBasePage() {
         </Box>
       </Tabs>
 
-      <Drawer
+      <AppDrawer
         opened={timelineOpen}
         onClose={() => setTimelineOpen(false)}
         title="Timeline"
-        position="right"
         size="lg"
       >
         <Stack gap="md">
@@ -700,7 +699,7 @@ export function KnowledgeBasePage() {
             </>
           )}
         </Stack>
-      </Drawer>
+      </AppDrawer>
 
     </Box>
   )

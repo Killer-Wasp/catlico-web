@@ -2,11 +2,12 @@ import {
   ActionIcon,
   Button,
   Code,
-  Modal,
   Stack,
   Text,
   TextInput,
 } from '@mantine/core'
+import { AppDrawer } from '#/components/ui/AppDrawer'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -168,15 +169,15 @@ export function ApiKeysPanel() {
         <ApiKeysTable columns={columns} keys={keys} />
       </Panel>
 
-      <Modal
-        opened={showCreate}
-        onClose={() => {
-          setShowCreate(false)
-          setNewKey('')
-        }}
-        title={newKey ? 'API key created' : 'Generate new API key'}
-      >
-        {newKey ? (
+      {newKey ? (
+        <AppDrawer
+          opened={showCreate}
+          onClose={() => {
+            setShowCreate(false)
+            setNewKey('')
+          }}
+          title="API key created"
+        >
           <Stack>
             <Text size="sm">
               This API key will only be shown once. Copy it before closing this
@@ -205,8 +206,19 @@ export function ApiKeysPanel() {
               }
             />
           </Stack>
-        ) : (
-          <Stack>
+        </AppDrawer>
+      ) : (
+        <FormDrawer
+          opened={showCreate}
+          onClose={() => setShowCreate(false)}
+          title="Generate new API key"
+          submitLabel="Generate"
+          loading={createMutation.isPending}
+          submitDisabled={!newName.trim()}
+          submitColor="orange"
+          onSubmit={() => createMutation.mutate()}
+        >
+          <Stack gap="md">
             <TextInput
               label="Key name"
               value={newName}
@@ -223,17 +235,9 @@ export function ApiKeysPanel() {
             <Text size="xs" c="dimmed">
               API keys carry full permission for the organisation.
             </Text>
-            <Button
-              color="orange"
-              loading={createMutation.isPending}
-              disabled={!newName.trim()}
-              onClick={() => createMutation.mutate()}
-            >
-              Generate
-            </Button>
           </Stack>
-        )}
-      </Modal>
+        </FormDrawer>
+      )}
     </>
   )
 }

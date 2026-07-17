@@ -24,6 +24,8 @@ type TableFilterBarProps<T extends RowData> = {
    */
   tokens?: Token[]
   onTokensChange?: (tokens: Token[]) => void
+  /** Key of the text field free-typed input searches when no field is picked. */
+  defaultTextField?: string
 }
 
 export function TableFilterBar<T extends RowData>({
@@ -36,6 +38,7 @@ export function TableFilterBar<T extends RowData>({
   filterRowActions,
   tokens: externalTokens,
   onTokensChange,
+  defaultTextField,
 }: TableFilterBarProps<T>) {
   // Always call the hook (rules of hooks); prefer the controlled override.
   const derived = useTableTokens(
@@ -67,6 +70,7 @@ export function TableFilterBar<T extends RowData>({
         tokens={tokens}
         onChange={setTokens}
         placeholder={placeholder}
+        defaultTextField={defaultTextField}
       />
       {filterRowActions}
       {selectable && (

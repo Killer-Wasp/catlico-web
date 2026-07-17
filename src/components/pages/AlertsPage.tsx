@@ -12,6 +12,7 @@ import type {
   AlertSort,
 } from '#/components/Alerts/alertsQueries'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import { caseKeys, casesQueryOptions } from '#/components/Cases/casesQueries'
 import type { CaseListFilters } from '#/components/Cases/casesQueries'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -26,7 +27,6 @@ import {
   Box,
   Button,
   Group,
-  Modal,
   Stack,
   Text,
   TextInput,
@@ -317,7 +317,7 @@ export function AlertsPage() {
         options: TLP_OPTIONS,
       },
       { key: 'alert', label: 'Alert', kind: 'text', operators: ['eq', 'co'] },
-      { key: 'title', label: 'Title', kind: 'text', operators: ['eq', 'co'] },
+      { key: 'title', label: 'Title', kind: 'text', operators: ['co', 'eq'] },
     ]
     const tagFields: TokenField[] = Object.entries(tagKeys).map(
       ([key, values]): TokenField => ({
@@ -403,7 +403,7 @@ export function AlertsPage() {
         }
         onRun={(selection) => runAnalyzers.mutate(selection)}
       />
-      <Modal
+      <AppDrawer
         opened={Boolean(mergeAlertId)}
         onClose={() => {
           setMergeAlertId(null)
@@ -445,14 +445,15 @@ export function AlertsPage() {
             ) : null}
           </Stack>
         </Stack>
-      </Modal>
+      </AppDrawer>
       <TablePanel
         title="All alerts"
         countNoun="alerts"
         count={total}
         table={table}
         filterFields={filterFields}
-        filterPlaceholder="Filter alerts — pick a field, then a value"
+        filterPlaceholder="Filter alerts — type to search title, or pick a field"
+        filterDefaultTextField="title"
         tokens={tokens}
         onTokensChange={onTokensChange}
         hasActiveFilters={tokens.length > 0}

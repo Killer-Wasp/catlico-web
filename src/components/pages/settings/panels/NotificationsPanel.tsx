@@ -5,7 +5,6 @@ import {
   Checkbox,
   Group,
   LoadingOverlay,
-  Modal,
   MultiSelect,
   PasswordInput,
   Select,
@@ -15,6 +14,7 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isHTTPError } from 'ky'
@@ -508,10 +508,13 @@ export function NotificationsPanel() {
         </Text>
       </Panel>
 
-      <Modal
+      <FormDrawer
         opened={showCreate}
         onClose={closeCreate}
         title="Add notifier"
+        submitLabel="Create notifier"
+        loading={createMutation.isPending}
+        onSubmit={handleCreate}
       >
         <Stack gap="md">
           <Select
@@ -583,25 +586,16 @@ export function NotificationsPanel() {
             checked={nenabled}
             onChange={(e) => setNenabled(e.currentTarget.checked)}
           />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeCreate}>
-              Cancel
-            </Button>
-            <Button
-              color="orange"
-              loading={createMutation.isPending}
-              onClick={handleCreate}
-            >
-              Create notifier
-            </Button>
-          </Group>
         </Stack>
-      </Modal>
+      </FormDrawer>
 
-      <Modal
+      <FormDrawer
         opened={editFor !== null}
         onClose={closeEdit}
         title={editFor ? `Edit ${editFor.type} notifier` : 'Edit notifier'}
+        submitLabel="Save changes"
+        loading={editMutation.isPending}
+        onSubmit={handleEdit}
       >
         {editFor && (
           <Stack gap="md">
@@ -697,22 +691,9 @@ export function NotificationsPanel() {
                 )}
               </>
             )}
-
-            <Group justify="flex-end">
-              <Button variant="default" onClick={closeEdit}>
-                Cancel
-              </Button>
-              <Button
-                color="orange"
-                loading={editMutation.isPending}
-                onClick={handleEdit}
-              >
-                Save changes
-              </Button>
-            </Group>
           </Stack>
         )}
-      </Modal>
+      </FormDrawer>
     </Stack>
   )
 }

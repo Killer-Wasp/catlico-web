@@ -2,11 +2,13 @@
  * PluginPickerDialog — a reusable chooser for "which analyzers to run".
  *
  * It fetches the runnable-plugins list (server-filtered to plugins that will
- * actually enrich) and lets the analyst tick a subset, toggle a force re-run,
- * and hit Run. It owns NO dispatch logic: on Run it hands the chosen
- * `{ pluginIds, force }` back via `onRun` and the caller fans out to whichever
- * entities it targets (one observable in the detail drawer, many on the bulk
- * page, a case later). That keeps the picker identical across every caller.
+ * actually enrich) and lets the analyst tick a subset and hit Run. A manual run
+ * from the UI is always a force re-run (bypassing the fresh-result dedup) — that
+ * is what "Run" means here, so there is no toggle. It owns NO dispatch logic: on
+ * Run it hands the chosen `{ pluginIds, force }` back via `onRun` (force always
+ * true) and the caller fans out to whichever entities it targets (one observable
+ * in the detail drawer, many on the bulk page, a case later). That keeps the
+ * picker identical across every caller.
  *
  * The dialog deliberately does NOT close itself on Run — it stays open with the
  * Run button in its `loading` state (`isRunning`) so a long bulk fan-out shows
@@ -19,10 +21,10 @@ import {
   Divider,
   Group,
   Loader,
-  Modal,
   Stack,
   Text,
 } from '@mantine/core'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { runnablePluginsQueryOptions } from './plugins'
@@ -61,7 +63,6 @@ export function PluginPickerDialog({
   onRun,
 }: PluginPickerDialogProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [force, setForce] = useState(false)
 
   const {
     data: plugins,
@@ -77,7 +78,6 @@ export function PluginPickerDialog({
   useEffect(() => {
     if (!opened) {
       setSelected(new Set())
-      setForce(false)
     }
   }, [opened])
 
@@ -107,11 +107,20 @@ export function PluginPickerDialog({
     // Hand the selection to the caller but stay open — the caller drives the
     // dispatch and closes us (via `onClose`) when its mutation settles, so the
     // Run spinner (`isRunning`) is visible for the duration of the fan-out.
-    onRun({ pluginIds: [...selected], force })
+    // A manual UI run always forces (bypasses the fresh-result dedup).
+    onRun({ pluginIds: [...selected], force: true })
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title={`Run ${noun}s`}>
+    <FormDrawer
+      opened={opened}
+      onClose={onClose}
+      title={`Run ${noun}s`}
+      submitLabel="Run"
+      loading={isRunning}
+      submitDisabled={selected.size === 0}
+      onSubmit={run}
+    >
       <Stack gap="md">
         {contextLabel ? (
           <Text fz="sm" c="dimmed">
@@ -173,26 +182,7 @@ export function PluginPickerDialog({
           </>
         )}
 
-        <Divider />
-        <Checkbox
-          label="Force re-run (bypass dedup of fresh results)"
-          checked={force}
-          onChange={(e) => setForce(e.currentTarget.checked)}
-        />
-
-        <Group justify="flex-end" gap="sm">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            disabled={selected.size === 0}
-            loading={isRunning}
-            onClick={run}
-          >
-            Run
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }

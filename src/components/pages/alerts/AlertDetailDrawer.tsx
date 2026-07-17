@@ -9,11 +9,11 @@ import { SEV, TLP, TLP_COLOR } from '#/lib/domain'
 import { SimilarCaseTable } from '#/components/Cases/SimilarCaseTable'
 import { Tag } from '#/components/Tag/Tag'
 import { TagPickerInput } from '#/components/Tag/TagPickerInput'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import {
   Badge,
   Box,
   Button,
-  Drawer,
   Group,
   ActionIcon,
   Menu,
@@ -162,25 +162,12 @@ export function AlertDetailDrawer({
   }
 
   return (
-    <Drawer
+    <AppDrawer
       opened
       onClose={close}
-      position="right"
-      size="min(520px, 94vw)"
-      padding={0}
       title={<VisuallyHidden>Alert detail</VisuallyHidden>}
-      aria-label="Alert detail"
-      closeButtonProps={{ 'aria-label': 'Close alert detail' }}
-      overlayProps={{ backgroundOpacity: 0.55, blur: 2 }}
-      styles={{
-        content: { borderLeft: '1px solid var(--line-soft)' },
-        header: {
-          alignItems: 'flex-start',
-          borderBottom: '1px solid var(--line-soft)',
-          padding: '18px 22px 0',
-        },
-        body: { padding: 0 },
-      }}
+      size="md"
+      padding={0}
     >
       <Box
         style={{
@@ -506,7 +493,7 @@ export function AlertDetailDrawer({
           </DrawerSection>
         )}
       </Box>
-    </Drawer>
+    </AppDrawer>
   )
 }
 

@@ -3,15 +3,18 @@ import {
   ActionIcon,
   Box,
   Button,
-  Drawer,
   Group,
   Stack,
   Text,
 } from '@mantine/core'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { observableRelatedCasesQueryOptions } from '#/components/Observables/observablesQueries'
+import { SimilarCaseTable } from '#/components/Cases/SimilarCaseTable'
 import { ObservableFileChip } from './ObservableFileChip'
 import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
 import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
@@ -63,19 +66,15 @@ export function ObservableDetailDrawer({
   if (!observable) return null
 
   return (
-    <Drawer
+    <AppDrawer
       opened
       onClose={onClose}
-      position="right"
-      size={560}
       title="Observable detail"
+      size="md"
       padding={0}
-      overlayProps={{ backgroundOpacity: 0.35, blur: 3 }}
-      styles={{
-        content: { borderLeft: '4px solid var(--mantine-color-red-6)' },
-        header: { display: 'none' },
-        body: { height: '100%', padding: 0 },
-      }}
+      accent="red"
+      // ObservableDetailContent renders its own header and close control.
+      withHeader={false}
     >
       <ObservableDetailContent
         observable={observable}
@@ -83,7 +82,7 @@ export function ObservableDetailDrawer({
         onMarkSighted={onMarkSighted}
         onClose={onClose}
       />
-    </Drawer>
+    </AppDrawer>
   )
 }
 
@@ -102,6 +101,19 @@ function ObservableDetailContent({
   const sighted = observable.flags.includes('sighted')
   const [pickerOpen, setPickerOpen] = useState(false)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+
+  const { data: relatedCases = [] } = useQuery(
+    observableRelatedCasesQueryOptions(observable.id),
+  )
+
+  const openCase = (id: string) => {
+    onClose()
+    void navigate({
+      to: '/cases/$caseId/$tab',
+      params: { caseId: id.replace(/^#/, ''), tab: 'details' },
+    })
+  }
 
   const runAnalyzers = useMutation({
     mutationFn: ({ pluginIds, force }: PluginPickerSelection) =>
@@ -170,6 +182,13 @@ function ObservableDetailContent({
               />
             </Stack>
           ) : null}
+
+          <Stack gap="xs">
+            <Text className={styles.columnHeader}>
+              Related cases{relatedCases.length ? ` (${relatedCases.length})` : ''}
+            </Text>
+            <SimilarCaseTable rows={relatedCases} onOpen={openCase} />
+          </Stack>
 
           <PluginResultsPanel entityType="observable" entityId={observable.id} />
         </Stack>

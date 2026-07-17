@@ -180,7 +180,7 @@ export function CasesPage({
         operators: ['eq'],
         options: toOpts(assigneeOptions),
       },
-      { key: 'title', label: 'Title', kind: 'text', operators: ['eq', 'co'] },
+      { key: 'title', label: 'Title', kind: 'text', operators: ['co', 'eq'] },
       { key: 'case', label: 'Case', kind: 'text', operators: ['eq', 'co'] },
     ]
     const tagFields: TokenField[] = Object.entries(tagKeys).map(
@@ -250,7 +250,8 @@ export function CasesPage({
         count={total}
         table={table}
         filterFields={filterFields}
-        filterPlaceholder="Filter cases — pick a field, then a value"
+        filterPlaceholder="Filter cases — type to search title, or pick a field"
+        filterDefaultTextField="title"
         tokens={tokens}
         onTokensChange={onTokensChange}
         hasActiveFilters={tokens.length > 0}

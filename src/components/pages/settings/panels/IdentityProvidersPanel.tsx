@@ -6,7 +6,6 @@ import {
   Checkbox,
   Code,
   Group,
-  Modal,
   PasswordInput,
   Stack,
   Switch,
@@ -18,6 +17,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '#/components/Table/DataTable'
+import { AppDrawer } from '#/components/ui/AppDrawer'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import {
   createOidcProvider,
   deleteOidcProvider,
@@ -142,7 +143,16 @@ function CreateProviderModal({
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Add identity provider" size="lg">
+    <FormDrawer
+      opened={opened}
+      onClose={onClose}
+      title="Add identity provider"
+      size="lg"
+      submitLabel="Create provider"
+      loading={mutation.isPending}
+      submitDisabled={!valid}
+      onSubmit={submit}
+    >
       <Stack gap="md">
         <Text size="xs" c="dimmed">
           Configures an OIDC single-sign-on provider. Users signing in through it
@@ -217,21 +227,8 @@ function CreateProviderModal({
           checked={enabled}
           onChange={(e) => setEnabled(e.currentTarget.checked)}
         />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            disabled={!valid}
-            loading={mutation.isPending}
-            onClick={submit}
-          >
-            Create provider
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 
@@ -286,7 +283,7 @@ function EditProviderModal({
       ),
   })
 
-  if (!provider) return <Modal opened={false} onClose={onClose} title="" />
+  if (!provider) return <AppDrawer opened={false} onClose={onClose} title="" />
 
   const submit = () => {
     setFormError('')
@@ -319,11 +316,14 @@ function EditProviderModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       opened
       onClose={onClose}
       title={`Edit ${provider.name}`}
       size="lg"
+      submitLabel="Save changes"
+      loading={mutation.isPending}
+      onSubmit={submit}
     >
       <Stack gap="md">
         {formError && (
@@ -415,20 +415,8 @@ function EditProviderModal({
           checked={enabled}
           onChange={(e) => setEnabled(e.currentTarget.checked)}
         />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={mutation.isPending}
-            onClick={submit}
-          >
-            Save changes
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 

@@ -12,7 +12,6 @@ export type SettingsSection =
   | 'Notifications'
   | 'SLA policies'
   | 'API keys'
-  | 'Integrations'
   | 'Report templates'
   | 'Identity providers'
   | 'MFA policy'
@@ -34,7 +33,6 @@ export const appSettingsSections: SettingsSection[] = [
   'Notifications',
   'SLA policies',
   'API keys',
-  'Integrations',
   'Report templates',
 ]
 

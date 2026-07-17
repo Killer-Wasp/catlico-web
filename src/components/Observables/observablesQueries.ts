@@ -2,7 +2,8 @@ import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api } from '#/lib/api/client'
 import { appendClauses } from '#/lib/filters'
 import type { FilterClause } from '#/lib/filters'
-import type { Tlp } from '#/lib/domain'
+import type { CaseStatusRef, Severity, Tlp } from '#/lib/domain'
+import type { SimilarCaseRow } from '#/components/Cases/SimilarCaseTable'
 import type {
   Observable,
   ObservableAttachment,
@@ -61,6 +62,8 @@ export const observableKeys = {
   lists: () => [...observableKeys.all, 'list'] as const,
   list: (filters: ObservableListFilters = DEFAULT_OBSERVABLE_FILTERS) =>
     [...observableKeys.lists(), filters] as const,
+  details: () => [...observableKeys.all, 'detail'] as const,
+  detail: (id: string) => [...observableKeys.details(), id] as const,
 }
 
 const TYPE_MAP: Record<string, ObservableType> = {
@@ -136,6 +139,48 @@ export const observablesQueryOptions = (
     queryKey: observableKeys.list(filters),
     queryFn: () => fetchObservables(filters),
     placeholderData: keepPreviousData,
+  })
+
+export async function fetchObservable(id: string): Promise<Observable> {
+  const dto = await api.get(`observables/${id}`).json<ObservablePublic>()
+  return toObservable(dto)
+}
+
+export const observableDetailQueryOptions = (id: string | null) =>
+  queryOptions({
+    queryKey: observableKeys.detail(id ?? ''),
+    queryFn: () => fetchObservable(id as string),
+    enabled: id !== null,
+  })
+
+/** Mirrors the backend SimilarCasePublic (app/models/case_.py). */
+type SimilarCasePublic = {
+  id: number
+  title: string
+  severity: number
+  status: CaseStatusRef | null
+  shared_observables: number
+}
+
+export async function fetchObservableRelatedCases(
+  id: string,
+): Promise<SimilarCaseRow[]> {
+  const items = await api
+    .get(`observables/${id}/related-cases`)
+    .json<SimilarCasePublic[]>()
+  return items.map((c) => ({
+    id: `#${c.id}`,
+    title: c.title,
+    sev: clamp(c.severity, 1, 4) as Severity,
+    status: c.status,
+  }))
+}
+
+export const observableRelatedCasesQueryOptions = (id: string | null) =>
+  queryOptions({
+    queryKey: [...observableKeys.detail(id ?? ''), 'related-cases'] as const,
+    queryFn: () => fetchObservableRelatedCases(id as string),
+    enabled: id !== null,
   })
 
 async function fetchObservableFacets(): Promise<ObservableFacets> {

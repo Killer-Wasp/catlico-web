@@ -18,6 +18,8 @@ import {
 } from '#/components/Dashboards/widgets'
 import type { WidgetSize } from '#/components/Dashboards/widgets'
 import { overviewQueryOptions } from '#/components/Overview/overviewQueries'
+import { AppDrawer } from '#/components/ui/AppDrawer'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 // Reuse the list pages' `.page` scope for the shared SOC palette vars the
 // widgets read (severity / TLP colours, soft borders).
 import pageClasses from '#/components/Cases/CasesPage.module.css'
@@ -32,7 +34,6 @@ import {
   Group,
   Loader,
   Menu,
-  Modal,
   SegmentedControl,
   Select,
   Stack,
@@ -452,7 +453,7 @@ export function DashboardsPage() {
       className={`${pageClasses.page} ${wallboard ? classes.wallboard : ''}`}
       data-wallboard={wallboard || undefined}
     >
-      <Modal
+      <FormDrawer
         opened={nameModal !== null}
         onClose={() => setNameModal(null)}
         title={
@@ -462,6 +463,9 @@ export function DashboardsPage() {
               ? 'New dashboard view'
               : 'Save as new view'
         }
+        submitLabel="Save"
+        loading={createMutation.isPending}
+        onSubmit={submitName}
       >
         <Stack gap="md">
           <TextInput
@@ -471,23 +475,37 @@ export function DashboardsPage() {
             onChange={(e) =>
               setNameModal((m) => (m ? { ...m, value: e.currentTarget.value } : m))
             }
-            onKeyDown={(e) => e.key === 'Enter' && submitName()}
           />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setNameModal(null)}>
-              Cancel
-            </Button>
-            <Button onClick={submitName} loading={createMutation.isPending}>
-              Save
-            </Button>
-          </Group>
         </Stack>
-      </Modal>
+      </FormDrawer>
 
-      <Modal
+      <AppDrawer
         opened={shareModalOpen}
         onClose={() => setShareModalOpen(false)}
         title="Public share link"
+        footer={
+          <Group justify="space-between">
+            {current.shareLinkActive ? (
+              <Button
+                variant="subtle"
+                color="red"
+                loading={revokeShareMutation.isPending}
+                onClick={() => revokeShareMutation.mutate(current.id)}
+              >
+                Revoke link
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button
+              leftSection={<Link2 size={16} />}
+              loading={shareMutation.isPending}
+              onClick={() => shareMutation.mutate(current.id)}
+            >
+              {current.shareLinkActive ? 'Regenerate link' : 'Create link'}
+            </Button>
+          </Group>
+        }
       >
         <Stack gap="md">
           <Text fz="sm" c="dimmed">
@@ -531,30 +549,8 @@ export function DashboardsPage() {
           ) : (
             <Text fz="sm">No public link yet.</Text>
           )}
-
-          <Group justify="space-between">
-            {current.shareLinkActive ? (
-              <Button
-                variant="subtle"
-                color="red"
-                loading={revokeShareMutation.isPending}
-                onClick={() => revokeShareMutation.mutate(current.id)}
-              >
-                Revoke link
-              </Button>
-            ) : (
-              <span />
-            )}
-            <Button
-              leftSection={<Link2 size={16} />}
-              loading={shareMutation.isPending}
-              onClick={() => shareMutation.mutate(current.id)}
-            >
-              {current.shareLinkActive ? 'Regenerate link' : 'Create link'}
-            </Button>
-          </Group>
         </Stack>
-      </Modal>
+      </AppDrawer>
 
       {/* --- Title + toolbar --- */}
       <Group justify="space-between" align="flex-start" mb="lg" wrap="wrap">

@@ -40,6 +40,12 @@ export type TokenSearchProps = {
   tokens: Token[]
   onChange: (tokens: Token[]) => void
   placeholder?: string
+  /**
+   * Key of a `text` field that free-typed text falls back to when no field has
+   * been picked. Typing a term and pressing Enter (when it matches no field)
+   * commits a token on this field, so the bar doubles as a plain search box.
+   */
+  defaultTextField?: string
 }
 
 const OP_SYMBOL: Record<TokenOp, string> = { eq: '=', co: ':' }
@@ -69,6 +75,7 @@ export function TokenSearch({
   tokens,
   onChange,
   placeholder = 'Filter cases — pick a field, then a value',
+  defaultTextField,
 }: TokenSearchProps) {
   const combobox = useCombobox({
     onDropdownClose: () => combobox.resetSelectedOption(),
@@ -85,6 +92,20 @@ export function TokenSearch({
     [fields],
   )
 
+  // The text field free-typed input falls back to (the bar's "search box" mode).
+  const defaultField = useMemo(
+    () =>
+      defaultTextField
+        ? fields.find((f) => f.key === defaultTextField && f.kind === 'text')
+        : undefined,
+    [defaultTextField, fields],
+  )
+
+  // A search box is a "contains" match: prefer the `co` operator when the field
+  // offers it, whatever its declared order (else let commit pick the default).
+  const searchOp = (f: TokenField): TokenOp | undefined =>
+    f.operators?.includes('co') ? 'co' : undefined
+
   // Phase: 'field' → 'op' (only when needed) → 'value'.
   const phase: 'field' | 'op' | 'value' = !activeField
     ? 'field'
@@ -92,17 +113,34 @@ export function TokenSearch({
       ? 'op'
       : 'value'
 
+  // Fields matching the current search, shown while choosing a field.
+  const fieldMatches = useMemo(() => {
+    const s = search.trim().toLowerCase()
+    return fields.filter(
+      (f) =>
+        !s ||
+        f.label.toLowerCase().includes(s) ||
+        f.key.toLowerCase().includes(s),
+    )
+  }, [fields, search])
+
   const options = useMemo(() => {
     const s = search.trim().toLowerCase()
     if (phase === 'field') {
-      return fields
-        .filter(
-          (f) =>
-            !s ||
-            f.label.toLowerCase().includes(s) ||
-            f.key.toLowerCase().includes(s),
-        )
-        .map((f) => ({ value: `field:${f.key}`, label: f.label }))
+      const opts = fieldMatches.map((f) => ({
+        value: `field:${f.key}`,
+        label: f.label,
+      }))
+      // Offer a free-text search on the default field as a trailing option, so
+      // a field match still wins the default highlight but plain search is one
+      // click (or, when nothing matches, the only option) away.
+      if (defaultField && s) {
+        opts.push({
+          value: `search:${search.trim()}`,
+          label: `Search ${defaultField.label} for “${search.trim()}”`,
+        })
+      }
+      return opts
     }
     if (phase === 'op' && activeField) {
       return (activeField.operators ?? []).map((op) => ({
@@ -123,10 +161,17 @@ export function TokenSearch({
         .map((o) => ({ value: `val:${o.value}`, label: o.label }))
     }
     return []
-  }, [phase, activeField, activeOp, fields, search, tokens])
+  }, [phase, activeField, activeOp, fields, search, tokens, fieldMatches, defaultField])
 
-  const commit = (field: TokenField, value: string, label: string) => {
-    const op = usesOperators(field) ? (activeOp ?? defaultOp(field)) : undefined
+  const commit = (
+    field: TokenField,
+    value: string,
+    label: string,
+    opOverride?: TokenOp,
+  ) => {
+    const op = usesOperators(field)
+      ? (opOverride ?? activeOp ?? defaultOp(field))
+      : undefined
     // Ignore exact duplicates within the same field + operator.
     if (
       tokens.some(
@@ -158,6 +203,11 @@ export function TokenSearch({
       if (field) enterField(field)
       return
     }
+    if (optionValue.startsWith('search:') && defaultField) {
+      const v = optionValue.slice('search:'.length)
+      commit(defaultField, v, v, searchOp(defaultField))
+      return
+    }
     if (optionValue.startsWith('op:') && activeField) {
       setActiveOp(optionValue.slice('op:'.length) as TokenOp)
       setSearch('')
@@ -177,6 +227,21 @@ export function TokenSearch({
         e.preventDefault()
         enterField(field)
       }
+      return
+    }
+    // In the field stage, Enter on a term that matches no field runs a free-text
+    // search on the default field. When fields do match, we defer to the combobox
+    // so Enter still selects the highlighted field.
+    if (
+      e.key === 'Enter' &&
+      phase === 'field' &&
+      defaultField &&
+      search.trim() &&
+      fieldMatches.length === 0
+    ) {
+      e.preventDefault()
+      const v = search.trim()
+      commit(defaultField, v, v, searchOp(defaultField))
       return
     }
     if (

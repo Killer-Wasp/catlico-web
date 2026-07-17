@@ -35,6 +35,13 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'Cancelled', label: 'Cancelled' },
 ]
 
+// The queue defaults to unfinished tasks (Waiting | InProgress). These pills seed
+// the filter bar on load; users can remove or clear them to see every task.
+const DEFAULT_STATUS_TOKENS: Token[] = [
+  { field: 'status', op: 'eq', value: 'Waiting', label: 'Waiting' },
+  { field: 'status', op: 'eq', value: 'InProgress', label: 'In progress' },
+]
+
 // Sortable columns whose id is a valid backend sort key.
 const TASK_SORTS = new Set<TaskSort>([
   'caseId',
@@ -53,7 +60,7 @@ export function TasksPage() {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'caseId', desc: false },
   ])
-  const [tokens, setTokens] = useState<Token[]>([])
+  const [tokens, setTokens] = useState<Token[]>(DEFAULT_STATUS_TOKENS)
   const pageSize = pagination.pageSize
 
   // Tokens + sort + page window → the backend query.
@@ -224,7 +231,7 @@ export function TasksPage() {
         options: toOpts(kindOptions),
       },
       { key: 'case', label: 'Case', kind: 'text', operators: ['eq', 'co'] },
-      { key: 'title', label: 'Title', kind: 'text', operators: ['eq', 'co'] },
+      { key: 'title', label: 'Title', kind: 'text', operators: ['co', 'eq'] },
     ],
     [assigneeOptions, kindOptions],
   )
@@ -284,7 +291,8 @@ export function TasksPage() {
         count={total}
         table={table}
         filterFields={filterFields}
-        filterPlaceholder="Filter tasks — pick a field, then a value"
+        filterPlaceholder="Filter tasks — type to search title, or pick a field"
+        filterDefaultTextField="title"
         tokens={tokens}
         onTokensChange={onTokensChange}
         hasActiveFilters={tokens.length > 0}

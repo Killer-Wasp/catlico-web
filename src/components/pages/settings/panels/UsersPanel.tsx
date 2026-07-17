@@ -3,7 +3,6 @@ import {
   Button,
   Code,
   Group,
-  Modal,
   NativeSelect,
   Select,
   Stack,
@@ -16,6 +15,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '#/components/Table/DataTable'
+import { AppDrawer } from '#/components/ui/AppDrawer'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import {
   createOrganisationMember,
   createUser,
@@ -147,11 +148,54 @@ function CreateUserWizard({
   ]
 
   return (
-    <Modal
+    <AppDrawer
       opened={opened}
       onClose={onClose}
       title={step === 1 ? 'New user account' : 'Add to organisation (optional)'}
       size="lg"
+      footer={
+        step === 1 ? (
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              color="orange"
+              disabled={!step1Valid}
+              onClick={() => setStep(2)}
+            >
+              Continue
+            </Button>
+          </Group>
+        ) : (
+          <Group justify="space-between">
+            <Button
+              variant="default"
+              onClick={() => setStep(1)}
+              disabled={mutation.isPending}
+            >
+              Back
+            </Button>
+            <Group>
+              <Button
+                variant="default"
+                loading={mutation.isPending && mutation.variables === false}
+                onClick={() => mutation.mutate(false)}
+              >
+                Skip &amp; create
+              </Button>
+              <Button
+                color="orange"
+                disabled={!orgId || !roleId}
+                loading={mutation.isPending && mutation.variables === true}
+                onClick={() => mutation.mutate(true)}
+              >
+                Create &amp; add to org
+              </Button>
+            </Group>
+          </Group>
+        )
+      }
     >
       {step === 1 ? (
         <Stack gap="md">
@@ -190,18 +234,6 @@ function CreateUserWizard({
             The account is created without a password. Catlico emails the user a
             secure link to set their own password (valid for 1 hour).
           </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              color="orange"
-              disabled={!step1Valid}
-              onClick={() => setStep(2)}
-            >
-              Continue
-            </Button>
-          </Group>
         </Stack>
       ) : (
         <Stack gap="md">
@@ -222,35 +254,9 @@ function CreateUserWizard({
             disabled={!orgId}
             onChange={(e) => setRoleId(e.currentTarget.value)}
           />
-          <Group justify="space-between">
-            <Button
-              variant="default"
-              onClick={() => setStep(1)}
-              disabled={mutation.isPending}
-            >
-              Back
-            </Button>
-            <Group>
-              <Button
-                variant="default"
-                loading={mutation.isPending && mutation.variables === false}
-                onClick={() => mutation.mutate(false)}
-              >
-                Skip &amp; create
-              </Button>
-              <Button
-                color="orange"
-                disabled={!orgId || !roleId}
-                loading={mutation.isPending && mutation.variables === true}
-                onClick={() => mutation.mutate(true)}
-              >
-                Create &amp; add to org
-              </Button>
-            </Group>
-          </Group>
         </Stack>
       )}
-    </Modal>
+    </AppDrawer>
   )
 }
 
@@ -330,11 +336,14 @@ function EditUserModal({
   ]
 
   return (
-    <Modal
+    <FormDrawer
       opened={user !== null}
       onClose={onClose}
       title={user ? `Edit ${user.email}` : 'Edit account'}
       size="lg"
+      submitLabel="Save changes"
+      loading={saveMutation.isPending}
+      onSubmit={() => saveMutation.mutate()}
     >
       <Stack gap="md">
         <Group grow>
@@ -393,20 +402,8 @@ function EditUserModal({
             </Button>
           </Group>
         </Stack>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={saveMutation.isPending}
-            onClick={() => saveMutation.mutate()}
-          >
-            Save changes
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }
 

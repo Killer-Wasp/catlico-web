@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Group,
-  Modal,
   Stack,
   Text,
   TextInput,
@@ -26,6 +25,7 @@ import {
   LoadingPanel,
   Panel,
 } from '#/components/pages/settings/settingsUi'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { usePermissions } from '#/lib/auth/usePermissions'
 
 interface NamespaceGroup {
@@ -218,10 +218,13 @@ export function TaxonomiesPanel() {
         </Group>
       </Panel>
 
-      <Modal
+      <FormDrawer
         opened={addOpen}
         onClose={() => setAddOpen(false)}
         title="Add freetag"
+        submitLabel="Add"
+        loading={createMutation.isPending}
+        onSubmit={submitNewTag}
       >
         <Stack gap="md">
           <TextInput
@@ -234,18 +237,9 @@ export function TaxonomiesPanel() {
               setNewTag(e.currentTarget.value)
               if (addError) setAddError(null)
             }}
-            onKeyDown={(e) => e.key === 'Enter' && submitNewTag()}
           />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setAddOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={submitNewTag} loading={createMutation.isPending}>
-              Add
-            </Button>
-          </Group>
         </Stack>
-      </Modal>
+      </FormDrawer>
     </Stack>
   )
 }

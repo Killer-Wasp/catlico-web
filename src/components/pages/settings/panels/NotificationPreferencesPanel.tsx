@@ -1,4 +1,11 @@
-import { Box, LoadingOverlay, Stack, Switch, Text } from '@mantine/core'
+import {
+  Box,
+  LoadingOverlay,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Text,
+} from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -98,7 +105,11 @@ export function NotificationPreferencesPanel() {
             </Text>
           )}
 
-          <Stack gap="lg">
+          <SimpleGrid
+            cols={{ base: 1, xs: 2, md: 4 }}
+            spacing="lg"
+            verticalSpacing="lg"
+          >
             {groups.map((group) => (
               <div key={group.category}>
                 <Text fw={600} fz={13} mb="xs">
@@ -122,7 +133,7 @@ export function NotificationPreferencesPanel() {
                 </Stack>
               </div>
             ))}
-          </Stack>
+          </SimpleGrid>
         </Box>
       </Box>
     </Panel>

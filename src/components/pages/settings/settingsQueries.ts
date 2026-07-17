@@ -39,7 +39,7 @@ export type RolePublic = {
   is_builtin: boolean
 }
 
-export type PermissionKind = 'read' | 'write' | 'delete' | 'run'
+export type PermissionKind = 'read' | 'write' | 'delete' | 'manage'
 
 export type PermissionInfo = {
   key: string

@@ -11,6 +11,15 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   }
 }
 
+// Mantine's Combobox (Select/Autocomplete/etc.) scrolls the active option into
+// view when the dropdown opens; jsdom doesn't implement scrollIntoView.
+if (
+  typeof Element !== 'undefined' &&
+  !Element.prototype.scrollIntoView
+) {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 if (typeof window !== 'undefined' && !window.matchMedia) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

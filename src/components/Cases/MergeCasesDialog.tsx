@@ -16,11 +16,10 @@
 import { AssignMenu } from '#/components/Table/AssignMenu'
 import type { UserPublic } from '#/components/Users/usersQueries'
 import { userDisplayName } from '#/components/Users/usersQueries'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import {
   Alert,
-  Button,
   Group,
-  Modal,
   Stack,
   Text,
   Textarea,
@@ -153,7 +152,16 @@ export function MergeCasesDialog({
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Merge cases" size="lg">
+    <FormDrawer
+      opened={opened}
+      onClose={onClose}
+      title="Merge cases"
+      size="lg"
+      submitLabel="Merge cases"
+      loading={mergeMutation.isPending}
+      submitDisabled={!title.trim()}
+      onSubmit={submit}
+    >
       <Stack gap="md">
         <Alert
           color="orange"
@@ -226,20 +234,7 @@ export function MergeCasesDialog({
           onChange={(event) => setDescription(event.currentTarget.value)}
           minRows={3}
         />
-
-        <Group justify="flex-end" gap="sm">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="orange"
-            loading={mergeMutation.isPending}
-            onClick={submit}
-          >
-            Merge cases
-          </Button>
-        </Group>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }

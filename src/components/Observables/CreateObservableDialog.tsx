@@ -9,20 +9,23 @@ import {
   createAlertObservableFile,
 } from '#/components/Alerts/alertsQueries'
 import { observableTypesQueryOptions } from '#/components/pages/settings/settingsQueries'
+import { FormDrawer } from '#/components/ui/FormDrawer'
 import { TLP } from '#/lib/domain'
 import type { Tlp } from '#/lib/domain'
 import {
   Alert,
   Button,
   Checkbox,
+  Combobox,
   FileButton,
   Group,
   Input,
-  Modal,
+  InputBase,
   Select,
   Stack,
   Text,
   TextInput,
+  useCombobox,
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -72,11 +75,19 @@ export function CreateObservableDialog({
   const [newSighted, setNewSighted] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [caseSearch, setCaseSearch] = useState('')
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
+  const [selectedCase, setSelectedCase] = useState<{
+    id: string
+    title: string
+  } | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // An alert target fixes the entity like a fixed case id — no picker either way.
   const needsCasePicker = caseId == null && alertId == null
+
+  const caseCombobox = useCombobox({
+    onDropdownClose: () => caseCombobox.resetSelectedOption(),
+    onDropdownOpen: () => caseCombobox.focusSearchInput(),
+  })
 
   const { data: obsTypes } = useQuery({
     ...observableTypesQueryOptions(),
@@ -108,7 +119,7 @@ export function CreateObservableDialog({
   })
 
   const targetCaseId = needsCasePicker
-    ? selectedCaseId
+    ? (selectedCase?.id ?? null)
     : caseId != null
       ? String(caseId)
       : null
@@ -124,7 +135,7 @@ export function CreateObservableDialog({
     setNewSighted(false)
     setFile(null)
     setCaseSearch('')
-    setSelectedCaseId(null)
+    setSelectedCase(null)
     setErrorMessage(null)
   }
 
@@ -198,39 +209,70 @@ export function CreateObservableDialog({
   }
 
   return (
-    <Modal opened={opened} onClose={handleClose} title="Add observable">
+    <FormDrawer
+      opened={opened}
+      onClose={handleClose}
+      title="Add observable"
+      submitLabel="Add observable"
+      submitDisabled={!canSubmit}
+      loading={isPending}
+      onSubmit={submit}
+    >
       <Stack gap="md">
         {needsCasePicker ? (
-          <Stack gap={6}>
-            <TextInput
-              label="Case"
-              placeholder="Search cases by title"
-              value={caseSearch}
-              onChange={(e) => setCaseSearch(e.currentTarget.value)}
-            />
-            <Stack gap={4}>
-              {(caseResults?.cases ?? []).map((caseItem) => (
-                <Button
-                  key={caseItem.id}
-                  variant={
-                    selectedCaseId === caseItem.id ? 'filled' : 'default'
-                  }
-                  justify="flex-start"
-                  aria-pressed={selectedCaseId === caseItem.id}
-                  onClick={() => setSelectedCaseId(caseItem.id)}
-                >
-                  <Text truncate>
-                    {caseItem.title} ({caseItem.id})
+          <Combobox
+            store={caseCombobox}
+            withinPortal={false}
+            onOptionSubmit={(val) => {
+              const picked = (caseResults?.cases ?? []).find(
+                (c) => c.id === val,
+              )
+              if (picked)
+                setSelectedCase({ id: picked.id, title: picked.title })
+              caseCombobox.closeDropdown()
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Case"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => caseCombobox.toggleDropdown()}
+              >
+                {selectedCase ? (
+                  <Text component="span" truncate>
+                    {selectedCase.title} ({selectedCase.id})
                   </Text>
-                </Button>
-              ))}
-              {(caseResults?.cases ?? []).length === 0 ? (
-                <Text c="dimmed" fz={13}>
-                  No cases found.
-                </Text>
-              ) : null}
-            </Stack>
-          </Stack>
+                ) : (
+                  <Input.Placeholder>Search cases by title</Input.Placeholder>
+                )}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown>
+              <Combobox.Search
+                value={caseSearch}
+                onChange={(e) => setCaseSearch(e.currentTarget.value)}
+                placeholder="Search cases by title"
+              />
+              <Combobox.Options mah={280} style={{ overflowY: 'auto' }}>
+                {(caseResults?.cases ?? []).map((caseItem) => (
+                  <Combobox.Option value={caseItem.id} key={caseItem.id}>
+                    <Text truncate>{caseItem.title}</Text>
+                    <Text c="dimmed" fz="xs">
+                      {caseItem.id}
+                    </Text>
+                  </Combobox.Option>
+                ))}
+                {(caseResults?.cases ?? []).length === 0 ? (
+                  <Combobox.Empty>No cases found.</Combobox.Empty>
+                ) : null}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
         ) : null}
 
         <Select
@@ -295,16 +337,7 @@ export function CreateObservableDialog({
             {errorMessage}
           </Alert>
         ) : null}
-
-        <Button
-          fullWidth
-          disabled={!canSubmit}
-          loading={isPending}
-          onClick={submit}
-        >
-          Add observable
-        </Button>
       </Stack>
-    </Modal>
+    </FormDrawer>
   )
 }

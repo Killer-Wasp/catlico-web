@@ -1,0 +1,33 @@
+/* Mantine puts the scroll on Drawer.Content (`overflow-y: auto`), which scrolls
+   the header and any action bar out of view along with the content. We move the
+   scroll onto the body so the header stays pinned at the top and `footer` stays
+   pinned at the bottom.
+
+   `.content` is doubled to outweigh Mantine's own `.m_b8a05bbd` — the app imports
+   the unlayered `@mantine/core/styles.css`, so equal-specificity rules would be
+   decided by bundle order. */
+.content.content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.accent {
+  border-left: 4px solid var(--app-drawer-accent);
+}
+
+.body.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.footer {
+  flex-shrink: 0;
+  padding: var(--mantine-spacing-md) var(--mantine-spacing-lg);
+  /* Mirrors the --line-soft pairing used by the list pages; that var is scoped to
+     .page and does not cascade into the drawer's portal. */
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-5));
+  background: var(--mantine-color-body);
+}

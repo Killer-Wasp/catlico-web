@@ -14,7 +14,6 @@ import {
   Anchor,
   Box,
   Button,
-  Drawer,
   Group,
   Loader,
   Stack,
@@ -22,6 +21,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core'
+import { AppDrawer } from '#/components/ui/AppDrawer'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
@@ -98,10 +98,9 @@ export function AttackMatrixPage() {
         search={search}
         onOpenTechnique={setOpenId}
       />
-      <Drawer
+      <AppDrawer
         opened={openId != null}
         onClose={() => setOpenId(null)}
-        position="right"
         title={
           openTechnique
             ? `${openTechnique.external_id} — ${openTechnique.name}`
@@ -115,7 +114,7 @@ export function AttackMatrixPage() {
             url={openTechnique?.url ?? ''}
           />
         ) : null}
-      </Drawer>
+      </AppDrawer>
     </Stack>
   )
 }

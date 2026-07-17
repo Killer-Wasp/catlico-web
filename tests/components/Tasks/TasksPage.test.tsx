@@ -127,8 +127,11 @@ describe('TasksPage', () => {
 
     expect(await screen.findByText('Revoke refresh tokens')).toBeDefined()
     expect(screen.getByText('in a day')).toBeDefined()
-    expect(screen.getByPlaceholderText(/Filter tasks/i)).toBeDefined()
-    // Server-side now: the list is fetched with a paginated searchParams window.
+    // The queue opens pre-filtered to unfinished tasks (Waiting | InProgress).
+    expect(screen.getByText('Status = Waiting')).toBeDefined()
+    expect(screen.getByText('Status = In progress')).toBeDefined()
+    // Server-side now: the list is fetched with a paginated searchParams window,
+    // scoped to the default status clauses.
     const listCall = vi
       .mocked(api.get)
       .mock.calls.find((c) => c[0] === 'task-queue')
@@ -136,6 +139,10 @@ describe('TasksPage', () => {
     const sp = (listCall![1] as { searchParams: URLSearchParams }).searchParams
     expect(sp.get('limit')).toBe('10')
     expect(sp.get('skip')).toBe('0')
+    expect(sp.getAll('filter')).toEqual([
+      'status~eq~Waiting',
+      'status~eq~InProgress',
+    ])
 
     fireEvent.click(screen.getByRole('button', { name: /task actions/i }))
     fireEvent.click(

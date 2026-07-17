@@ -5,6 +5,16 @@ export type CaseSearch = {
   filter?: string[]
 }
 
+/**
+ * Default cases view: active work only (Open | In progress). Materialised into
+ * the URL on a fresh visit; same-key values OR server-side. Users can remove the
+ * pills or clear the filters to see every case.
+ */
+export const DEFAULT_CASE_FILTER_PARAMS: string[] = [
+  'status~eq~Open',
+  'status~eq~In progress',
+]
+
 function normalizeFilter(value: unknown): string[] | undefined {
   const values = Array.isArray(value) ? value : value == null ? [] : [value]
   const filters = values.filter(

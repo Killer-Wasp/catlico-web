@@ -7,18 +7,25 @@ import {
   Badge,
   Box,
   Button,
-  Drawer,
   Group,
   Loader,
   Paper,
   Stack,
   Text,
+  Timeline,
   Title,
 } from '@mantine/core'
+import { AppDrawer } from '#/components/ui/AppDrawer'
+import { RefreshCw } from 'lucide-react'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { ColumnDef } from '@tanstack/react-table'
-import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table'
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 
@@ -31,8 +38,13 @@ import {
   runKeys,
   pluginRunDetailQueryOptions,
 } from '#/components/Plugins/pluginRuns'
+import { observableDetailQueryOptions } from '#/components/Observables/observablesQueries'
+import { observableTypeLabels } from '#/components/Observables/observables'
 import { DataTable } from '#/components/Table/DataTable'
+import { TablePanel } from '#/components/Table/TablePanel'
+import type { Token } from '#/components/Table/TokenSearch'
 import classes from '#/components/Cases/CasesPage.module.css'
+import { buildRunFilterFields, filterRuns } from './runFilterSearch'
 import { useStamp, errorMessage } from '#/lib/ui-helpers'
 
 // ── Status badge ────────────────────────────────────────────────────────────
@@ -72,6 +84,14 @@ function duration(start: string | null, end: string | null): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
+// Raw milliseconds for sorting (formatted strings like "165ms"/"1.2s" would sort
+// lexically). Unknown/unfinished durations sort first as -1.
+function durationMs(start: string | null, end: string | null): number {
+  if (!start || !end) return -1
+  const ms = new Date(end).getTime() - new Date(start).getTime()
+  return ms < 0 ? -1 : ms
+}
+
 // ── Run detail drawer ───────────────────────────────────────────────────────
 
 function RunDetailDrawer({
@@ -83,16 +103,20 @@ function RunDetailDrawer({
 }) {
   const { data: run, isPending } = useQuery(pluginRunDetailQueryOptions(runId))
 
+  // When the delivered object is an observable, resolve its human-readable
+  // type + value so the drawer shows those instead of the raw UUID.
+  const observableId =
+    run?.eventObjectType === 'observable' ? run.eventObjectId : null
+  const { data: observable } = useQuery(observableDetailQueryOptions(observableId))
+
   if (!runId) return null
 
   return (
-    <Drawer
-      opened={runId !== null}
+    <AppDrawer
+      opened
       onClose={onClose}
-      position="right"
       size="lg"
-      title={<Title order={3} size="h4">Run {runId.slice(0, 8)}</Title>}
-      padding="lg"
+      title={`Run ${runId.slice(0, 8)}`}
     >
       {isPending ? (
         <Group justify="center" py="xl">
@@ -102,65 +126,66 @@ function RunDetailDrawer({
         <Stack gap="md">
           {/* Timeline: event → delivery → run → result */}
           <Paper p="md" radius="md" withBorder>
-            <Stack gap="xs">
-              <Text fz={14} fw={600}>Trace</Text>
+            <Text fz={14} fw={600} mb="md">Trace</Text>
 
-              <Group gap="sm" wrap="nowrap">
-                <Badge variant="dot" color="blue" size="sm">Event</Badge>
-                <Stack gap={0}>
-                  <Text fz={12}>{run.eventType}</Text>
-                  <Text fz={11} c="dimmed" ff="monospace">
-                    {run.eventId}
-                  </Text>
-                </Stack>
-              </Group>
+            <Timeline
+              active={run.startedAt ? 3 : 2}
+              bulletSize={14}
+              lineWidth={2}
+            >
+              <Timeline.Item color="blue" title="Event">
+                <Text fz={12}>{run.eventType}</Text>
+                <Text fz={11} c="dimmed" ff="monospace">
+                  {run.eventId}
+                </Text>
+              </Timeline.Item>
 
-              <Group gap="sm" wrap="nowrap">
-                <Badge variant="dot" color="violet" size="sm">Delivery</Badge>
-                <Stack gap={0}>
+              <Timeline.Item color="violet" title="Delivery">
+                {observable ? (
+                  <>
+                    <Text fz={12}>{observableTypeLabels[observable.type]}</Text>
+                    <Text fz={12} ff="monospace" style={{ wordBreak: 'break-all' }}>
+                      {observable.value}
+                    </Text>
+                  </>
+                ) : (
                   <Text fz={12}>
                     {run.eventObjectType ?? '—'} / {run.eventObjectId ?? '—'}
                   </Text>
-                  <Text fz={11} c="dimmed" ff="monospace">
-                    plugin: {run.pluginId}
-                  </Text>
-                </Stack>
-              </Group>
+                )}
+                <Text fz={11} c="dimmed" ff="monospace">
+                  plugin: {run.pluginId}
+                </Text>
+              </Timeline.Item>
 
-              <Group gap="sm" wrap="nowrap">
-                <Badge variant="dot" color="orange" size="sm">Run</Badge>
-                <Stack gap={0}>
-                  <Text fz={12}>
-                    <StatusBadge status={run.status} />{' '}
-                    {run.skipReason && (
-                      <Badge variant="outline" size="xs" ml={4}>
-                        {run.skipReason}
-                      </Badge>
-                    )}
-                  </Text>
-                  <Text fz={11} c="dimmed" ff="monospace">
-                    runner: {run.runnerId}
-                  </Text>
-                </Stack>
-              </Group>
+              <Timeline.Item color="orange" title="Run">
+                <Group gap={4} mb={2}>
+                  <StatusBadge status={run.status} />
+                  {run.skipReason && (
+                    <Badge variant="outline" size="xs">
+                      {run.skipReason}
+                    </Badge>
+                  )}
+                </Group>
+                <Text fz={11} c="dimmed" ff="monospace">
+                  runner: {run.runnerId}
+                </Text>
+              </Timeline.Item>
 
               {run.startedAt && (
-                <Group gap="sm" wrap="nowrap">
-                  <Badge variant="dot" color="gray" size="sm">Timing</Badge>
-                  <Stack gap={0}>
-                    <Text fz={11} ff="monospace">
-                      started: {dayjs(run.startedAt).format('HH:mm:ss')}
-                    </Text>
-                    <Text fz={11} ff="monospace">
-                      ended: {run.endedAt ? dayjs(run.endedAt).format('HH:mm:ss') : '—'}
-                    </Text>
-                    <Text fz={11} ff="monospace">
-                      duration: {duration(run.startedAt, run.endedAt)}
-                    </Text>
-                  </Stack>
-                </Group>
+                <Timeline.Item color="gray" title="Timing">
+                  <Text fz={11} ff="monospace">
+                    started: {dayjs(run.startedAt).format('HH:mm:ss')}
+                  </Text>
+                  <Text fz={11} ff="monospace">
+                    ended: {run.endedAt ? dayjs(run.endedAt).format('HH:mm:ss') : '—'}
+                  </Text>
+                  <Text fz={11} ff="monospace">
+                    duration: {duration(run.startedAt, run.endedAt)}
+                  </Text>
+                </Timeline.Item>
               )}
-            </Stack>
+            </Timeline>
           </Paper>
 
           {/* Sandbox output */}
@@ -221,7 +246,7 @@ function RunDetailDrawer({
       ) : (
         <Text c="dimmed">Run not found.</Text>
       )}
-    </Drawer>
+    </AppDrawer>
   )
 }
 
@@ -233,12 +258,35 @@ export function RunsPage() {
 
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [cancelPending, setCancelPending] = useState<string | null>(null)
+  const [tokens, setTokens] = useState<Token[]>([])
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
+  // Default to newest-first, matching the server's created-desc fetch order.
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'createdAt', desc: true },
+  ])
 
-  const { data, isPending, isError, refetch } = useQuery(
-    pluginRunsQueryOptions({ limit: 200 }),
+  // Keep polling for a short window after landing here even with no active run, so a
+  // run that was just dispatched (and whose row lands a beat later, once the
+  // create→outbox→runner pipeline catches up) appears on its own — no manual refresh.
+  const [pollUntil] = useState(() => Date.now() + 20_000)
+  const { data, isPending, isError, isFetching, refetch } = useQuery(
+    pluginRunsQueryOptions({ limit: 200 }, undefined, { pollUntil }),
   )
   const runs = data?.runs ?? []
   const total = data?.total ?? 0
+
+  const filterFields = useMemo(() => buildRunFilterFields(runs), [runs])
+  const filtered = useMemo(() => filterRuns(runs, tokens), [runs, tokens])
+
+  const onTokensChange = (next: Token[]) => {
+    setTokens(next)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  // A sort re-orders the whole list; snap back to page 1 so the top rows show.
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
@@ -350,11 +398,12 @@ export function RunsPage() {
       {
         id: 'duration',
         header: 'Duration',
-        accessorFn: (row) => duration(row.startedAt, row.endedAt),
+        // Sort on the numeric ms; render the formatted string from the row.
+        accessorFn: (row) => durationMs(row.startedAt, row.endedAt),
         meta: { nowrap: true },
         cell: (info) => (
           <Text fz={12} ff="monospace" c="dimmed">
-            {info.getValue() as string}
+            {duration(info.row.original.startedAt, info.row.original.endedAt)}
           </Text>
         ),
       },
@@ -409,9 +458,14 @@ export function RunsPage() {
   )
 
   const table = useReactTable({
-    data: runs,
+    data: filtered,
     columns,
+    state: { pagination, sorting },
+    onPaginationChange: setPagination,
+    onSortingChange,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.id,
   })
 
@@ -435,6 +489,15 @@ export function RunsPage() {
           <Button
             variant="default"
             size="xs"
+            leftSection={<RefreshCw size={14} />}
+            onClick={() => refetch()}
+            loading={isFetching}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="default"
+            size="xs"
             onClick={() => retryMutation.mutate()}
             loading={retryMutation.isPending}
           >
@@ -451,16 +514,29 @@ export function RunsPage() {
         </Group>
       </Group>
 
-      <DataTable
+      <TablePanel
+        title="Runs"
+        countNoun="runs"
+        count={filtered.length}
         table={table}
-        minWidth={900}
-        emptyMessage="No plugin runs found."
-        isPending={isPending}
-        isError={isError}
-        onRetry={() => refetch()}
-        onRowClick={(row) => setSelectedRunId(row.original.id)}
-        loadingMessage="Loading runs…"
-      />
+        filterFields={filterFields}
+        filterPlaceholder="Filter runs — pick a field, then a value"
+        tokens={tokens}
+        onTokensChange={onTokensChange}
+        hasActiveFilters={tokens.length > 0}
+        onClearFilters={() => onTokensChange([])}
+      >
+        <DataTable
+          table={table}
+          minWidth={900}
+          emptyMessage="No plugin runs match the current filters."
+          isPending={isPending}
+          isError={isError}
+          onRetry={() => refetch()}
+          onRowClick={(row) => setSelectedRunId(row.original.id)}
+          loadingMessage="Loading runs…"
+        />
+      </TablePanel>
 
       <RunDetailDrawer
         runId={selectedRunId}
