@@ -4,13 +4,11 @@ import {
   alertKeys,
   alertsQueryOptions,
   dismissAlert,
-  fetchAlertObservables,
   mergeAlertsToCase,
   promoteAlertToCase,
 } from '#/components/Alerts/alertsQueries'
 import type {
   AlertListFilters,
-  AlertObservableRow,
   AlertSort,
 } from '#/components/Alerts/alertsQueries'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
@@ -44,8 +42,7 @@ import { buildAlertColumns } from './alerts/alertColumns'
 import { PluginPickerDialog } from '#/components/Plugins/PluginPickerDialog'
 import type { PluginPickerSelection } from '#/components/Plugins/PluginPickerDialog'
 import {
-  analyzerRunTargets,
-  dispatchAnalyzerRuns,
+  dispatchAlertAnalyzerRuns,
   notifyAnalyzerRuns,
 } from '#/components/Plugins/runAnalyzers'
 import { pluginResultKeys } from '#/components/PluginResults/pluginResults'
@@ -242,13 +239,8 @@ export function AlertsPage() {
   const runAnalysis = (id: string) => setAnalysisAlertId(id)
 
   const runAnalyzers = useMutation({
-    mutationFn: async ({ pluginIds, force }: PluginPickerSelection) => {
-      const alertId = analysisAlertId ?? ''
-      const observables = await fetchAlertObservables(alertId)
-      const observableIds = observables.map((o: AlertObservableRow) => o.id)
-      const targets = analyzerRunTargets(observableIds, pluginIds)
-      return dispatchAnalyzerRuns(targets, force)
-    },
+    mutationFn: ({ pluginIds, force }: PluginPickerSelection) =>
+      dispatchAlertAnalyzerRuns(analysisAlertId ?? '', pluginIds, force),
     onSuccess: (results) => {
       notifyAnalyzerRuns(results)
       if (analysisAlertId) {
