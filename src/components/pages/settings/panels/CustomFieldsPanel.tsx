@@ -122,7 +122,7 @@ function AddFieldModal({
           data={FIELD_TYPES}
           value={fieldType}
           onChange={(v) => {
-            const next = (v ?? 'string') as CustomFieldCreateInput['field_type']
+            const next = (v ?? 'string')
             setFieldType(next)
             // Options only apply to string fields; drop them on any other type.
             if (next !== 'string') setOptions([])

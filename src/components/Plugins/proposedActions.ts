@@ -43,7 +43,7 @@ function toProposedAction(dto: ProposedActionPublic): ProposedAction {
     id: dto.id,
     pluginId: dto.plugin_id,
     pluginRunId: dto.plugin_run_id,
-    actionType: TYPE_MAP[dto.action_type] ?? ('add_tag' as ProposedActionType),
+    actionType: TYPE_MAP[dto.action_type] ?? ('add_tag'),
     entityType: dto.entity_type,
     entityId: dto.entity_id,
     payload: dto.payload,

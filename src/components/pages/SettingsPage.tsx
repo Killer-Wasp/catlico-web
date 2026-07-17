@@ -4,7 +4,6 @@ import { ModalsProvider } from '@mantine/modals'
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import { ApiKeysPanel } from './settings/panels/ApiKeysPanel'
 import { AttackCatalogPanel } from './settings/panels/AttackCatalogPanel'
-import { CaseStatusesPanel } from './settings/panels/CaseStatusesPanel'
 import { CustomFieldsPanel } from './settings/panels/CustomFieldsPanel'
 import { IdentityProvidersPanel } from './settings/panels/IdentityProvidersPanel'
 import { MfaSettingsPanel } from './settings/panels/MfaSettingsPanel'
@@ -38,7 +37,6 @@ const SECTION_READ_PERMISSION: Partial<Record<SettingsSection, string>> = {
   Users: 'read:user',
   Roles: 'read:role',
   'Custom fields': 'read:custom_field',
-  'Case statuses': 'read:organisation',
   Notifications: 'read:organisation',
   'SLA policies': 'read:organisation',
   'API keys': 'write:organisation',
@@ -51,7 +49,6 @@ function SectionPanel({ section }: { section: SettingsSection }) {
   if (section === 'Users') return <UsersPanel />
   if (section === 'Roles') return <ProfilesPanel />
   if (section === 'Custom fields') return <CustomFieldsPanel />
-  if (section === 'Case statuses') return <CaseStatusesPanel />
   if (section === 'Observable types') return <ObservableTypesPanel />
   if (section === 'Taxonomies & tags') return <TaxonomiesPanel />
   if (section === 'ATT&CK catalog') return <AttackCatalogPanel />

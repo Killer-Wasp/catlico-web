@@ -9,10 +9,11 @@ import { queryOptions } from '@tanstack/react-query'
 import ky from 'ky'
 import { api, API_BASE } from '#/lib/api/client'
 import {
-  toOverview,
-  type Overview,
-  type OverviewDTO,
+  toOverview
+  
+  
 } from '#/components/Overview/overviewQueries'
+import type {Overview, OverviewDTO} from '#/components/Overview/overviewQueries';
 import type { WidgetSize } from './widgets'
 
 export type DashboardWidget = { type: string; size: WidgetSize }

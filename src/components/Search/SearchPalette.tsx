@@ -23,10 +23,11 @@ import { Snippet } from '#/components/Search/Snippet'
 import {
   SEARCH_TYPES,
   hitRoute,
-  searchQueryOptions,
-  type SearchEntityType,
-  type SearchResponse,
+  searchQueryOptions
+  
+  
 } from '#/lib/search'
+import type {SearchEntityType, SearchResponse} from '#/lib/search';
 import { getRecentlyViewed } from '#/lib/recentlyViewed'
 import type {
   RecentlyViewedEntry,
@@ -209,7 +210,6 @@ function rowsForTab(tab: PaletteTab, data: SearchResponse | undefined): Row[] {
       )
       // Explicit branch (not a catch-all `else`) so a future search type can't
       // silently render as an attachment. Exhaustive today, defensive tomorrow.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     } else if (t === 'attachment') {
       data.results.attachment.slice(0, perType).forEach((h, i) =>
         push(

@@ -54,12 +54,131 @@ export type FieldProps = {
 
 // ── Fire-time preview (cron helper) ─────────────────────────────────────────
 
-function parseCronExpr(_expr: string): Date[] | null {
-  // Stub: server-side cron evaluation is not available client-side.
-  // This preview is a placeholder that could be replaced with a cron parser
-  // (e.g., cronstrue) when the server provides the firing schedule.
-  // For now, return null to hide the preview.
-  return null
+/**
+ * Parse a cron expression and return the next 3 fire times.
+ * Returns null if the expression is invalid.
+ * Supports standard cron format: minute hour day-of-month month day-of-week
+ */
+function parseCronExpr(expr: string): Date[] | null {
+  if (!expr || typeof expr !== 'string') return null
+
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return null
+
+  const [minStr, hourStr, dayStr, monthStr, dowStr] = parts
+
+  try {
+    // Parse each field; validate ranges
+    const minutes = parseField(minStr, 0, 59)
+    const hours = parseField(hourStr, 0, 23)
+    const days = parseField(dayStr, 1, 31)
+    const months = parseField(monthStr, 1, 12)
+    const dows = parseField(dowStr, 0, 6)
+
+    if (!minutes || !hours || !days || !months || !dows) return null
+
+    // Vixie-cron day semantics (matches the server's croniter): when BOTH
+    // day-of-month and day-of-week are restricted, a time matches if EITHER
+    // does; when only one is restricted, it alone decides.
+    const bothDaysRestricted = dayStr !== '*' && dowStr !== '*'
+
+    // Generate next 3 fire times
+    const times: Date[] = []
+    const startTime = new Date()
+    startTime.setSeconds(0, 0)
+    startTime.setMinutes(startTime.getMinutes() + 1)
+    const baseYear = startTime.getFullYear()
+
+    let current = new Date(startTime)
+    while (times.length < 3 && current.getFullYear() <= baseYear) {
+      const domMatch = days.has(current.getDate())
+      const dowMatch = dows.has(current.getDay())
+      const dayMatch = bothDaysRestricted ? domMatch || dowMatch : domMatch && dowMatch
+      if (
+        minutes.has(current.getMinutes()) &&
+        hours.has(current.getHours()) &&
+        dayMatch &&
+        months.has(current.getMonth() + 1)
+      ) {
+        times.push(new Date(current))
+      }
+      current = new Date(current.getTime() + 60000) // Add 1 minute
+    }
+
+    return times.length > 0 ? times : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Parse a cron field and return a Set of valid values.
+ * Supports: numbers, ranges (a-b), steps (a-slash-b, star-slash-b), lists (a,b,c), and wildcards (star)
+ */
+function parseField(field: string, min: number, max: number): Set<number> | null {
+  if (field === '*') {
+    return new Set(Array.from({ length: max - min + 1 }, (_, i) => min + i))
+  }
+
+  const result = new Set<number>()
+
+  for (const part of field.split(',')) {
+    const trimmed = part.trim()
+
+    // Handle step values: *-slash-5, 1-30-slash-5, 0-23-slash-2
+    const stepMatch = trimmed.match(/^(.+?)\/(\d+)$/)
+    if (stepMatch) {
+      const [, rangePart, stepStr] = stepMatch
+      const step = parseInt(stepStr, 10)
+      if (isNaN(step) || step <= 0) return null
+
+      // Resolve the stepped range: `*` → whole field, `a-b` → that range,
+      // bare `a` → a..max (vixie semantics). Step from the range START only.
+      let start: number
+      let end: number
+      if (rangePart === '*') {
+        start = min
+        end = max
+      } else if (rangePart.includes('-')) {
+        const [s, e] = rangePart.split('-').map((n) => parseInt(n, 10))
+        if (isNaN(s) || isNaN(e) || s > e || s < min || e > max) return null
+        start = s
+        end = e
+      } else {
+        const s = parseInt(rangePart, 10)
+        if (isNaN(s) || s < min || s > max) return null
+        start = s
+        end = max
+      }
+      for (let i = start; i <= end; i += step) {
+        result.add(i)
+      }
+      continue
+    }
+
+    // Handle ranges: 1-5, 9-17
+    if (trimmed.includes('-')) {
+      const [startStr, endStr] = trimmed.split('-')
+      const start = parseInt(startStr, 10)
+      const end = parseInt(endStr, 10)
+
+      if (isNaN(start) || isNaN(end) || start > end || start < min || end > max) {
+        return null
+      }
+
+      for (let i = start; i <= end; i++) {
+        result.add(i)
+      }
+      continue
+    }
+
+    // Handle single values
+    const val = parseInt(trimmed, 10)
+    if (isNaN(val) || val < min || val > max) return null
+    result.add(val)
+  }
+
+  return result.size > 0 ? result : null
 }
 
 function CronPreview({ value }: { value: string }) {

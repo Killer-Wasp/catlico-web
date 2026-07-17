@@ -108,7 +108,7 @@ function SearchPage() {
         search: (prev) => ({ ...prev, q: debounced, page: 1 }),
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to typing settling
+    // Only react to typing settling
   }, [debounced])
 
   useEffect(() => {

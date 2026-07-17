@@ -39,6 +39,22 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       meta: { ta: 'center' },
     },
     {
+      id: 'type',
+      header: 'Type',
+      accessorFn: (row) => row.type,
+      filterFn: includesOneString,
+      enableSorting: false,
+      meta: { minWidth: 96, nowrap: true } satisfies TableColumnMeta,
+      cell: ({ row }) => (
+        <Group gap={6} wrap="nowrap">
+          <TypeIcon type={row.original.type} />
+          <Text fz={12} style={{ whiteSpace: 'nowrap' }}>
+            {row.original.type}
+          </Text>
+        </Group>
+      ),
+    },
+    {
       id: 'value',
       header: 'Value',
       accessorFn: (row) => row.value,
@@ -46,7 +62,6 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       enableSorting: true,
       cell: ({ row }) => (
         <Group gap={10} wrap="nowrap" align="center">
-          <TypeIcon type={row.original.type} />
           <Text
             ff="monospace"
             fz={13}
@@ -72,6 +87,32 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       meta: { minWidth: 64, nowrap: true } satisfies TableColumnMeta,
       cell: (info) => (
         <TableTlpBadge tlp={info.getValue<Observable['tlp']>()} />
+      ),
+    },
+    {
+      id: 'source',
+      header: 'Source',
+      accessorFn: (row) => row.source,
+      filterFn: includesOneString,
+      enableSorting: false,
+      meta: { minWidth: 88, nowrap: true } satisfies TableColumnMeta,
+      cell: ({ row }) => (
+        <Text fz={12} style={{ whiteSpace: 'nowrap' }}>
+          {row.original.source}
+        </Text>
+      ),
+    },
+    {
+      id: 'analysis',
+      header: 'Analysis',
+      accessorFn: (row) => row.analysis?.verdict ?? '',
+      filterFn: includesAnySubstring,
+      enableSorting: false,
+      enableColumnFilter: false,
+      cell: ({ row }) => (
+        <Text fz={12}>
+          {row.original.analysis ? `${row.original.analysis.analyzer} ${row.original.analysis.verdict}` : '-'}
+        </Text>
       ),
     },
     {

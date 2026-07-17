@@ -40,6 +40,7 @@ vi.mock('#/components/PluginResults/PluginResultsPanel', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useNavigate: () => vi.fn(),
 }))
 
 const getMock = vi.mocked(api.get)

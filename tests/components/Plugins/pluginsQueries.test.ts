@@ -52,7 +52,7 @@ describe('plugins queries', () => {
     const plugins = await fetchPlugins()
 
     expect(plugins).toHaveLength(1)
-    const p = plugins[0]!
+    const p = plugins[0]
     expect(p.id).toBe('virustotal')
     expect(p.displayName).toBe('VirusTotal')
     expect(p.description).toBe('Look up observables in VirusTotal')
@@ -64,8 +64,8 @@ describe('plugins queries', () => {
     expect(p.autoApplyActions).toEqual(['add_tag'])
     expect(p.manifest.version).toBe('2.1.0')
     expect(p.configParams).toHaveLength(3)
-    expect(p.configParams[0]!.name).toBe('api_key')
-    expect(p.configParams[0]!.type).toBe('secret')
+    expect(p.configParams[0].name).toBe('api_key')
+    expect(p.configParams[0].type).toBe('secret')
   })
 
   test('handles empty manifest gracefully', async () => {
@@ -74,8 +74,8 @@ describe('plugins queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const plugins = await fetchPlugins()
-    expect(plugins[0]!.manifest).toEqual({})
-    expect(plugins[0]!.configParams).toEqual([])
+    expect(plugins[0].manifest).toEqual({})
+    expect(plugins[0].configParams).toEqual([])
   })
 
   test('handles empty API response', async () => {

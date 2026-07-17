@@ -27,9 +27,12 @@ import {
 import { useNavigate } from '@tanstack/react-router'
 import { ExternalLink, MoreHorizontal, Play, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { PluginResultsPanel } from '#/components/PluginResults/PluginResultsPanel'
 import { CustomFieldsPanel } from '#/components/pages/case-detail/CustomFieldsPanel'
 import { TtpsPanel } from '#/components/pages/case-detail/TtpsPanel'
+import { ObservableDetailDrawer } from '#/components/pages/observables/ObservableDetailDrawer'
+import { observableDetailQueryOptions } from '#/components/Observables/observablesQueries'
 import { InlineMarkdown } from './InlineMarkdown'
 import styles from './styles.module.css'
 
@@ -92,6 +95,11 @@ export function AlertDetailDrawer({
   const [templateId, setTemplateId] = useState('')
   const [editingTags, setEditingTags] = useState(false)
   const [draftTags, setDraftTags] = useState<string[]>([])
+  const [selectedObservableId, setSelectedObservableId] = useState<string | null>(null)
+
+  const { data: selectedObservable } = useQuery(
+    observableDetailQueryOptions(selectedObservableId),
+  )
 
   useEffect(() => {
     if (!templateId && caseTemplates.length > 0) {
@@ -305,7 +313,10 @@ export function AlertDetailDrawer({
           }
         >
           {observables ? (
-            <ObservableTable rows={observables} />
+            <ObservableTable
+              rows={observables}
+              onObservableClick={setSelectedObservableId}
+            />
           ) : (
             <Stack gap={0}>
               {alert.observables.map((observable) => (
@@ -493,11 +504,22 @@ export function AlertDetailDrawer({
           </DrawerSection>
         )}
       </Box>
+
+      <ObservableDetailDrawer
+        observable={selectedObservable ?? null}
+        onClose={() => setSelectedObservableId(null)}
+      />
     </AppDrawer>
   )
 }
 
-function ObservableTable({ rows }: { rows: AlertObservableRow[] }) {
+function ObservableTable({
+  rows,
+  onObservableClick,
+}: {
+  rows: AlertObservableRow[]
+  onObservableClick?: (id: string) => void
+}) {
   if (rows.length === 0) {
     return (
       <Text fz={13} c="dimmed">
@@ -518,7 +540,13 @@ function ObservableTable({ rows }: { rows: AlertObservableRow[] }) {
         </Table.Thead>
         <Table.Tbody>
           {rows.map((observable) => (
-            <Table.Tr key={observable.id}>
+            <Table.Tr
+              key={observable.id}
+              style={{
+                cursor: onObservableClick ? 'pointer' : 'default',
+              }}
+              onClick={() => onObservableClick?.(observable.id)}
+            >
               <Table.Td>
                 <Badge
                   variant="outline"

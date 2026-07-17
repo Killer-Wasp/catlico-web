@@ -225,9 +225,19 @@ describe('CreateObservableDialog', () => {
       screen.getByRole('button', { name: 'Add observable' }),
     ).toHaveProperty('disabled', true)
 
-    // Pick a case from the search results.
+    // Open the case combobox and search for a case.
     fireEvent.click(
-      await screen.findByRole('button', { name: /Phishing wave/i }),
+      await screen.findByRole('button', { name: /Case/i }),
+    )
+    fireEvent.change(
+      await screen.findByPlaceholderText('Search cases by title'),
+      { target: { value: 'Phishing' } },
+    )
+
+    // Pick a case from the search results. Mantine combobox options are hidden
+    // inside a Modal popover under jsdom, so search with hidden: true.
+    fireEvent.click(
+      await screen.findByRole('option', { name: /Phishing wave/i, hidden: true }),
     )
 
     await waitFor(() =>

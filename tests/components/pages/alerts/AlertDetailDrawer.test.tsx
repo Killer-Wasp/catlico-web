@@ -239,4 +239,57 @@ describe('AlertDetailDrawer', () => {
       screen.queryByRole('button', { name: /detach from case/i }),
     ).toBeNull()
   })
+
+  test('clicking an observable row opens the observable detail drawer', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    })
+    // Prime the queryClient with mock observable data
+    queryClient.setQueryData(['observables', 'detail', 'obs-1'], {
+      id: 'obs-1',
+      type: 'host',
+      value: 'example.com',
+      flags: [],
+      tlp: 2,
+      source: 'AL-42',
+      added: '2026-07-10T09:21:00Z',
+      addedAt: '2026-07-10T09:21:00Z',
+      attachment: null,
+    })
+
+    render(
+      <MantineProvider>
+        <Notifications />
+        <QueryClientProvider client={queryClient}>
+          <AlertDetailDrawer
+            alert={alert}
+            comments={[]}
+            observables={[
+              {
+                id: 'obs-1',
+                type: 'host',
+                value: 'example.com',
+                tlp: 2,
+                ioc: false,
+                sighted: false,
+              },
+            ]}
+            similarCases={[]}
+            linkedCases={[]}
+            onClose={vi.fn()}
+            onAddComment={vi.fn()}
+            onRunAnalysis={vi.fn()}
+          />
+        </QueryClientProvider>
+      </MantineProvider>,
+    )
+
+    // Find and click the observable row in the table
+    const observableRows = await screen.findAllByText('example.com')
+    fireEvent.click(observableRows[0]!)
+
+    // Verify the observable detail drawer opens
+    const drawer = await screen.findByRole('dialog', { name: /observable detail/i })
+    expect(drawer).toBeDefined()
+  })
 })

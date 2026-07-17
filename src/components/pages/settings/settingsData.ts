@@ -5,7 +5,6 @@ export type SettingsSection =
   | 'Users'
   | 'Roles'
   | 'Custom fields'
-  | 'Case statuses'
   | 'Observable types'
   | 'Taxonomies & tags'
   | 'ATT&CK catalog'
@@ -26,7 +25,6 @@ export type Role = 'admin' | 'analyst' | 'readonly'
 export const appSettingsSections: SettingsSection[] = [
   'Organisation',
   'Custom fields',
-  'Case statuses',
   'Observable types',
   'Taxonomies & tags',
   'ATT&CK catalog',

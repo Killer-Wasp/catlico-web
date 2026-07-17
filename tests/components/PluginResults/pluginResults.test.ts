@@ -179,16 +179,16 @@ describe('groupResults', () => {
 
     expect(groups.map((g) => g.pluginId)).toEqual(['vt', 'geoip'])
 
-    const vt = groups[0]!
+    const vt = groups[0]
     expect(vt.sources.map((s) => s.source)).toEqual(['vt', 'community'])
-    const vtSource = vt.sources[0]!
+    const vtSource = vt.sources[0]
     expect(vtSource.latest.id).toBe('a3')
     expect(vtSource.history.map((r) => r.id)).toEqual(['a2', 'a1'])
-    expect(vt.sources[1]!.latest.id).toBe('b1')
-    expect(vt.sources[1]!.history).toEqual([])
+    expect(vt.sources[1].latest.id).toBe('b1')
+    expect(vt.sources[1].history).toEqual([])
 
-    const geoip = groups[1]!
-    expect(geoip.sources[0]!.latest.id).toBe('c1')
+    const geoip = groups[1]
+    expect(geoip.sources[0].latest.id).toBe('c1')
   })
 
   test('empty input yields no groups', () => {
@@ -231,6 +231,6 @@ describe('query layer', () => {
       'alerts/9/plugin-results',
     ])
     expect(obs).toHaveLength(1)
-    expect(obs[0]!.pluginId).toBe('virustotal')
+    expect(obs[0].pluginId).toBe('virustotal')
   })
 })
