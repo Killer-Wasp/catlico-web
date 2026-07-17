@@ -9,6 +9,17 @@ import tailwindcss from '@tailwindcss/vite'
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact()],
+  server: {
+    host: '0.0.0.0',
+    // Keeps the API same-origin with the app, so one host serves both. The
+    // API already serves under /api/v1, so no path rewrite is needed.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
 })
 
 export default config
