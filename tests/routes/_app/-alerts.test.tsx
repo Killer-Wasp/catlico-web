@@ -12,6 +12,7 @@ import {
 import type { Alert } from '#/components/Alerts/alerts.types'
 import { caseTemplatesQueryOptions } from '#/components/Cases/caseTemplatesQueries'
 import type { CaseTemplate } from '#/components/Cases/caseTemplates.types'
+import { runnablePluginsQueryOptions } from '#/components/Plugins/plugins'
 import { AlertDetailDrawer } from '#/components/pages/alerts/AlertDetailDrawer'
 import { api } from '#/lib/api/client'
 import { MantineProvider } from '@mantine/core'
@@ -263,6 +264,20 @@ function Harness() {
     templates: caseTemplates,
     total: caseTemplates.length,
   })
+  queryClient.setQueryData(runnablePluginsQueryOptions('enrichment').queryKey, [
+    {
+      id: 'maxmind',
+      name: 'MaxMind GeoIP',
+      description: 'Enrich IPs with geolocation data',
+      capabilities: ['enrichment'],
+    },
+    {
+      id: 'abuseipdb',
+      name: 'AbuseIPDB',
+      description: 'Check IP reputation',
+      capabilities: ['enrichment'],
+    },
+  ])
   return (
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
@@ -546,5 +561,40 @@ describe('AlertsPage', () => {
     )
 
     expect(screen.queryByRole('button', { name: /alert actions/i })).toBeNull()
+  })
+
+  test('opening "Run analysis" from per-row action opens the plugin picker dialog', async () => {
+    render(<Harness />)
+
+    // Wait for the alerts table to load, then find the action menu button
+    await screen.findByText('AL-9123')
+
+    // Find all icon buttons (there will be one in the actions column per row)
+    const buttons = screen.getAllByRole('button')
+    // Filter for buttons that are inside table cells (td elements)
+    let actionButton: HTMLElement | undefined
+    for (const btn of buttons) {
+      if (
+        btn.querySelector('svg') !== null &&
+        btn.closest('td') !== null &&
+        btn.textContent === ''
+      ) {
+        actionButton = btn
+        break
+      }
+    }
+
+    expect(actionButton).toBeDefined()
+    if (!actionButton) throw new Error('Could not find action button')
+
+    fireEvent.click(actionButton)
+
+    // Wait for the menu to appear and click "Run analysis"
+    const runAnalysisItem = await screen.findByText('Run analysis')
+    fireEvent.click(runAnalysisItem)
+
+    // Verify the PluginPickerDialog opens with the alert context
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toBeDefined()
   })
 })

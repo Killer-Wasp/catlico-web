@@ -260,7 +260,7 @@ export async function createAlertComment({
   await api.post(`alerts/${numeric}/comments`, { json: { message } })
 }
 
-async function fetchAlertObservables(
+export async function fetchAlertObservables(
   id: string,
 ): Promise<AlertObservableRow[]> {
   const numeric = id.replace(/^AL-/, '')
