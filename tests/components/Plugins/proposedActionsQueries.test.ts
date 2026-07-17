@@ -39,7 +39,7 @@ describe('proposed actions queries', () => {
     const actions = await fetchProposedActions()
 
     expect(actions).toHaveLength(1)
-    const a = actions[0]!
+    const a = actions[0]
     expect(a.id).toBe('act-1')
     expect(a.pluginId).toBe('virustotal')
     expect(a.pluginRunId).toBe('run-1')
@@ -58,7 +58,7 @@ describe('proposed actions queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const actions = await fetchProposedActions()
-    expect(actions.map((a) => a.actionType)).toEqual(types as typeof types)
+    expect(actions.map((a) => a.actionType)).toEqual(types)
   })
 
   test('maps unknown action type to add_tag', async () => {
@@ -67,7 +67,7 @@ describe('proposed actions queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const actions = await fetchProposedActions()
-    expect(actions[0]!.actionType).toBe('add_tag')
+    expect(actions[0].actionType).toBe('add_tag')
   })
 
   test('maps all status values', async () => {
@@ -94,7 +94,7 @@ describe('proposed actions queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const actions = await fetchProposedActions()
-    const a = actions[0]!
+    const a = actions[0]
     expect(a.status).toBe('approved')
     expect(a.decisionReason).toBe('Looks good')
     expect(a.decidedBy).toBe('admin@example.com')

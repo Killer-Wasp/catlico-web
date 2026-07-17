@@ -179,11 +179,10 @@ export function PluginConfigDrawer({
 
   // Build the form schema each time a new plugin opens or its config arrives.
   const { initialValues, zodSchema } = useMemo(() => {
-    if (!plugin) return { initialValues: {} as Record<string, unknown>, zodSchema: undefined }
+    if (!plugin) return { initialValues: {}, zodSchema: undefined }
     const result = buildFormSchema(plugin.configParams, currentValues, configStatus)
     baselineRef.current = { ...result.initialValues }
     return result
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plugin, configStatus, config])
 
   const form = useForm({
@@ -201,7 +200,6 @@ export function PluginConfigDrawer({
       form.clearErrors()
       baselineRef.current = { ...initialValues }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plugin?.id, config])
 
   // Test outcome rendered inline above the footer.

@@ -64,7 +64,7 @@ describe('CustomFieldInput', () => {
         onChange={onChange}
       />,
     )
-    const input = screen.getByDisplayValue('5') as HTMLInputElement
+    const input = screen.getByDisplayValue('5')
     fireEvent.change(input, { target: { value: '7' } })
     expect(onChange).toHaveBeenCalledWith('7')
   })
@@ -100,7 +100,7 @@ describe('CustomFieldInput', () => {
 describe('CustomFieldValueDisplay', () => {
   it('linkifies a url value', () => {
     wrap(<CustomFieldValueDisplay type="url" value="https://example.com/x" />)
-    const link = screen.getByRole('link') as HTMLAnchorElement
+    const link = screen.getByRole('link')
     expect(link.getAttribute('href')).toBe('https://example.com/x')
   })
 

@@ -115,7 +115,7 @@ describe('CustomFieldsPanel edit', () => {
 
     const dialog = await screen.findByRole('dialog')
     // The name and type are shown read-only (disabled) and never sent.
-    const nameInput = screen.getByLabelText(/Key \(name\)/i) as HTMLInputElement
+    const nameInput = screen.getByLabelText(/Key \(name\)/i)
     expect(nameInput.value).toBe('severity')
     expect(nameInput.disabled).toBe(true)
 

@@ -118,7 +118,7 @@ export function markdownBody(result: PluginResult): string | null {
   const nd = result.normalizedData
   if (nd && typeof nd === 'object') {
     for (const key of ['markdown', 'content', 'body'] as const) {
-      const value = (nd as Record<string, unknown>)[key]
+      const value = (nd)[key]
       if (typeof value === 'string' && value.length > 0) return value
     }
   }
@@ -154,7 +154,7 @@ export function groupResults(results: PluginResult[]): PluginGroup[] {
     for (const [source, bucket] of sources) {
       const [latest, ...history] = bucket
       // `latest` is defined: a source key only exists because ≥1 result created it.
-      sourceGroups.push({ source, latest: latest as PluginResult, history })
+      sourceGroups.push({ source, latest: latest, history })
     }
     groups.push({ pluginId, sources: sourceGroups })
   }

@@ -85,7 +85,7 @@ function buildParamZodSchema(param: PluginConfigParam): z.ZodTypeAny | null {
       let schema = z.number().int()
       if (param.min !== undefined) { schema = schema.min(param.min) }
       if (param.max !== undefined) { schema = schema.max(param.max) }
-      return param.required ? schema : schema.optional() as z.ZodTypeAny
+      return param.required ? schema : schema.optional()
     }
 
     case 'float':
@@ -93,7 +93,7 @@ function buildParamZodSchema(param: PluginConfigParam): z.ZodTypeAny | null {
       let schema = z.number()
       if (param.min !== undefined) { schema = schema.min(param.min) }
       if (param.max !== undefined) { schema = schema.max(param.max) }
-      return param.required ? schema : schema.optional() as z.ZodTypeAny
+      return param.required ? schema : schema.optional()
     }
 
     default: {

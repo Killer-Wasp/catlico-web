@@ -234,7 +234,7 @@ describe('PluginConfigDrawer', () => {
     await waitFor(() => {
       expect(api.put).toHaveBeenCalled()
     })
-    const call = vi.mocked(api.put).mock.calls[0]!
+    const call = vi.mocked(api.put).mock.calls[0]
     expect(call[0]).toBe('plugins/test-plugin/config')
     const body = (call[1] as { json: Record<string, unknown> }).json
     expect(body).toHaveProperty('settings.host', 'api.example.com')

@@ -86,7 +86,7 @@ function AddStatusModal({
           description="Drives SLA, overview and the merged read-only behaviour."
           data={CASE_STAGE_OPTIONS}
           value={stage}
-          onChange={(v) => v && setStage(v as CaseStage)}
+          onChange={(v) => v && setStage(v)}
           allowDeselect={false}
         />
         <ColorInput label="Colour" value={color} onChange={setColor} />

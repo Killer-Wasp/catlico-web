@@ -125,7 +125,7 @@ beforeEach(() => {
     return json([])
   }) as unknown as typeof api.get)
   vi.mocked(api.post).mockImplementation(
-    (() => json({ id: 'run-1' })) as unknown as typeof api.post,
+    () => json({ id: 'run-1' }),
   )
 })
 afterEach(cleanup)

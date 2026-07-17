@@ -8,10 +8,11 @@ import {
   attackCatalogQueryOptions,
   invalidateProcedureQueries,
   proceduresQueryOptions,
-  replaceProcedures,
-  type ProcedureEntityType,
-  type ProcedureInput,
+  replaceProcedures
+  
+  
 } from '#/components/Attack/attackQueries'
+import type {ProcedureEntityType, ProcedureInput} from '#/components/Attack/attackQueries';
 import { AttackMatrix } from '#/components/Attack/AttackMatrix'
 import { buildMatrix } from '#/components/Attack/buildMatrix'
 import {

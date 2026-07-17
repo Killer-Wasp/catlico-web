@@ -150,7 +150,7 @@ describe('TokenSearch', () => {
     expect(
       (screen
         .getByText('status:Open')
-        .closest('[data-tag-tone]') as HTMLElement | null)?.dataset.tagTone,
+        .closest('[data-tag-tone]'))?.dataset.tagTone,
     ).toBe('status')
   })
 

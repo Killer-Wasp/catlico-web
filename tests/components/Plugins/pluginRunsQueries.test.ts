@@ -47,7 +47,7 @@ describe('plugin runs queries', () => {
 
     expect(total).toBe(1)
     expect(runs).toHaveLength(1)
-    const r = runs[0]!
+    const r = runs[0]
     expect(r.id).toBe(RUN_DTO.id)
     expect(r.eventId).toBe('evt-1')
     expect(r.eventType).toBe('observable.created')
@@ -77,7 +77,7 @@ describe('plugin runs queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const { runs } = await fetchPluginRuns()
-    expect(runs[0]!.status).toBe('failure')
+    expect(runs[0].status).toBe('failure')
   })
 
   test('maps skip reason as-is', async () => {
@@ -86,7 +86,7 @@ describe('plugin runs queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const { runs } = await fetchPluginRuns()
-    expect(runs[0]!.skipReason).toBe('fresh_result')
+    expect(runs[0].skipReason).toBe('fresh_result')
   })
 
   test('accepts a bare list response (the backend does not wrap in a page)', async () => {

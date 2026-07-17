@@ -36,7 +36,7 @@ describe('plugin runners queries', () => {
     const runners = await fetchPluginRunners()
 
     expect(runners).toHaveLength(1)
-    const r = runners[0]!
+    const r = runners[0]
     expect(r.id).toBe('runner-1')
     expect(r.name).toBe('sandbox-east')
     expect(r.baseUrl).toBe('https://runner-1.example.com')
@@ -53,7 +53,7 @@ describe('plugin runners queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const runners = await fetchPluginRunners()
-    expect(runners[0]!.status).toBe('unhealthy')
+    expect(runners[0].status).toBe('unhealthy')
   })
 
   test('maps offline status', async () => {
@@ -62,7 +62,7 @@ describe('plugin runners queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const runners = await fetchPluginRunners()
-    expect(runners[0]!.status).toBe('offline')
+    expect(runners[0].status).toBe('offline')
   })
 
   test('maps unknown status to offline', async () => {
@@ -71,7 +71,7 @@ describe('plugin runners queries', () => {
     }) satisfies JsonResponse as ReturnType<typeof api.get>)
 
     const runners = await fetchPluginRunners()
-    expect(runners[0]!.status).toBe('offline')
+    expect(runners[0].status).toBe('offline')
   })
 
   test('fetches a single runner by id', async () => {
