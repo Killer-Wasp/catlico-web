@@ -179,7 +179,7 @@ export function PluginConfigDrawer({
 
   // Build the form schema each time a new plugin opens or its config arrives.
   const { initialValues, zodSchema } = useMemo(() => {
-    if (!plugin) return { initialValues: {}, zodSchema: undefined }
+    if (!plugin) return { initialValues: {} as Record<string, unknown>, zodSchema: undefined }
     const result = buildFormSchema(plugin.configParams, currentValues, configStatus)
     baselineRef.current = { ...result.initialValues }
     return result

@@ -232,12 +232,12 @@ describe('KnowledgeBasePage', () => {
 
     const titleInput = screen.getByRole('textbox', {
       name: /title/i,
-    })
+    }) as HTMLInputElement
     expect(titleInput.value).toBe('Phishing response runbook')
 
     const summaryInput = screen.getByRole('textbox', {
       name: /summary/i,
-    })
+    }) as HTMLInputElement
     expect(summaryInput.value).toBe('Standard procedure for phishing.')
 
     expect(screen.getAllByText('runbook').length).toBeGreaterThan(0)
@@ -245,7 +245,7 @@ describe('KnowledgeBasePage', () => {
 
     const tagsInput = screen.getByRole('textbox', {
       name: /tags/i,
-    })
+    }) as HTMLInputElement
     expect(tagsInput.value).toBe('')
   })
 
