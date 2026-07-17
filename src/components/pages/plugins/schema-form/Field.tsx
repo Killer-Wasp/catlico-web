@@ -77,6 +77,11 @@ function parseCronExpr(expr: string): Date[] | null {
 
     if (!minutes || !hours || !days || !months || !dows) return null
 
+    // Vixie-cron day semantics (matches the server's croniter): when BOTH
+    // day-of-month and day-of-week are restricted, a time matches if EITHER
+    // does; when only one is restricted, it alone decides.
+    const bothDaysRestricted = dayStr !== '*' && dowStr !== '*'
+
     // Generate next 3 fire times
     const times: Date[] = []
     const startTime = new Date()
@@ -86,12 +91,14 @@ function parseCronExpr(expr: string): Date[] | null {
 
     let current = new Date(startTime)
     while (times.length < 3 && current.getFullYear() <= baseYear) {
+      const domMatch = days.has(current.getDate())
+      const dowMatch = dows.has(current.getDay())
+      const dayMatch = bothDaysRestricted ? domMatch || dowMatch : domMatch && dowMatch
       if (
         minutes.has(current.getMinutes()) &&
         hours.has(current.getHours()) &&
-        days.has(current.getDate()) &&
-        months.has(current.getMonth() + 1) &&
-        dows.has(current.getDay())
+        dayMatch &&
+        months.has(current.getMonth() + 1)
       ) {
         times.push(new Date(current))
       }
@@ -125,18 +132,26 @@ function parseField(field: string, min: number, max: number): Set<number> | null
       const step = parseInt(stepStr, 10)
       if (isNaN(step) || step <= 0) return null
 
+      // Resolve the stepped range: `*` → whole field, `a-b` → that range,
+      // bare `a` → a..max (vixie semantics). Step from the range START only.
+      let start: number
+      let end: number
       if (rangePart === '*') {
-        for (let i = min; i <= max; i += step) {
-          result.add(i)
-        }
+        start = min
+        end = max
+      } else if (rangePart.includes('-')) {
+        const [s, e] = rangePart.split('-').map((n) => parseInt(n, 10))
+        if (isNaN(s) || isNaN(e) || s > e || s < min || e > max) return null
+        start = s
+        end = e
       } else {
-        const rangeVals = parseField(rangePart, min, max)
-        if (!rangeVals) return null
-        for (const val of rangeVals) {
-          for (let i = val; i <= max; i += step) {
-            result.add(i)
-          }
-        }
+        const s = parseInt(rangePart, 10)
+        if (isNaN(s) || s < min || s > max) return null
+        start = s
+        end = max
+      }
+      for (let i = start; i <= end; i += step) {
+        result.add(i)
       }
       continue
     }
