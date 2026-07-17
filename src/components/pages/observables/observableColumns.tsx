@@ -45,7 +45,14 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
       filterFn: includesOneString,
       enableSorting: false,
       meta: { minWidth: 96, nowrap: true } satisfies TableColumnMeta,
-      cell: ({ row }) => <TypeIcon type={row.original.type} />,
+      cell: ({ row }) => (
+        <Group gap={6} wrap="nowrap">
+          <TypeIcon type={row.original.type} />
+          <Text fz={12} style={{ whiteSpace: 'nowrap' }}>
+            {row.original.type}
+          </Text>
+        </Group>
+      ),
     },
     {
       id: 'value',
@@ -98,11 +105,15 @@ export function buildObservableColumns(): ColumnDef<Observable>[] {
     {
       id: 'analysis',
       header: 'Analysis',
-      accessorFn: (row) => row.id,
-      filterFn: includesOneString,
+      accessorFn: (row) => row.analysis?.verdict ?? '',
+      filterFn: includesAnySubstring,
       enableSorting: false,
       enableColumnFilter: false,
-      cell: () => <Text fz={12}>-</Text>,
+      cell: ({ row }) => (
+        <Text fz={12}>
+          {row.original.analysis ? `${row.original.analysis.analyzer} ${row.original.analysis.verdict}` : '-'}
+        </Text>
+      ),
     },
     {
       id: 'added',
